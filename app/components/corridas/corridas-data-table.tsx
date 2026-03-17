@@ -22,8 +22,16 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
-import { CorridasGlobo } from "./corridas-globo";
-import { CorridasMap } from "./corridas-map";
+
+const CorridasMap = React.lazy(async () => {
+	const mod = await import("./corridas-map");
+	return { default: mod.CorridasMap };
+});
+
+const CorridasGlobo = React.lazy(async () => {
+	const mod = await import("./corridas-globo");
+	return { default: mod.CorridasGlobo };
+});
 
 type CorridasDataTableProps = {
 	data: CorridaDataTableRow[];
@@ -219,8 +227,23 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 				</div>
 			</div>
 
-			<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
-			<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
+			<React.Suspense
+				fallback={
+					<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+						Carregando mapa...
+					</div>
+				}>
+				<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
+			</React.Suspense>
+
+			<React.Suspense
+				fallback={
+					<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+						Carregando globo...
+					</div>
+				}>
+				<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
+			</React.Suspense>
 		</div>
 	);
 }

@@ -1,5 +1,5 @@
 import { db } from "../../../db.server";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { CorridaDTO } from "./types";
 
 export interface CorridasRepository {
