@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import {
 	Form,
+	redirect,
 	useActionData,
 	useLoaderData,
 	useNavigation,
@@ -37,9 +38,12 @@ type ActionData = {
 
 type LoaderData = {
 	totalCorridas: number;
+	totalCorridasFiltradas: number;
 	ultimaAtualizacao: string | null;
 	mapboxToken: string | null;
 	ultimasCorridas: CorridaResumo[];
+	filtroDataInicio: string;
+	filtroDataFim: string;
 };
 
 function parseNumberFromFormData(
@@ -64,6 +68,43 @@ function parseModoSync(formData: FormData): "incremental" | "full" {
 
 function formatarDataIso(data: Date | null): string | null {
 	return data ? data.toISOString() : null;
+}
+
+function parseDateFromSearchParam(
+	value: string | null,
+	type: "inicio" | "fim",
+): Date | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+	if (!match) {
+		return undefined;
+	}
+
+	const [, year, month, day] = match;
+	const parsedDate = new Date(
+		Date.UTC(
+			Number(year),
+			Number(month) - 1,
+			Number(day),
+			type === "fim" ? 23 : 0,
+			type === "fim" ? 59 : 0,
+			type === "fim" ? 59 : 0,
+			type === "fim" ? 999 : 0,
+		),
+	);
+
+	return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+}
+
+function normalizarIntervaloDatas(inicio?: Date, fim?: Date) {
+	if (!inicio || !fim || inicio <= fim) {
+		return { inicio, fim };
+	}
+
+	return { inicio: fim, fim: inicio };
 }
 
 function formatarEpoch(segundos?: number): string {
@@ -105,24 +146,39 @@ function mapCorridaResumoParaDataTableRow(
 	};
 }
 
-async function getHomeStats(): Promise<LoaderData> {
+async function getHomeStats(request: Request): Promise<LoaderData> {
+	const url = new URL(request.url);
+	const filtroDataInicio = url.searchParams.get("dataInicio") ?? "";
+	const filtroDataFim = url.searchParams.get("dataFim") ?? "";
+	const dataInicio = parseDateFromSearchParam(filtroDataInicio, "inicio");
+	const dataFim = parseDateFromSearchParam(filtroDataFim, "fim");
+	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
+
 	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas] =
 		await Promise.all([
 			contarCorridasSalvas(),
 			buscarUltimaAtualizacaoCorridas(),
-			listarUltimasCorridas(),
+			listarUltimasCorridas(undefined, intervaloData),
 		]);
 
 	return {
 		totalCorridas,
+		totalCorridasFiltradas: ultimasCorridas.length,
 		ultimaAtualizacao: formatarDataIso(ultimaAtualizacaoDate),
 		mapboxToken: getMapboxToken(),
 		ultimasCorridas,
+		filtroDataInicio,
+		filtroDataFim,
 	};
 }
 
-export async function loader() {
-	return await getHomeStats();
+export async function loader({ request }: Route.LoaderArgs) {
+	const url = new URL(request.url);
+	if (url.searchParams.get("limpar") === "1") {
+		return redirect(url.pathname);
+	}
+
+	return await getHomeStats(request);
 }
 
 export async function action({
@@ -166,11 +222,19 @@ export default function Corridas() {
 	const loaderData = useLoaderData<typeof loader>();
 	const navigation = useNavigation();
 	const isSubmitting = navigation.state === "submitting";
-	const { totalCorridas, ultimaAtualizacao, ultimasCorridas, mapboxToken } =
-		loaderData;
+	const {
+		totalCorridas,
+		totalCorridasFiltradas,
+		ultimaAtualizacao,
+		ultimasCorridas,
+		mapboxToken,
+		filtroDataInicio,
+		filtroDataFim,
+	} = loaderData;
 	const corridasDataTable = ultimasCorridas.map(
 		mapCorridaResumoParaDataTableRow,
 	);
+	const filtroFormKey = `${filtroDataInicio}-${filtroDataFim}`;
 
 	useEffect(() => {
 		if (!actionData) {
@@ -196,11 +260,51 @@ export default function Corridas() {
 				<Badge className='text-primary bg-green-600/20' variant='outline'>
 					Total: {totalCorridas ?? 0}
 				</Badge>
+				<Badge className='text-primary bg-blue-600/20' variant='outline'>
+					Exibindo: {totalCorridasFiltradas ?? 0}
+				</Badge>
 				<Badge className='text-primary bg-primary/10' variant='outline'>
 					{ultimaAtualizacao
 						? new Date(ultimaAtualizacao).toLocaleString("pt-BR")
 						: "Nunca sincronizado"}
 				</Badge>
+			</div>
+
+			<div className='flex flex-wrap items-end gap-2'>
+				<Form key={filtroFormKey} method='get' className='grid gap-2'>
+					<div className='flex flex-wrap items-end gap-3'>
+						<label className='grid gap-1 text-sm'>
+							Data inicial
+							<input
+								type='date'
+								name='dataInicio'
+								defaultValue={filtroDataInicio}
+								className='border-input bg-background rounded-md border px-3 py-2'
+							/>
+						</label>
+
+						<label className='grid gap-1 text-sm'>
+							Data final
+							<input
+								type='date'
+								name='dataFim'
+								defaultValue={filtroDataFim}
+								className='border-input bg-background rounded-md border px-3 py-2'
+							/>
+						</label>
+
+						<Button type='submit' variant='outline'>
+							Aplicar filtro
+						</Button>
+					</div>
+				</Form>
+
+				<Form method='get' action='.'>
+					<input type='hidden' name='limpar' value='1' />
+					<Button type='submit' variant='ghost'>
+						Limpar
+					</Button>
+				</Form>
 			</div>
 
 			<Form method='post' style={{ display: "grid", gap: 8 }}>

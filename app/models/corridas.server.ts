@@ -41,8 +41,15 @@ export async function buscarUltimaAtualizacaoCorridas(): Promise<Date | null> {
 
 export async function listarUltimasCorridas(
   limite?: number,
+  intervaloData?: {
+    inicio?: Date;
+    fim?: Date;
+  },
 ): Promise<CorridaResumo[]> {
+  const where = montarFiltroDataInicio(intervaloData);
+
   const corridas = await db.corrida.findMany({
+    ...(where ? { where } : {}),
     orderBy: { dataInicio: "desc" },
     ...(typeof limite === "number" ? { take: limite } : {}),
     select: {
@@ -58,6 +65,28 @@ export async function listarUltimasCorridas(
   });
 
   return corridas.map(mapCorridaDbParaResumo);
+}
+
+function montarFiltroDataInicio(intervaloData?: {
+  inicio?: Date;
+  fim?: Date;
+}) {
+  const inicio = intervaloData?.inicio;
+  const fim = intervaloData?.fim;
+
+  if (!inicio && !fim) {
+    return undefined;
+  }
+
+  if (inicio && fim) {
+    return { dataInicio: { gte: inicio, lte: fim } };
+  }
+
+  if (inicio) {
+    return { dataInicio: { gte: inicio } };
+  }
+
+  return { dataInicio: { lte: fim } };
 }
 
 function mapCorridaDbParaResumo(corrida: CorridaDbSelecionada): CorridaResumo {
