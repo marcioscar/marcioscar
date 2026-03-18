@@ -84,10 +84,26 @@ function formatarPace(segundosPorKm: number | null): string {
 	return `${minutos}:${ss} /km`;
 }
 
-function sortableHeader(titulo: string, onToggle: () => void): ReactNode {
+function getSortIndicator(sortState: false | "asc" | "desc"): string {
+	if (sortState === "asc") {
+		return "↑";
+	}
+
+	if (sortState === "desc") {
+		return "↓";
+	}
+
+	return "↕";
+}
+
+function sortableHeader(
+	titulo: string,
+	sortState: false | "asc" | "desc",
+	onToggle: () => void,
+): ReactNode {
 	return (
 		<Button variant='ghost' size='sm' onClick={onToggle}>
-			{titulo}
+			{titulo} {getSortIndicator(sortState)}
 		</Button>
 	);
 }
@@ -117,7 +133,7 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "dataInicio",
 		header: ({ column }) =>
-			sortableHeader("Data", () =>
+			sortableHeader("Data", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
 		cell: ({ row }) => formatarData(row.original.dataInicio),
@@ -125,14 +141,14 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "nome",
 		header: ({ column }) =>
-			sortableHeader("Nome", () =>
+			sortableHeader("Nome", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
 	},
 	{
 		accessorKey: "distanciaMetros",
 		header: ({ column }) =>
-			sortableHeader("Distancia", () =>
+			sortableHeader("Distancia", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
 		cell: ({ row }) => formatarDistanciaKm(row.original.distanciaMetros),
@@ -145,7 +161,7 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "elevacaoGanhoMetros",
 		header: ({ column }) =>
-			sortableHeader("Ganho elevacao", () =>
+			sortableHeader("Ganho elevacao", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
 		cell: ({ row }) => formatarElevacaoMetros(row.original.elevacaoGanhoMetros),
@@ -153,7 +169,7 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "tempoMovimentoSeg",
 		header: ({ column }) =>
-			sortableHeader("Tempo", () =>
+			sortableHeader("Tempo", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
 		cell: ({ row }) => formatarTempo(row.original.tempoMovimentoSeg),
@@ -161,7 +177,7 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "paceMedioSegPorKm",
 		header: ({ column }) =>
-			sortableHeader("Pace medio", () =>
+			sortableHeader("Pace medio", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
 		cell: ({ row }) => formatarPace(row.original.paceMedioSegPorKm),

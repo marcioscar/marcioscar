@@ -72,9 +72,23 @@ const PALETA_CORRIDAS = [
   "#06b6d4",
 ];
 
+const GLOBO_LARGURA_PADRAO = 320;
+
 function getColorById(id: number): string {
   const normalized = Math.abs(id) % PALETA_CORRIDAS.length;
   return PALETA_CORRIDAS[normalized];
+}
+
+function getGloboHeight(width: number): number {
+  if (width < 480) {
+    return 260;
+  }
+
+  if (width < 768) {
+    return 320;
+  }
+
+  return 420;
 }
 
 function getAltitudeByTempo(
@@ -189,8 +203,8 @@ export function CorridasGlobo({ corridasFiltradas }: CorridasGloboProps) {
   const [Globe, setGlobe] = useState<React.ComponentType<GloboComponentProps> | null>(
     null,
   );
-  const [width, setWidth] = useState(900);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const pathsData = useMemo(
     () => buildPathsData(corridasFiltradas),
@@ -220,22 +234,24 @@ export function CorridasGlobo({ corridasFiltradas }: CorridasGloboProps) {
   }, []);
 
   useEffect(() => {
-    if (!wrapperRef.current) {
+    if (!canvasWrapperRef.current) {
       return;
     }
 
-    const resize = () => {
-      if (wrapperRef.current) {
-        setWidth(wrapperRef.current.clientWidth);
-      }
+    const updateWidth = () => {
+      setWidth(canvasWrapperRef.current?.clientWidth ?? 0);
     };
 
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    updateWidth();
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(canvasWrapperRef.current);
+
+    return () => resizeObserver.disconnect();
   }, []);
 
   const center = getCenter(pathsData, pointsData);
+  const larguraGlobo = width > 0 ? width : GLOBO_LARGURA_PADRAO;
+  const alturaGlobo = getGloboHeight(larguraGlobo);
 
   if (corridasFiltradas.length === 0) {
     return (
@@ -246,52 +262,54 @@ export function CorridasGlobo({ corridasFiltradas }: CorridasGloboProps) {
   }
 
   return (
-    <div ref={wrapperRef} className="flex flex-col gap-2 rounded-md border p-3">
+    <div className="flex w-full flex-col gap-2 overflow-hidden rounded-md border p-3">
       <p className="text-sm text-muted-foreground">
         Globo das maratonas ({corridasFiltradas.length}).
       </p>
-      {Globe ? (
-        <Globe
-          globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
-          backgroundColor="#020617"
-          pathsData={pathsData}
-          pathPoints="coords"
-          pathPointLat="lat"
-          pathPointLng="lng"
-          pathColor="color"
-          pathStroke={1.4}
-          pathDashLength={0.55}
-          pathDashGap={0.18}
-          pathDashAnimateTime={1600}
-          pointsData={pointsData}
-          pointLat="lat"
-          pointLng="lng"
-          pointColor="color"
-          pointAltitude="altitude"
-          pointRadius={0.3}
-          labelsData={labelsData}
-          labelText="label"
-          labelLat="lat"
-          labelLng="lng"
-          labelColor="color"
-          labelSize={0.95}
-          width={width}
-          height={420}
-          {...(center
-            ? {
-                initialViewpoint: {
-                  lat: center.lat,
-                  lng: center.lng,
-                  altitude: 1.7,
-                },
-              }
-            : {})}
-        />
-      ) : (
-        <div className="h-[420px] rounded-md border text-sm text-muted-foreground grid place-items-center">
-          Carregando globo...
-        </div>
-      )}
+      <div ref={canvasWrapperRef} className="w-full overflow-hidden">
+        {Globe ? (
+          <Globe
+            globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+            backgroundColor="#020617"
+            pathsData={pathsData}
+            pathPoints="coords"
+            pathPointLat="lat"
+            pathPointLng="lng"
+            pathColor="color"
+            pathStroke={1.4}
+            pathDashLength={0.55}
+            pathDashGap={0.18}
+            pathDashAnimateTime={1600}
+            pointsData={pointsData}
+            pointLat="lat"
+            pointLng="lng"
+            pointColor="color"
+            pointAltitude="altitude"
+            pointRadius={0.3}
+            labelsData={labelsData}
+            labelText="label"
+            labelLat="lat"
+            labelLng="lng"
+            labelColor="color"
+            labelSize={0.95}
+            width={larguraGlobo}
+            height={alturaGlobo}
+            {...(center
+              ? {
+                  initialViewpoint: {
+                    lat: center.lat,
+                    lng: center.lng,
+                    altitude: 1.7,
+                  },
+                }
+              : {})}
+          />
+        ) : (
+          <div className="h-[280px] rounded-md border text-sm text-muted-foreground grid place-items-center sm:h-[320px] lg:h-[420px]">
+            Carregando globo...
+          </div>
+        )}
+      </div>
     </div>
   );
 }

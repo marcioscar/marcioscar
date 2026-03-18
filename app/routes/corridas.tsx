@@ -254,8 +254,8 @@ export default function Corridas() {
 	}, [actionData]);
 
 	return (
-		<main style={{ display: "grid", gap: 12, maxWidth: 900 }}>
-			<div className='flex items-center gap-3'>
+		<main className='grid w-full min-w-0 gap-3'>
+			<div className='flex flex-wrap items-center gap-2'>
 				<h1 className='text-2xl font-bold'>Corridas</h1>
 				<Badge className='text-primary bg-green-600/20' variant='outline'>
 					Total: {totalCorridas ?? 0}
@@ -341,8 +341,8 @@ export default function Corridas() {
 				</div>
 			</Form>
 
-			<section>
-				<h2>Ultimas corridas sincronizadas</h2>
+			<section className='grid gap-2'>
+				<h2 className='text-lg font-semibold'>Ultimas corridas sincronizadas</h2>
 				<CorridasDataTable data={corridasDataTable} mapboxToken={mapboxToken} />
 			</section>
 		</main>

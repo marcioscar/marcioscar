@@ -100,16 +100,61 @@ function normalizarValorSlider(value: number | readonly number[]): number {
 	return value[0] ?? 0;
 }
 
+function normalizarTextoBusca(value: string): string {
+	return value.trim().toLocaleLowerCase("pt-BR");
+}
+
+function formatarDataParaInput(dataIso: string): string {
+	const data = new Date(dataIso);
+	if (Number.isNaN(data.getTime())) {
+		return "";
+	}
+
+	return data.toISOString().slice(0, 10);
+}
+
+function filtrarPorNomeOuData(
+	linhas: CorridaDataTableRow[],
+	nomeBusca: string,
+	dataBusca: string,
+): CorridaDataTableRow[] {
+	const nomeBuscaNormalizado = normalizarTextoBusca(nomeBusca);
+	const dataBuscaNormalizada = dataBusca.trim();
+
+	if (!nomeBuscaNormalizado && !dataBuscaNormalizada) {
+		return linhas;
+	}
+
+	return linhas.filter((linha) => {
+		const nomeLinhaNormalizado = normalizarTextoBusca(linha.nome);
+		const dataLinha = formatarDataParaInput(linha.dataInicio);
+		const correspondeNome = nomeBuscaNormalizado
+			? nomeLinhaNormalizado.includes(nomeBuscaNormalizado)
+			: true;
+		const correspondeData = dataBuscaNormalizada
+			? dataLinha === dataBuscaNormalizada
+			: true;
+
+		return correspondeNome && correspondeData;
+	});
+}
+
 export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps) {
 	const [sorting, setSorting] = React.useState<SortingState>([
 		{ id: "dataInicio", desc: true },
 	]);
 	const [faixaSelecionadaId, setFaixaSelecionadaId] = React.useState(0);
 	const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+	const [nomeBusca, setNomeBusca] = React.useState("");
+	const [dataBusca, setDataBusca] = React.useState("");
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
-	const dadosFiltrados = React.useMemo(
+	const dadosFiltradosFaixa = React.useMemo(
 		() => filtrarPorFaixaDistancia(data, faixaSelecionada),
 		[data, faixaSelecionada],
+	);
+	const dadosFiltrados = React.useMemo(
+		() => filtrarPorNomeOuData(dadosFiltradosFaixa, nomeBusca, dataBusca),
+		[dadosFiltradosFaixa, nomeBusca, dataBusca],
 	);
 
 	const table = useReactTable({
@@ -136,9 +181,9 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 	const corridasParaGlobo = React.useMemo(() => filtrarCorridasParaGlobo(data), [data]);
 
 	return (
-		<div className='flex flex-col gap-4'>
+		<div className='flex w-full min-w-0 flex-col gap-4'>
 			<div className='rounded-md border p-3'>
-				<div className='mb-2 flex items-center justify-between gap-2'>
+				<div className='mb-2 flex flex-wrap items-center justify-between gap-2'>
 					<p className='text-sm font-medium'>Filtro de distancia</p>
 					<p className='text-sm text-muted-foreground'>{faixaSelecionada.label}</p>
 				</div>
@@ -148,6 +193,7 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 						const proximaFaixaId = normalizarValorSlider(value);
 						setFaixaSelecionadaId(proximaFaixaId);
 						setRowSelection({});
+						table.setPageIndex(0);
 					}}
 					min={0}
 					max={FAIXAS_DISTANCIA.length - 1}
@@ -158,6 +204,37 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 						<span key={faixa.id}>{faixa.label}</span>
 					))}
 				</div>
+			</div>
+
+			<div className='grid gap-2 rounded-md border p-3 sm:grid-cols-2'>
+				<label className='grid gap-1 text-sm'>
+					Procurar por nome
+					<input
+						type='text'
+						value={nomeBusca}
+						onChange={(event) => {
+							setNomeBusca(event.target.value);
+							setRowSelection({});
+							table.setPageIndex(0);
+						}}
+						placeholder='Ex.: longao, treino, maratona...'
+						className='border-input bg-background rounded-md border px-3 py-2'
+					/>
+				</label>
+
+				<label className='grid gap-1 text-sm'>
+					Procurar por data
+					<input
+						type='date'
+						value={dataBusca}
+						onChange={(event) => {
+							setDataBusca(event.target.value);
+							setRowSelection({});
+							table.setPageIndex(0);
+						}}
+						className='border-input bg-background rounded-md border px-3 py-2'
+					/>
+				</label>
 			</div>
 
 			<div className='overflow-hidden rounded-md border'>
@@ -203,13 +280,14 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 				</Table>
 			</div>
 
-			<div className='flex items-center justify-between'>
+			<div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
 				<p className='text-sm text-muted-foreground'>
 					{table.getRowModel().rows.length} linha(s) nesta pagina,{" "}
-					{dadosFiltrados.length} na faixa selecionada, {data.length} no total.{" "}
+					{dadosFiltrados.length} apos busca, {dadosFiltradosFaixa.length} na faixa selecionada,{" "}
+					{data.length} no total.{" "}
 					{Object.keys(rowSelection).length} selecionada(s).
 				</p>
-				<div className='flex items-center gap-2'>
+				<div className='flex items-center gap-2 self-start sm:self-auto'>
 					<Button
 						variant='outline'
 						size='sm'
@@ -233,7 +311,9 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 						Carregando mapa...
 					</div>
 				}>
-				<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
+				<div className='w-full min-w-0'>
+					<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
+				</div>
 			</React.Suspense>
 
 			<React.Suspense
@@ -242,7 +322,9 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 						Carregando globo...
 					</div>
 				}>
-				<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
+				<div className='w-full min-w-0'>
+					<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
+				</div>
 			</React.Suspense>
 		</div>
 	);

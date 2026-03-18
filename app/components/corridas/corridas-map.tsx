@@ -126,6 +126,23 @@ export function CorridasMap({ mapboxToken, polylines }: CorridasMapProps) {
 
 	useEffect(() => {
 		const map = mapRef.current;
+		const container = containerRef.current;
+		if (!map || !container) {
+			return;
+		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			map.resize();
+		});
+		resizeObserver.observe(container);
+
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, []);
+
+	useEffect(() => {
+		const map = mapRef.current;
 		if (!map) {
 			return;
 		}
@@ -156,7 +173,10 @@ export function CorridasMap({ mapboxToken, polylines }: CorridasMapProps) {
 			<p className='text-sm text-muted-foreground'>
 				Selecione uma ou mais corridas para desenhar a rota no mapa.
 			</p>
-			<div ref={containerRef} className='h-[420px] w-full rounded-md border' />
+			<div
+				ref={containerRef}
+				className='h-[280px] w-full rounded-md border sm:h-[360px] lg:h-[420px]'
+			/>
 		</div>
 	);
 }
