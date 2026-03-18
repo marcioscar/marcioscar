@@ -20,6 +20,7 @@ type PagamentoBrassacoDialogProps = {
 	isSubmitting: boolean;
 	totalPagamentosBrassaco: number;
 	defaultDataPagamento: string;
+	triggerClassName?: string;
 };
 
 export function PagamentoBrassacoDialog({
@@ -28,10 +29,12 @@ export function PagamentoBrassacoDialog({
 	isSubmitting,
 	totalPagamentosBrassaco,
 	defaultDataPagamento,
+	triggerClassName,
 }: PagamentoBrassacoDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogTrigger render={<Button variant='outline' />}>
+			<DialogTrigger
+				render={<Button variant='outline' className={triggerClassName} />}>
 				Pagar Brassaco
 			</DialogTrigger>
 			<DialogContent className='max-w-lg'>

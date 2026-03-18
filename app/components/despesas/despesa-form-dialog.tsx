@@ -22,12 +22,14 @@ type DespesaFormDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	isSubmitting: boolean;
+	triggerClassName?: string;
 };
 
 export function DespesaFormDialog({
 	open,
 	onOpenChange,
 	isSubmitting,
+	triggerClassName,
 }: DespesaFormDialogProps) {
 	const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
 	const [contaSelecionada, setContaSelecionada] = useState("");
@@ -41,7 +43,10 @@ export function DespesaFormDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogTrigger render={<Button variant='outline' />}>Nova despesa</DialogTrigger>
+			<DialogTrigger
+				render={<Button variant='outline' className={triggerClassName} />}>
+				Nova despesa
+			</DialogTrigger>
 			<DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
 				<Form method='post' encType='multipart/form-data' className='grid gap-4'>
 					<DialogHeader>

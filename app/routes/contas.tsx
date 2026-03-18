@@ -1,5 +1,10 @@
 import type { Route } from "./+types/contas";
-import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
+import {
+	Form,
+	useActionData,
+	useLoaderData,
+	useNavigation,
+} from "react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "~/components/ui/badge";
@@ -16,9 +21,7 @@ import {
 } from "~/models/pagamentos-brassaco.server";
 import { uploadReciboAndGetUrl } from "~/models/pocketbase.server";
 import { DespesaFormDialog } from "~/components/despesas/despesa-form-dialog";
-import {
-	type DespesaDataTableRow,
-} from "~/components/despesas/despesas-columns";
+import { type DespesaDataTableRow } from "~/components/despesas/despesas-columns";
 import { DespesasDataTable } from "~/components/despesas/despesas-data-table";
 import {
 	DespesaEditDialog,
@@ -42,6 +45,13 @@ type ActionData = {
 	message: string;
 	operacao: "criar" | "editar" | "excluir" | "pagar-brassaco";
 };
+
+const BOTAO_EDITAR_CLASS =
+	"border-orange-200 bg-orange-500/10 text-orange-700 hover:bg-orange-500/20 dark:border-orange-500/30 dark:text-orange-300";
+const BOTAO_PAGAR_BRASSACO_CLASS =
+	"border-blue-200 bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:border-blue-500/30 dark:text-blue-300";
+const BOTAO_NOVA_DESPESA_CLASS =
+	"border-emerald-200 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:border-emerald-500/30 dark:text-emerald-300";
 
 function parseValor(raw: FormDataEntryValue | null): number {
 	const parsed = Number(raw);
@@ -100,7 +110,15 @@ function obterIntervaloMesAtual(): { inicio: Date; fim: Date } {
 		Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1, 0, 0, 0, 0),
 	);
 	const fim = new Date(
-		Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+		Date.UTC(
+			agora.getUTCFullYear(),
+			agora.getUTCMonth() + 1,
+			0,
+			23,
+			59,
+			59,
+			999,
+		),
 	);
 	return { inicio, fim };
 }
@@ -165,7 +183,9 @@ export function meta({}: Route.MetaArgs) {
 	];
 }
 
-export async function loader({ request }: Route.LoaderArgs): Promise<LoaderData> {
+export async function loader({
+	request,
+}: Route.LoaderArgs): Promise<LoaderData> {
 	const url = new URL(request.url);
 	const intervaloMesAtual = obterIntervaloMesAtual();
 	const filtroDataInicioRaw = url.searchParams.get("dataInicio");
@@ -191,8 +211,12 @@ export async function loader({ request }: Route.LoaderArgs): Promise<LoaderData>
 		totalPagoBrassaco: resumoSaldoBrassaco.totalPagoBrassaco,
 		saldoBrassacoAberto: resumoSaldoBrassaco.saldoBrassaco,
 		totalPagamentosBrassaco: resumoSaldoBrassaco.totalPagamentosBrassaco,
-		filtroDataInicio: formatarDataInput(intervaloData.inicio ?? intervaloMesAtual.inicio),
-		filtroDataFim: formatarDataInput(intervaloData.fim ?? intervaloMesAtual.fim),
+		filtroDataInicio: formatarDataInput(
+			intervaloData.inicio ?? intervaloMesAtual.inicio,
+		),
+		filtroDataFim: formatarDataInput(
+			intervaloData.fim ?? intervaloMesAtual.fim,
+		),
 	};
 }
 
@@ -305,14 +329,18 @@ export default function Contas() {
 	const actionData = useActionData<typeof action>();
 	const navigation = useNavigation();
 	const isSubmitting = navigation.state === "submitting";
-	const submittingIntent = parseString(navigation.formData?.get("intent") ?? null);
+	const submittingIntent = parseString(
+		navigation.formData?.get("intent") ?? null,
+	);
 	const isSubmittingPagamentoBrassaco =
 		isSubmitting && submittingIntent === "pagar-brassaco";
 	const [dialogNovoOpen, setDialogNovoOpen] = useState(false);
 	const [dialogEdicaoOpen, setDialogEdicaoOpen] = useState(false);
 	const [dialogPagamentoBrassacoOpen, setDialogPagamentoBrassacoOpen] =
 		useState(false);
-	const [selectedDespesaId, setSelectedDespesaId] = useState<string | null>(null);
+	const [selectedDespesaId, setSelectedDespesaId] = useState<string | null>(
+		null,
+	);
 	const despesasDataTable = despesas.map(mapDespesaParaDataTableRow);
 	const despesaSelecionada = getDespesaSelecionada(despesas, selectedDespesaId);
 
@@ -339,7 +367,9 @@ export default function Contas() {
 			return;
 		}
 
-		const existeNaLista = despesas.some((despesa) => despesa.id === selectedDespesaId);
+		const existeNaLista = despesas.some(
+			(despesa) => despesa.id === selectedDespesaId,
+		);
 		if (!existeNaLista) {
 			setSelectedDespesaId(null);
 		}
@@ -350,16 +380,12 @@ export default function Contas() {
 			<div className='flex flex-wrap items-center justify-between gap-2'>
 				<div className='flex flex-wrap items-center gap-2'>
 					<h1 className='text-2xl font-bold'>Contas</h1>
-					<Badge variant='outline' className='bg-primary/10 text-primary'>
-						Despesas: {totalDespesas}
-					</Badge>
-					<Badge variant='outline' className='bg-primary/10 text-primary'>
-						Total: {formatarMoeda(totalValor)}
-					</Badge>
-					<Badge variant='outline' className='bg-primary/10 text-primary'>
+					<Badge variant='outline'>Despesas: {totalDespesas}</Badge>
+					<Badge variant='outline'>Total: {formatarMoeda(totalValor)}</Badge>
+					<Badge variant='outline'>
 						Pago Brassaco: {formatarMoeda(totalPagoBrassaco)}
 					</Badge>
-					<Badge variant='outline' className='bg-primary/10 text-primary'>
+					<Badge variant='outline'>
 						Saldo Brassaco: {formatarMoeda(saldoBrassacoAberto)}
 					</Badge>
 				</div>
@@ -367,6 +393,7 @@ export default function Contas() {
 					<Button
 						type='button'
 						variant='outline'
+						className={BOTAO_EDITAR_CLASS}
 						disabled={!despesaSelecionada}
 						onClick={() => setDialogEdicaoOpen(true)}>
 						Editar despesa
@@ -377,11 +404,13 @@ export default function Contas() {
 						isSubmitting={isSubmittingPagamentoBrassaco}
 						totalPagamentosBrassaco={totalPagamentosBrassaco}
 						defaultDataPagamento={formatarDataInput(new Date())}
+						triggerClassName={BOTAO_PAGAR_BRASSACO_CLASS}
 					/>
 					<DespesaFormDialog
 						open={dialogNovoOpen}
 						onOpenChange={setDialogNovoOpen}
 						isSubmitting={isSubmitting}
+						triggerClassName={BOTAO_NOVA_DESPESA_CLASS}
 					/>
 				</div>
 			</div>
