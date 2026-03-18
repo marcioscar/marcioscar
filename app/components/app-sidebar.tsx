@@ -26,6 +26,7 @@ type NavItem = {
 const navItems: NavItem[] = [
 	{ title: "Home", href: "/", icon: Home01Icon },
 	{ title: "Corridas", href: "/corridas", icon: RunningShoesIcon },
+	{ title: "Contas", href: "/contas", icon: Home01Icon },
 ];
 
 function isActivePath(currentPath: string, href: string): boolean {

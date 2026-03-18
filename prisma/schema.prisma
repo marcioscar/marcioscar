@@ -8,23 +8,52 @@ datasource db {
 }
 
 model Corrida {
-    id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-    stravaId           Int      @unique
-    nome               String
-    tipoEsporte        String
-    distanciaMetros    Float
-    tempoMovimentoSeg  Int
-    tempoTotalSeg      Int
+    id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+    stravaId            Int      @unique
+    nome                String
+    tipoEsporte         String
+    distanciaMetros     Float
+    tempoMovimentoSeg   Int
+    tempoTotalSeg       Int
     elevacaoGanhoMetros Float
-    dataInicio         DateTime
-    velocidadeMedia    Float?
-    velocidadeMaxima   Float?
-    frequenciaMedia    Float?
-    frequenciaMaxima   Float?
-    dadosBrutos        Json
-    createdAt          DateTime @default(now())
-    updatedAt          DateTime @updatedAt
+    dataInicio          DateTime
+    velocidadeMedia     Float?
+    velocidadeMaxima    Float?
+    frequenciaMedia     Float?
+    frequenciaMaxima    Float?
+    dadosBrutos         Json
+    createdAt           DateTime @default(now())
+    updatedAt           DateTime @updatedAt
 
     @@index([dataInicio])
     @@index([tipoEsporte])
+}
+
+model despesas {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    nome        String
+    categoria   String
+    valor       Float
+    data        DateTime
+    brassaco    Boolean
+    comprovante String
+    conta       String
+    fatura      String? // permite nulo
+    obs         String
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([data])
+    @@index([categoria])
+}
+
+model pagamentosBrassaco {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    valor     Float
+    data      DateTime
+    obs       String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([data])
 }
