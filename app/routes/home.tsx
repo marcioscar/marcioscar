@@ -146,13 +146,17 @@ export async function loader({
 	const filtroMes = parseMes(url.searchParams.get("mes"), mesAnoAtual.mes);
 	const filtroAno = parseAno(url.searchParams.get("ano"), mesAnoAtual.ano);
 
-	const [resumoBrassaco, resumoDespesasPeriodo, saldosPorConta, saldosPorCategoria] =
-		await Promise.all([
-			obterResumoDashboardBrassaco(6),
-			obterResumoDespesasPorPeriodo(filtroAno, filtroMes),
-			obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes),
-			obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes),
-		]);
+	const [
+		resumoBrassaco,
+		resumoDespesasPeriodo,
+		saldosPorConta,
+		saldosPorCategoria,
+	] = await Promise.all([
+		obterResumoDashboardBrassaco(6),
+		obterResumoDespesasPorPeriodo(filtroAno, filtroMes),
+		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes),
+		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes),
+	]);
 
 	return {
 		filtroMes,
@@ -276,7 +280,7 @@ export default function Home() {
 
 			<section className='grid gap-4 md:grid-cols-2'>
 				<DespesasPieChart
-					title='Pizza de despesas por conta'
+					title='Despesas por conta'
 					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
 					palette={PALETA_CONTA}
 					items={saldosPorContaExibicao.map((item) => ({
@@ -286,7 +290,7 @@ export default function Home() {
 					}))}
 				/>
 				<DespesasPieChart
-					title='Pizza de despesas por categoria'
+					title='Despesas por categoria'
 					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
 					palette={PALETA_CATEGORIA}
 					items={saldosPorCategoria.map((item) => ({

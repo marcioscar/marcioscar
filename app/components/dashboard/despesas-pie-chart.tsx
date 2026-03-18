@@ -3,8 +3,6 @@
 import { Pie, PieChart, Cell } from "recharts";
 import {
 	ChartContainer,
-	ChartLegend,
-	ChartLegendContent,
 	ChartTooltip,
 	ChartTooltipContent,
 	type ChartConfig,
@@ -102,6 +100,10 @@ function criarChartConfig(
 	return config;
 }
 
+function getItemColor(key: string): string {
+	return `var(--color-${key})`;
+}
+
 export function DespesasPieChart({
 	title,
 	description,
@@ -120,7 +122,9 @@ export function DespesasPieChart({
 			<CardContent className='grid gap-4'>
 				{itensPizza.length > 0 ? (
 					<>
-						<ChartContainer config={chartConfig} className='min-h-[260px] w-full'>
+						<ChartContainer
+							config={chartConfig}
+							className='mx-auto min-h-[280px] w-full max-w-[320px] sm:min-h-[260px] sm:max-w-full'>
 							<PieChart accessibilityLayer>
 								<Pie
 									data={itensPizza}
@@ -128,9 +132,11 @@ export function DespesasPieChart({
 									nameKey='key'
 									innerRadius={52}
 									outerRadius={90}
+									cx='50%'
+									cy='50%'
 									strokeWidth={2}>
 									{itensPizza.map((item) => (
-										<Cell key={item.key} fill={`var(--color-${item.key})`} />
+										<Cell key={item.key} fill={getItemColor(item.key)} />
 									))}
 								</Pie>
 								<ChartTooltip
@@ -155,15 +161,29 @@ export function DespesasPieChart({
 										/>
 									}
 								/>
-								<ChartLegend content={<ChartLegendContent nameKey='key' />} />
 							</PieChart>
 						</ChartContainer>
 
+						<div className='flex flex-wrap gap-x-4 gap-y-2 text-sm'>
+							{itensPizza.map((item) => (
+								<div key={`${item.key}-legend`} className='flex items-center gap-1.5'>
+									<span
+										aria-hidden
+										className='h-2.5 w-2.5 shrink-0 rounded-[2px]'
+										style={{ backgroundColor: getItemColor(item.key) }}
+									/>
+									<span className='text-foreground'>{item.label}</span>
+								</div>
+							))}
+						</div>
+
 						<div className='grid gap-1.5 text-sm'>
 							{itensPizza.map((item) => (
-								<div key={item.key} className='flex items-center justify-between gap-2'>
-									<span className='truncate'>{item.label}</span>
-									<span className='text-muted-foreground'>
+								<div
+									key={item.key}
+									className='flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2'>
+									<span className='min-w-0 truncate'>{item.label}</span>
+									<span className='shrink-0 font-medium tabular-nums text-foreground sm:text-right'>
 										{formatarMoeda(item.valor)}
 									</span>
 								</div>
