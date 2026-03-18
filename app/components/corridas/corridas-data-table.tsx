@@ -147,6 +147,8 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 	const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 	const [nomeBusca, setNomeBusca] = React.useState("");
 	const [dataBusca, setDataBusca] = React.useState("");
+	const [mostrarMapa, setMostrarMapa] = React.useState(false);
+	const [mostrarGlobo, setMostrarGlobo] = React.useState(false);
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
 	const dadosFiltradosFaixa = React.useMemo(
 		() => filtrarPorFaixaDistancia(data, faixaSelecionada),
@@ -178,7 +180,10 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 		() => extrairPolylinesSelecionadas(dadosFiltrados, rowSelection),
 		[dadosFiltrados, rowSelection],
 	);
-	const corridasParaGlobo = React.useMemo(() => filtrarCorridasParaGlobo(data), [data]);
+	const corridasParaGlobo = React.useMemo(
+		() => (mostrarGlobo ? filtrarCorridasParaGlobo(data) : []),
+		[data, mostrarGlobo],
+	);
 
 	return (
 		<div className='flex w-full min-w-0 flex-col gap-4'>
@@ -305,27 +310,54 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 				</div>
 			</div>
 
-			<React.Suspense
-				fallback={
-					<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-						Carregando mapa...
-					</div>
-				}>
-				<div className='w-full min-w-0'>
-					<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
-				</div>
-			</React.Suspense>
+			<div className='flex flex-wrap gap-2'>
+				<Button
+					variant={mostrarMapa ? "secondary" : "outline"}
+					size='sm'
+					onClick={() => setMostrarMapa((valorAtual) => !valorAtual)}>
+					{mostrarMapa ? "Ocultar mapa" : "Mostrar mapa"}
+				</Button>
+				<Button
+					variant={mostrarGlobo ? "secondary" : "outline"}
+					size='sm'
+					onClick={() => setMostrarGlobo((valorAtual) => !valorAtual)}>
+					{mostrarGlobo ? "Ocultar globo" : "Mostrar globo"}
+				</Button>
+			</div>
 
-			<React.Suspense
-				fallback={
-					<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-						Carregando globo...
+			{mostrarMapa ? (
+				<React.Suspense
+					fallback={
+						<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+							Carregando mapa...
+						</div>
+					}>
+					<div className='w-full min-w-0'>
+						<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
 					</div>
-				}>
-				<div className='w-full min-w-0'>
-					<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
+				</React.Suspense>
+			) : (
+				<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+					Clique em "Mostrar mapa" para carregar o mapa sob demanda.
 				</div>
-			</React.Suspense>
+			)}
+
+			{mostrarGlobo ? (
+				<React.Suspense
+					fallback={
+						<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+							Carregando globo...
+						</div>
+					}>
+					<div className='w-full min-w-0'>
+						<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
+					</div>
+				</React.Suspense>
+			) : (
+				<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+					Clique em "Mostrar globo" para carregar o globo sob demanda.
+				</div>
+			)}
 		</div>
 	);
 }
