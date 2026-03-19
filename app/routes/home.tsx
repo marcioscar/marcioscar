@@ -43,8 +43,8 @@ const CARD_GRADIENT_CLASS =
 
 const PALETA_CONTA = [
 	"#0ea5e9",
-	"#2563eb",
-	"#6366f1",
+	"#f97316",
+	"#a855f7",
 	"#14b8a6",
 	"#22c55e",
 	"#06b6d4",

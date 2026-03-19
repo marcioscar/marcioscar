@@ -100,10 +100,6 @@ function criarChartConfig(
 	return config;
 }
 
-function getItemColor(key: string): string {
-	return `var(--color-${key})`;
-}
-
 export function DespesasPieChart({
 	title,
 	description,
@@ -135,8 +131,11 @@ export function DespesasPieChart({
 									cx='50%'
 									cy='50%'
 									strokeWidth={2}>
-									{itensPizza.map((item) => (
-										<Cell key={item.key} fill={getItemColor(item.key)} />
+									{itensPizza.map((item, index) => (
+										<Cell
+											key={item.key}
+											fill={getCorPaleta(index, palette)}
+										/>
 									))}
 								</Pie>
 								<ChartTooltip
@@ -165,12 +164,12 @@ export function DespesasPieChart({
 						</ChartContainer>
 
 						<div className='flex flex-wrap gap-x-4 gap-y-2 text-sm'>
-							{itensPizza.map((item) => (
+							{itensPizza.map((item, index) => (
 								<div key={`${item.key}-legend`} className='flex items-center gap-1.5'>
 									<span
 										aria-hidden
 										className='h-2.5 w-2.5 shrink-0 rounded-[2px]'
-										style={{ backgroundColor: getItemColor(item.key) }}
+										style={{ backgroundColor: getCorPaleta(index, palette) }}
 									/>
 									<span className='text-foreground'>{item.label}</span>
 								</div>

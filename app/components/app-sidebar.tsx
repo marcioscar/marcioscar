@@ -2,8 +2,12 @@
 
 import { Link, useLocation } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon, RunningShoesIcon } from "@hugeicons/core-free-icons";
-
+import {
+	Home01Icon,
+	WorkoutRunIcon,
+	BitcoinWalletIcon,
+	ChartAverageIcon,
+} from "@hugeicons/core-free-icons";
 import {
 	Sidebar,
 	SidebarContent,
@@ -21,12 +25,13 @@ type NavItem = {
 	title: string;
 	href: string;
 	icon: typeof Home01Icon;
+	color?: string;
 };
 
 const navItems: NavItem[] = [
-	{ title: "Home", href: "/", icon: Home01Icon },
-	{ title: "Corridas", href: "/corridas", icon: RunningShoesIcon },
-	{ title: "Contas", href: "/contas", icon: Home01Icon },
+	{ title: "Dashboard", href: "/", icon: ChartAverageIcon, color: "orange" },
+	{ title: "Corridas", href: "/corridas", icon: WorkoutRunIcon, color: "blue" },
+	{ title: "Contas", href: "/contas", icon: BitcoinWalletIcon, color: "green" },
 ];
 
 function isActivePath(currentPath: string, href: string): boolean {
@@ -67,7 +72,11 @@ export function AppSidebar() {
 										render={<Link to={item.href} />}
 										isActive={isActivePath(location.pathname, item.href)}
 										tooltip={item.title}>
-										<HugeiconsIcon icon={item.icon} strokeWidth={2} />
+										<HugeiconsIcon
+											icon={item.icon}
+											strokeWidth={2}
+											color={item.color}
+										/>
 										<span>{item.title}</span>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
