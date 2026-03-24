@@ -12,9 +12,11 @@ import {
 	buscarUltimaAtualizacaoCorridas,
 	contarCorridasSalvas,
 	listarUltimasCorridas,
+	listarMaratonasParaGraficoBarras,
 	sincronizarCorridasDoStrava,
 	type CorridaResumo,
 } from "~/models/corridas.server";
+import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { CorridasDataTable } from "~/components/corridas/corridas-data-table";
@@ -42,6 +44,7 @@ type LoaderData = {
 	ultimaAtualizacao: string | null;
 	mapboxToken: string | null;
 	ultimasCorridas: CorridaResumo[];
+	maratonasGraficoBarras: MaratonaBarrasDado[];
 	filtroDataInicio: string;
 	filtroDataFim: string;
 };
@@ -154,11 +157,12 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 	const dataFim = parseDateFromSearchParam(filtroDataFim, "fim");
 	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
 
-	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas] =
+	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas, maratonasGraficoBarras] =
 		await Promise.all([
 			contarCorridasSalvas(),
 			buscarUltimaAtualizacaoCorridas(),
 			listarUltimasCorridas(undefined, intervaloData),
+			listarMaratonasParaGraficoBarras(15),
 		]);
 
 	return {
@@ -167,6 +171,7 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 		ultimaAtualizacao: formatarDataIso(ultimaAtualizacaoDate),
 		mapboxToken: getMapboxToken(),
 		ultimasCorridas,
+		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
 	};
@@ -228,6 +233,7 @@ export default function Corridas() {
 		ultimaAtualizacao,
 		ultimasCorridas,
 		mapboxToken,
+		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
 	} = loaderData;
@@ -343,7 +349,11 @@ export default function Corridas() {
 
 			<section className='grid gap-2'>
 				<h2 className='text-lg font-semibold'>Ultimas corridas sincronizadas</h2>
-				<CorridasDataTable data={corridasDataTable} mapboxToken={mapboxToken} />
+				<CorridasDataTable
+					data={corridasDataTable}
+					mapboxToken={mapboxToken}
+					maratonasGraficoBarras={maratonasGraficoBarras}
+				/>
 			</section>
 		</main>
 	);

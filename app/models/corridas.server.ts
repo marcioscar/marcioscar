@@ -1,6 +1,7 @@
 export { buscarCorridasStrava as buscarCorridasDoStrava } from "~/services/strava/client.server";
 export { sincronizarCorridasDoStrava } from "~/services/strava/sync.server";
 import { db } from "../../db.server";
+import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
 export type CorridaResumo = {
   stravaId: number;
@@ -186,3 +187,63 @@ export type {
   CorridaStrava,
   SyncCorridasResult,
 } from "~/services/strava/types";
+
+const METROS_MARATONA_MIN = 40_000;
+
+function encurtarNomeParaLegenda(nome: string): string {
+  const trimmed = nome.trim();
+  if (trimmed.length <= 22) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 19)}...`;
+}
+
+function montarLabelEixoX(dataInicio: Date, nome: string): string {
+  const data = dataInicio.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+  const curto = encurtarNomeParaLegenda(nome);
+  return `${data} · ${curto}`;
+}
+
+export async function listarMaratonasParaGraficoBarras(
+  limite: number,
+): Promise<MaratonaBarrasDado[]> {
+  const corridas = await db.corrida.findMany({
+    where: {
+      distanciaMetros: { gt: METROS_MARATONA_MIN },
+    },
+    orderBy: { dataInicio: "desc" },
+    take: limite,
+    select: {
+      stravaId: true,
+      nome: true,
+      distanciaMetros: true,
+      tempoMovimentoSeg: true,
+      tempoTotalSeg: true,
+      dataInicio: true,
+    },
+  });
+
+  return corridas.map((corrida) => {
+    const distanciaKm = corrida.distanciaMetros / 1000;
+    const paceMedioSegPorKm =
+      distanciaKm > 0
+        ? Math.round(corrida.tempoMovimentoSeg / distanciaKm)
+        : null;
+
+    return {
+      stravaId: corrida.stravaId,
+      nome: corrida.nome,
+      nomeCurto: encurtarNomeParaLegenda(corrida.nome),
+      dataInicioIso: corrida.dataInicio.toISOString(),
+      label: montarLabelEixoX(corrida.dataInicio, corrida.nome),
+      tempoTerminoSeg: corrida.tempoTotalSeg,
+      paceMedioSegPorKm,
+    };
+  });
+}
+
+export type { MaratonaBarrasDado };

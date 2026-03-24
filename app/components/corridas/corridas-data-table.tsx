@@ -21,6 +21,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "~/components/ui/table";
+import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
+
 import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
 
 const CorridasMap = React.lazy(async () => {
@@ -33,9 +35,15 @@ const CorridasGlobo = React.lazy(async () => {
 	return { default: mod.CorridasGlobo };
 });
 
+const MaratonasBarrasChart = React.lazy(async () => {
+	const mod = await import("./maratonas-barras-chart");
+	return { default: mod.MaratonasBarrasChart };
+});
+
 type CorridasDataTableProps = {
 	data: CorridaDataTableRow[];
 	mapboxToken: string | null;
+	maratonasGraficoBarras: MaratonaBarrasDado[];
 };
 
 type DistanciaFaixa = {
@@ -139,7 +147,11 @@ function filtrarPorNomeOuData(
 	});
 }
 
-export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps) {
+export function CorridasDataTable({
+	data,
+	mapboxToken,
+	maratonasGraficoBarras,
+}: CorridasDataTableProps) {
 	const [sorting, setSorting] = React.useState<SortingState>([
 		{ id: "dataInicio", desc: true },
 	]);
@@ -341,6 +353,17 @@ export function CorridasDataTable({ data, mapboxToken }: CorridasDataTableProps)
 					Clique em "Mostrar mapa" para carregar o mapa sob demanda.
 				</div>
 			)}
+
+			<React.Suspense
+				fallback={
+					<div className='rounded-md border p-3 text-sm text-muted-foreground'>
+						Carregando gráfico de maratonas...
+					</div>
+				}>
+				<div className='w-full min-w-0'>
+					<MaratonasBarrasChart maratonas={maratonasGraficoBarras} />
+				</div>
+			</React.Suspense>
 
 			{mostrarGlobo ? (
 				<React.Suspense
