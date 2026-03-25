@@ -17,6 +17,13 @@ import {
 } from "~/models/dashboard.server";
 import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
+import {
+	statCardCaptionClass,
+	statCardLabelClass,
+	statCardMetricLgClass,
+	statCardSurfaceClass,
+	statCardTitleClass,
+} from "~/lib/stat-card-gradient";
 
 type LoaderData = {
 	filtroMes: number;
@@ -37,9 +44,6 @@ type LoaderData = {
 		totalValorDespesas: number;
 	}[];
 };
-
-const CARD_GRADIENT_CLASS =
-	"bg-gradient-to-br from-card via-card to-muted/40 shadow-sm";
 
 const PALETA_CONTA = [
 	"#0ea5e9",
@@ -227,50 +231,50 @@ export default function Home() {
 				</Form>
 			</div>
 
-			<section className='grid gap-4 md:grid-cols-2'>
-				<Card className={CARD_GRADIENT_CLASS}>
+			<section className='grid min-w-0 gap-4 md:grid-cols-2'>
+				<Card className={statCardSurfaceClass}>
 					<CardHeader>
-						<CardTitle>Total de despesas no periodo</CardTitle>
-						<CardDescription>
+						<CardTitle className={statCardTitleClass}>
+							Total de despesas no periodo
+						</CardTitle>
+						<CardDescription className={statCardLabelClass}>
 							{getNomeMes(filtroMes)} / {filtroAno}
 						</CardDescription>
 					</CardHeader>
 					<CardContent className='flex flex-col gap-1'>
-						<p className='text-3xl font-semibold'>
+						<p className={statCardMetricLgClass}>
 							{formatarMoeda(totalValorDespesasPeriodo)}
 						</p>
-						<p className='text-sm text-muted-foreground'>
-							{totalDespesasPeriodo} despesa(s) no periodo
-						</p>
+						<p className={statCardCaptionClass}>{totalDespesasPeriodo} despesa(s) no periodo</p>
 					</CardContent>
 				</Card>
 
 				{saldosPorContaExibicao.length > 0 ? (
 					saldosPorContaExibicao.map((saldoConta) => (
-						<Card key={saldoConta.conta} className={CARD_GRADIENT_CLASS}>
+						<Card key={saldoConta.conta} className={statCardSurfaceClass}>
 							<CardHeader>
-								<CardTitle>{saldoConta.conta}</CardTitle>
+								<CardTitle className={statCardTitleClass}>{saldoConta.conta}</CardTitle>
 							</CardHeader>
 							<CardContent className='flex flex-col gap-1'>
-								<p className='text-3xl font-semibold'>
+								<p className={statCardMetricLgClass}>
 									{formatarMoeda(saldoConta.totalValorDespesas)}
 								</p>
-								<p className='text-sm text-muted-foreground'>
+								<p className={statCardCaptionClass}>
 									{saldoConta.totalDespesas} despesa(s)
 								</p>
 							</CardContent>
 						</Card>
 					))
 				) : (
-					<Card className={CARD_GRADIENT_CLASS}>
+					<Card className={statCardSurfaceClass}>
 						<CardHeader>
-							<CardTitle>Despesas por conta</CardTitle>
-							<CardDescription>
+							<CardTitle className={statCardTitleClass}>Despesas por conta</CardTitle>
+							<CardDescription className={statCardLabelClass}>
 								{getNomeMes(filtroMes)} / {filtroAno}
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<p className='text-sm text-muted-foreground'>
+							<p className={statCardCaptionClass}>
 								Nenhuma despesa encontrada para o periodo selecionado.
 							</p>
 						</CardContent>

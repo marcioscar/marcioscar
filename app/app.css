@@ -8,6 +8,19 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* Verde oliva — cards de métricas (biblioteca, home) */
+  --color-olive-50: oklch(0.97 0.015 125);
+  --color-olive-100: oklch(0.94 0.022 124);
+  --color-olive-200: oklch(0.88 0.035 123);
+  --color-olive-300: oklch(0.8 0.048 121);
+  --color-olive-400: oklch(0.7 0.065 119);
+  --color-olive-500: oklch(0.6 0.075 117);
+  --color-olive-600: oklch(0.52 0.08 115);
+  --color-olive-700: oklch(0.44 0.075 112);
+  --color-olive-800: oklch(0.36 0.065 110);
+  --color-olive-900: oklch(0.29 0.055 108);
+  --color-olive-950: oklch(0.21 0.045 106);
 }
 
 html,
