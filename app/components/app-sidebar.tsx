@@ -7,6 +7,7 @@ import {
 	WorkoutRunIcon,
 	BitcoinWalletIcon,
 	ChartAverageIcon,
+	Books02Icon,
 } from "@hugeicons/core-free-icons";
 import {
 	Sidebar,
@@ -32,6 +33,12 @@ const navItems: NavItem[] = [
 	{ title: "Dashboard", href: "/", icon: ChartAverageIcon, color: "orange" },
 	{ title: "Corridas", href: "/corridas", icon: WorkoutRunIcon, color: "blue" },
 	{ title: "Contas", href: "/contas", icon: BitcoinWalletIcon, color: "green" },
+	{
+		title: "Biblioteca",
+		href: "/biblioteca",
+		icon: Books02Icon,
+		color: "purple",
+	},
 ];
 
 function isActivePath(currentPath: string, href: string): boolean {

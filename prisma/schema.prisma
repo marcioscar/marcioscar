@@ -57,3 +57,20 @@ model pagamentosBrassaco {
 
     @@index([data])
 }
+
+model biblioteca {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    nome      String
+    data      DateTime
+    capa      String
+    citacao   String
+    nota      String
+    autor     String
+    /// Páginas do livro (opcional); usado nas estatísticas de leitura
+    paginas   Int?
+    // Opcionais: documentos antigos/importados podem vir sem timestamps no MongoDB
+    createdAt DateTime? @default(now())
+    updatedAt DateTime? @updatedAt
+
+    @@index([data])
+}
