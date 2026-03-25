@@ -79,7 +79,9 @@ function parsePaginasOpcional(raw: FormDataEntryValue | null): number | null {
 	}
 	const n = Number.parseInt(raw.trim(), 10);
 	if (!Number.isFinite(n) || n < 0) {
-		throw new Error("Páginas deve ser um número inteiro maior ou igual a zero.");
+		throw new Error(
+			"Páginas deve ser um número inteiro maior ou igual a zero.",
+		);
 	}
 	return n;
 }
@@ -109,7 +111,9 @@ function resolverLinkCampo(
 	return urlDigitada.trim();
 }
 
-async function montarDadosLivroDoForm(formData: FormData): Promise<LivroAtualizavel> {
+async function montarDadosLivroDoForm(
+	formData: FormData,
+): Promise<LivroAtualizavel> {
 	const citacaoUpload = await uploadArquivoPocketBaseSeExiste(
 		formData.get("arquivoCitacao"),
 	);
@@ -134,9 +138,7 @@ async function montarDadosLivroDoForm(formData: FormData): Promise<LivroAtualiza
 	};
 }
 
-async function processarAtualizar(
-	formData: FormData,
-): Promise<ActionData> {
+async function processarAtualizar(formData: FormData): Promise<ActionData> {
 	const idRaw = formData.get("id");
 	if (typeof idRaw !== "string" || !idRaw.trim()) {
 		return { ok: false, message: "Identificador do livro inválido." };
@@ -153,7 +155,9 @@ async function processarCriar(formData: FormData): Promise<ActionData> {
 	return { ok: true, message: "Livro criado com sucesso." };
 }
 
-export async function action({ request }: Route.ActionArgs): Promise<ActionData> {
+export async function action({
+	request,
+}: Route.ActionArgs): Promise<ActionData> {
 	const formData = await request.formData();
 	const intent = formData.get("intent");
 
@@ -176,22 +180,18 @@ export default function Biblioteca() {
 	const { livros, stats } = useLoaderData<typeof loader>();
 
 	return (
-		<main className="grid w-full min-w-0 max-w-full gap-4">
-			<div className="flex min-w-0 flex-wrap items-center gap-2">
-				<h1 className="text-2xl font-bold">Biblioteca</h1>
+		<main className='grid w-full min-w-0 max-w-full gap-4'>
+			<div className='flex min-w-0 flex-wrap items-center gap-2'>
+				<h1 className='text-2xl font-bold'>Biblioteca</h1>
 			</div>
 
 			<BibliotecaEstatisticas stats={stats} />
 
-			<section className="min-w-0 max-w-full rounded-md border">
-				<div className="border-b px-4 py-3">
-					<h2 className="text-lg font-semibold">Livros</h2>
-					<p className="text-muted-foreground break-words text-sm">
-						Pesquise na tabela, adicione livros ou use o ícone de edição. Citação
-						e nota ficam como links (URL ou arquivo enviado ao PocketBase).
-					</p>
+			<section className='min-w-0 max-w-full rounded-md border'>
+				<div className='border-b px-4 py-3'>
+					<h2 className='text-lg font-semibold'>Livros</h2>
 				</div>
-				<div className="min-w-0 p-4">
+				<div className='min-w-0 p-4'>
 					<BibliotecaDataTable livros={livros} />
 				</div>
 			</section>
