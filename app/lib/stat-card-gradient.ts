@@ -2,9 +2,9 @@ import { cn } from "~/lib/utils";
 
 /** Superfície do card: gradiente vertical claro → oliva escura */
 export const statCardSurfaceClass = cn(
-	"min-w-0 overflow-hidden  shadow-sm ",
-	"bg-linear-to-b from-white to-olive-600/50",
-	"dark:from-zinc-900 dark:via-olive-800/50 dark:to-olive-900 dark:ring-olive-900/40",
+	"min-w-0 overflow-hidden  shadow-md",
+	"bg-olive-900/10",
+	"dark:bg-olive-200/30",
 );
 
 /** Rótulo secundário (ex.: CardDescription na biblioteca) */

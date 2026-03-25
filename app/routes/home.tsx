@@ -245,7 +245,9 @@ export default function Home() {
 						<p className={statCardMetricLgClass}>
 							{formatarMoeda(totalValorDespesasPeriodo)}
 						</p>
-						<p className={statCardCaptionClass}>{totalDespesasPeriodo} despesa(s) no periodo</p>
+						<p className={statCardCaptionClass}>
+							{totalDespesasPeriodo} despesa(s) no periodo
+						</p>
 					</CardContent>
 				</Card>
 
@@ -253,7 +255,9 @@ export default function Home() {
 					saldosPorContaExibicao.map((saldoConta) => (
 						<Card key={saldoConta.conta} className={statCardSurfaceClass}>
 							<CardHeader>
-								<CardTitle className={statCardTitleClass}>{saldoConta.conta}</CardTitle>
+								<CardTitle className={statCardTitleClass}>
+									{saldoConta.conta}
+								</CardTitle>
 							</CardHeader>
 							<CardContent className='flex flex-col gap-1'>
 								<p className={statCardMetricLgClass}>
@@ -268,7 +272,9 @@ export default function Home() {
 				) : (
 					<Card className={statCardSurfaceClass}>
 						<CardHeader>
-							<CardTitle className={statCardTitleClass}>Despesas por conta</CardTitle>
+							<CardTitle className={statCardTitleClass}>
+								Despesas por conta
+							</CardTitle>
 							<CardDescription className={statCardLabelClass}>
 								{getNomeMes(filtroMes)} / {filtroAno}
 							</CardDescription>
