@@ -17,75 +17,75 @@ type BibliotecaEstatisticasProps = {
 
 export function BibliotecaEstatisticas({ stats }: BibliotecaEstatisticasProps) {
 	return (
-		<section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-			<Card>
+		<section className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+			<Card className="min-w-0 overflow-hidden">
 				<CardHeader className="pb-2">
 					<CardDescription>Livros no mês</CardDescription>
 					<CardTitle className="text-2xl tabular-nums">
 						{formatarInteiro(stats.livrosMesAtual)}
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="text-muted-foreground text-xs capitalize">
+				<CardContent className="text-muted-foreground break-words text-xs capitalize">
 					{stats.rotuloMes} (data de leitura, UTC)
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card className="min-w-0 overflow-hidden">
 				<CardHeader className="pb-2">
 					<CardDescription>Livros no ano</CardDescription>
 					<CardTitle className="text-2xl tabular-nums">
 						{formatarInteiro(stats.livrosAnoAtual)}
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="text-muted-foreground text-xs">
+				<CardContent className="text-muted-foreground break-words text-xs">
 					Ano {stats.rotuloAno}
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card className="min-w-0 overflow-hidden">
 				<CardHeader className="pb-2">
 					<CardDescription>Total de livros</CardDescription>
 					<CardTitle className="text-2xl tabular-nums">
 						{formatarInteiro(stats.livrosTotal)}
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="text-muted-foreground text-xs">
+				<CardContent className="text-muted-foreground break-words text-xs">
 					Todos os registros da biblioteca
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card className="min-w-0 overflow-hidden">
 				<CardHeader className="pb-2">
 					<CardDescription>Páginas no mês</CardDescription>
 					<CardTitle className="text-2xl tabular-nums">
 						{formatarInteiro(stats.paginasMesAtual)}
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="text-muted-foreground text-xs">
+				<CardContent className="text-muted-foreground break-words text-xs">
 					Soma das páginas informadas nos livros do mês
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card className="min-w-0 overflow-hidden">
 				<CardHeader className="pb-2">
 					<CardDescription>Páginas no ano</CardDescription>
 					<CardTitle className="text-2xl tabular-nums">
 						{formatarInteiro(stats.paginasAnoAtual)}
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="text-muted-foreground text-xs">
+				<CardContent className="text-muted-foreground break-words text-xs">
 					Soma das páginas informadas nos livros do ano
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card className="min-w-0 overflow-hidden">
 				<CardHeader className="pb-2">
 					<CardDescription>Páginas no total</CardDescription>
 					<CardTitle className="text-2xl tabular-nums">
 						{formatarInteiro(stats.paginasTotal)}
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="text-muted-foreground text-xs">
+				<CardContent className="text-muted-foreground break-words text-xs">
 					Soma de todas as páginas cadastradas
 				</CardContent>
 			</Card>

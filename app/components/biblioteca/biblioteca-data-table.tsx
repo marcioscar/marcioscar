@@ -118,7 +118,7 @@ export function BibliotecaDataTable({ livros }: BibliotecaDataTableProps) {
 				</p>
 			</div>
 
-			<div className="overflow-hidden rounded-md border">
+			<div className="min-w-0 max-w-full rounded-md border">
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (

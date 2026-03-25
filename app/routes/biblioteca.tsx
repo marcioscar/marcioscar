@@ -176,22 +176,22 @@ export default function Biblioteca() {
 	const { livros, stats } = useLoaderData<typeof loader>();
 
 	return (
-		<main className="grid w-full min-w-0 gap-4">
-			<div className="flex flex-wrap items-center gap-2">
+		<main className="grid w-full min-w-0 max-w-full gap-4">
+			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				<h1 className="text-2xl font-bold">Biblioteca</h1>
 			</div>
 
 			<BibliotecaEstatisticas stats={stats} />
 
-			<section className="rounded-md border">
+			<section className="min-w-0 max-w-full rounded-md border">
 				<div className="border-b px-4 py-3">
 					<h2 className="text-lg font-semibold">Livros</h2>
-					<p className="text-muted-foreground text-sm">
+					<p className="text-muted-foreground break-words text-sm">
 						Pesquise na tabela, adicione livros ou use o ícone de edição. Citação
 						e nota ficam como links (URL ou arquivo enviado ao PocketBase).
 					</p>
 				</div>
-				<div className="p-4">
+				<div className="min-w-0 p-4">
 					<BibliotecaDataTable livros={livros} />
 				</div>
 			</section>

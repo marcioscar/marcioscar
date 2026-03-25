@@ -17,6 +17,20 @@ export type LivroDataTableRow = {
 	paginas: number | null;
 };
 
+function celulaTextoFlexivel(texto: string) {
+	const t = texto.trim();
+	if (!t) {
+		return <span className="text-muted-foreground">—</span>;
+	}
+	return (
+		<span
+			className="inline-block max-w-[10rem] truncate align-middle sm:max-w-[14rem] md:max-w-[18rem] lg:max-w-[22rem] xl:max-w-xs 2xl:max-w-sm"
+			title={t}>
+			{t}
+		</span>
+	);
+}
+
 function formatarData(dataIso: string): string {
 	const d = new Date(dataIso);
 	if (Number.isNaN(d.getTime())) {
@@ -136,6 +150,7 @@ export function criarBibliotecaColumns(
 				sortableHeader("Nome", column.getIsSorted(), () =>
 					column.toggleSorting(column.getIsSorted() === "asc"),
 				),
+			cell: ({ row }) => celulaTextoFlexivel(row.original.nome),
 		},
 		{
 			accessorKey: "autor",
@@ -143,6 +158,7 @@ export function criarBibliotecaColumns(
 				sortableHeader("Autor", column.getIsSorted(), () =>
 					column.toggleSorting(column.getIsSorted() === "asc"),
 				),
+			cell: ({ row }) => celulaTextoFlexivel(row.original.autor),
 		},
 		{
 			accessorKey: "paginas",
