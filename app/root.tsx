@@ -5,6 +5,7 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
+	useLocation,
 } from "react-router";
 
 import type { Route } from "./+types/root";
@@ -50,6 +51,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+	const location = useLocation();
+	const isKioskRoute = location.pathname === "/kiosk";
+
+	if (isKioskRoute) {
+		return (
+			<div className='min-h-screen bg-background'>
+				<Outlet />
+				<Toaster />
+			</div>
+		);
+	}
+
 	return (
 		<SidebarProvider>
 			<AppSidebar />

@@ -1,5 +1,5 @@
 import type { Route } from "./+types/biblioteca";
-import { useLoaderData } from "react-router";
+import { Form, useLoaderData, useSubmit } from "react-router";
 import { BibliotecaDataTable } from "~/components/biblioteca/biblioteca-data-table";
 import type { LivroDataTableRow } from "~/components/biblioteca/biblioteca-columns";
 import { BibliotecaEstatisticas } from "~/components/biblioteca/biblioteca-estatisticas";
@@ -22,6 +22,8 @@ export function meta({}: Route.MetaArgs) {
 type LoaderData = {
 	livros: LivroDataTableRow[];
 	stats: Awaited<ReturnType<typeof obterEstatisticasBiblioteca>>;
+	filtroMes: number;
+	filtroAno: number;
 };
 
 function mapearLivrosParaTabela(
@@ -39,12 +41,59 @@ function mapearLivrosParaTabela(
 	}));
 }
 
-export async function loader({}: Route.LoaderArgs): Promise<LoaderData> {
+function getMesAnoAtual(): { mes: number; ano: number } {
+	const hoje = new Date();
+	return {
+		mes: hoje.getMonth() + 1,
+		ano: hoje.getFullYear(),
+	};
+}
+
+function parseMes(valor: string | null, fallback: number): number {
+	const parsed = Number(valor);
+	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 12) {
+		return fallback;
+	}
+	return parsed;
+}
+
+function parseAno(valor: string | null, fallback: number): number {
+	const parsed = Number(valor);
+	if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100) {
+		return fallback;
+	}
+	return parsed;
+}
+
+function getOpcoesAno(anoBase: number): number[] {
+	return [anoBase - 3, anoBase - 2, anoBase - 1, anoBase, anoBase + 1];
+}
+
+function getNomeMes(mes: number): string {
+	const data = new Date(2025, mes - 1, 1);
+	return data.toLocaleString("pt-BR", {
+		month: "long",
+	});
+}
+
+export async function loader({ request }: Route.LoaderArgs): Promise<LoaderData> {
+	const url = new URL(request.url);
+	const mesAnoAtual = getMesAnoAtual();
+	const filtroMes = parseMes(url.searchParams.get("mes"), mesAnoAtual.mes);
+	const filtroAno = parseAno(url.searchParams.get("ano"), mesAnoAtual.ano);
+	const referenciaFiltro = new Date(Date.UTC(filtroAno, filtroMes - 1, 1));
+
 	const [livros, stats] = await Promise.all([
 		listarLivros(),
-		obterEstatisticasBiblioteca(),
+		obterEstatisticasBiblioteca(referenciaFiltro),
 	]);
-	return { livros: mapearLivrosParaTabela(livros), stats };
+
+	return {
+		livros: mapearLivrosParaTabela(livros),
+		stats,
+		filtroMes,
+		filtroAno,
+	};
 }
 
 function parseStringOpcional(raw: FormDataEntryValue | null): string {
@@ -177,12 +226,49 @@ export async function action({
 }
 
 export default function Biblioteca() {
-	const { livros, stats } = useLoaderData<typeof loader>();
+	const { livros, stats, filtroMes, filtroAno } = useLoaderData<typeof loader>();
+	const submit = useSubmit();
+	const opcoesAno = getOpcoesAno(getMesAnoAtual().ano);
+	const onFiltroChange: React.ChangeEventHandler<HTMLSelectElement> = (event) => {
+		submit(event.currentTarget.form, { method: "get" });
+	};
 
 	return (
 		<main className='grid w-full min-w-0 max-w-full gap-4'>
-			<div className='flex min-w-0 flex-wrap items-center gap-2'>
+			<div className='flex min-w-0 flex-wrap items-center justify-between gap-2'>
 				<h1 className='text-2xl font-bold'>Biblioteca</h1>
+				<Form method='get' className='flex flex-wrap items-end gap-2'>
+					<label className='grid gap-1 text-sm'>
+						Mes
+						<select
+							name='mes'
+							defaultValue={String(filtroMes)}
+							onChange={onFiltroChange}
+							className='border-input bg-background rounded-md border px-3 py-2 capitalize'>
+							{Array.from({ length: 12 }, (_, index) => index + 1).map(
+								(mes) => (
+									<option key={mes} value={mes}>
+										{getNomeMes(mes)}
+									</option>
+								),
+							)}
+						</select>
+					</label>
+					<label className='grid gap-1 text-sm'>
+						Ano
+						<select
+							name='ano'
+							defaultValue={String(filtroAno)}
+							onChange={onFiltroChange}
+							className='border-input bg-background rounded-md border px-3 py-2'>
+							{opcoesAno.map((ano) => (
+								<option key={ano} value={ano}>
+									{ano}
+								</option>
+							))}
+						</select>
+					</label>
+				</Form>
 			</div>
 
 			<BibliotecaEstatisticas stats={stats} />
