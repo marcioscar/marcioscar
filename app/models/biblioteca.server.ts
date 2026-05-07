@@ -21,6 +21,14 @@ export type EstatisticasBiblioteca = {
 	rotuloAno: string;
 };
 
+const CODIGOS_PRISMA_RETRYABLE = new Set([
+	"P1001",
+	"P1002",
+	"P1008",
+	"P1017",
+	"P2010",
+]);
+
 export async function listarLivros() {
 	return db.biblioteca.findMany({
 		orderBy: { data: "desc" },
@@ -67,6 +75,102 @@ function rotuloAnoPt(referencia: Date): string {
 	return String(referencia.getUTCFullYear());
 }
 
+function aguardar(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+function extrairCodeErroPrisma(error: unknown): string | null {
+	if (!error || typeof error !== "object") {
+		return null;
+	}
+	const code = (error as { code?: unknown }).code;
+	return typeof code === "string" ? code : null;
+}
+
+function extrairMensagemErroPrisma(error: unknown): string {
+	if (!error || typeof error !== "object") {
+		return "";
+	}
+
+	const message = (error as { message?: unknown }).message;
+	const metaMessage = (error as { meta?: { message?: unknown } }).meta?.message;
+
+	return [message, metaMessage]
+		.filter((value): value is string => typeof value === "string")
+		.join(" ")
+		.toLowerCase();
+}
+
+function ehErroPrismaRetryable(error: unknown): boolean {
+	const code = extrairCodeErroPrisma(error);
+	if (code && CODIGOS_PRISMA_RETRYABLE.has(code)) {
+		return true;
+	}
+
+	const mensagem = extrairMensagemErroPrisma(error);
+	return (
+		mensagem.includes("timed out") ||
+		mensagem.includes("retryablewriteerror") ||
+		mensagem.includes("i/o error")
+	);
+}
+
+async function executarComRetry<T>(
+	operacao: () => Promise<T>,
+	maxTentativas = 3,
+): Promise<T> {
+	let erroAnterior: unknown;
+
+	for (let tentativa = 1; tentativa <= maxTentativas; tentativa += 1) {
+		try {
+			return await operacao();
+		} catch (error) {
+			erroAnterior = error;
+			const podeTentarNovamente = ehErroPrismaRetryable(error);
+			const ehUltimaTentativa = tentativa === maxTentativas;
+			if (!podeTentarNovamente || ehUltimaTentativa) {
+				throw error;
+			}
+
+			await aguardar(150 * tentativa);
+		}
+	}
+
+	throw erroAnterior;
+}
+
+async function contarLivrosPorFiltro(where?: { data: { gte: Date; lte: Date } }) {
+	return executarComRetry(() => db.biblioteca.count({ where }));
+}
+
+async function somarPaginasPorFiltro(where?: { data: { gte: Date; lte: Date } }) {
+	const resultado = await executarComRetry(() =>
+		db.biblioteca.aggregate({
+			where,
+			_sum: { paginas: true },
+		}),
+	);
+	return resultado._sum.paginas ?? 0;
+}
+
+async function obterResumoPeriodo(where: { data: { gte: Date; lte: Date } }) {
+	const [totalLivros, totalPaginas] = await Promise.all([
+		contarLivrosPorFiltro(where),
+		somarPaginasPorFiltro(where),
+	]);
+	return { totalLivros, totalPaginas };
+}
+
+async function obterResumoTotal() {
+	const [totalLivros, totalPaginas] = await Promise.all([
+		contarLivrosPorFiltro(),
+		somarPaginasPorFiltro(),
+	]);
+	return { totalLivros, totalPaginas };
+}
+
 export async function obterEstatisticasBiblioteca(
 	referencia: Date = new Date(),
 ): Promise<EstatisticasBiblioteca> {
@@ -76,37 +180,17 @@ export async function obterEstatisticasBiblioteca(
 	const filtroMes = { data: { gte: iniMes, lte: fimMes } };
 	const filtroAno = { data: { gte: iniAno, lte: fimAno } };
 
-	const [
-		livrosMesAtual,
-		livrosAnoAtual,
-		livrosTotal,
-		aggMes,
-		aggAno,
-		aggTotal,
-	] = await Promise.all([
-		db.biblioteca.count({ where: filtroMes }),
-		db.biblioteca.count({ where: filtroAno }),
-		db.biblioteca.count(),
-		db.biblioteca.aggregate({
-			where: filtroMes,
-			_sum: { paginas: true },
-		}),
-		db.biblioteca.aggregate({
-			where: filtroAno,
-			_sum: { paginas: true },
-		}),
-		db.biblioteca.aggregate({
-			_sum: { paginas: true },
-		}),
-	]);
+	const resumoMes = await obterResumoPeriodo(filtroMes);
+	const resumoAno = await obterResumoPeriodo(filtroAno);
+	const resumoTotal = await obterResumoTotal();
 
 	return {
-		livrosMesAtual,
-		livrosAnoAtual,
-		livrosTotal,
-		paginasMesAtual: aggMes._sum.paginas ?? 0,
-		paginasAnoAtual: aggAno._sum.paginas ?? 0,
-		paginasTotal: aggTotal._sum.paginas ?? 0,
+		livrosMesAtual: resumoMes.totalLivros,
+		livrosAnoAtual: resumoAno.totalLivros,
+		livrosTotal: resumoTotal.totalLivros,
+		paginasMesAtual: resumoMes.totalPaginas,
+		paginasAnoAtual: resumoAno.totalPaginas,
+		paginasTotal: resumoTotal.totalPaginas,
 		rotuloMes: rotuloMesPt(referencia),
 		rotuloAno: rotuloAnoPt(referencia),
 	};
