@@ -1,4 +1,5 @@
 import type { Route } from "./+types/biblioteca";
+import type { ChangeEvent } from "react";
 import { Form, useLoaderData, useSubmit } from "react-router";
 import { BibliotecaDataTable } from "~/components/biblioteca/biblioteca-data-table";
 import type { LivroDataTableRow } from "~/components/biblioteca/biblioteca-columns";
@@ -229,8 +230,12 @@ export default function Biblioteca() {
 	const { livros, stats, filtroMes, filtroAno } = useLoaderData<typeof loader>();
 	const submit = useSubmit();
 	const opcoesAno = getOpcoesAno(getMesAnoAtual().ano);
-	const onFiltroChange: React.ChangeEventHandler<HTMLSelectElement> = (event) => {
-		submit(event.currentTarget.form, { method: "get" });
+	const onFiltroChange = (event: ChangeEvent<HTMLSelectElement>) => {
+		const form = event.currentTarget.form;
+		if (!form) {
+			return;
+		}
+		submit(form, { method: "get" });
 	};
 
 	return (
