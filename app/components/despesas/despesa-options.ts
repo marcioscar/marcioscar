@@ -8,6 +8,10 @@ const LISTA_CATEGORIAS = [
 	"Energia",
 	"Entretenimento",
 	"Farmacia",
+	"Hardware",
+	"Mesada",
+	"Nutrição",
+	"Óculos",
 	"Outros",
 	"Padaria",
 	"Refeicao",
@@ -20,7 +24,12 @@ const LISTA_CATEGORIAS = [
 	"Moradia",
 ] as const;
 
-const LISTA_CONTAS = ["Corrente", "Cartão Itau", "Nubank"] as const;
+const LISTA_CONTAS = [
+	"Corrente",
+	"Cartão Itau",
+	"Nubank",
+	"Cartão Camila",
+] as const;
 
 function ordenarAlfabetico(valores: readonly string[]): string[] {
 	return [...valores].sort((a, b) =>
