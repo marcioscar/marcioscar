@@ -20,6 +20,10 @@ import {
 	obterResumoSaldoBrassaco,
 } from "~/models/pagamentos-brassaco.server";
 import { uploadReciboAndGetUrl } from "~/models/pocketbase.server";
+import {
+	extrairTransacoesDePdf,
+	type TransacaoImportada,
+} from "~/models/importar-pdf.server";
 import { DespesaFormDialog } from "~/components/despesas/despesa-form-dialog";
 import { type DespesaDataTableRow } from "~/components/despesas/despesas-columns";
 import { DespesasDataTable } from "~/components/despesas/despesas-data-table";
@@ -28,6 +32,7 @@ import {
 	type DespesaEditavel,
 } from "~/components/despesas/despesa-edit-dialog";
 import { PagamentoBrassacoDialog } from "~/components/despesas/pagamento-brassaco-dialog";
+import { ImportarPdfDialog } from "~/components/despesas/importar-pdf-dialog";
 
 type LoaderData = {
 	despesas: Awaited<ReturnType<typeof listarDespesas>>;
@@ -43,7 +48,8 @@ type LoaderData = {
 type ActionData = {
 	ok: boolean;
 	message: string;
-	operacao: "criar" | "editar" | "excluir" | "pagar-brassaco";
+	operacao: "criar" | "editar" | "excluir" | "pagar-brassaco" | "importar-pdf";
+	transacoes?: TransacaoImportada[];
 };
 
 const BOTAO_EDITAR_CLASS =
@@ -52,6 +58,8 @@ const BOTAO_PAGAR_BRASSACO_CLASS =
 	"border-blue-200 bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:border-blue-500/30 dark:text-blue-300";
 const BOTAO_NOVA_DESPESA_CLASS =
 	"border-emerald-200 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:border-emerald-500/30 dark:text-emerald-300";
+const BOTAO_IMPORTAR_CLASS =
+	"border-purple-200 bg-purple-500/10 text-purple-700 hover:bg-purple-500/20 dark:border-purple-500/30 dark:text-purple-300";
 
 function parseValor(raw: FormDataEntryValue | null): number {
 	const parsed = Number(raw);
@@ -173,6 +181,10 @@ function getTituloErroOperacao(operacao: ActionData["operacao"]): string {
 		return "Falha ao registrar pagamento da Brassaco";
 	}
 
+	if (operacao === "importar-pdf") {
+		return "Falha ao importar PDF";
+	}
+
 	return "Falha ao cadastrar despesa";
 }
 
@@ -240,6 +252,22 @@ export async function action({
 				ok: true,
 				message: "Pagamento da Brassaco registrado com sucesso.",
 				operacao: "pagar-brassaco",
+			};
+		}
+
+		if (intent === "importar-pdf") {
+			const pdfFile = formData.get("pdfFile");
+			if (!(pdfFile instanceof File) || pdfFile.size === 0) {
+				throw new Error("Selecione um arquivo PDF válido.");
+			}
+			const bytes = await pdfFile.arrayBuffer();
+			const conta = parseString(formData.get("contaPadrao")) || "Nubank";
+			const transacoes = await extrairTransacoesDePdf(Buffer.from(bytes), conta);
+			return {
+				ok: true,
+				message: `${transacoes.length} transações extraídas do PDF.`,
+				operacao: "importar-pdf",
+				transacoes,
 			};
 		}
 
@@ -406,6 +434,7 @@ export default function Contas() {
 						defaultDataPagamento={formatarDataInput(new Date())}
 						triggerClassName={BOTAO_PAGAR_BRASSACO_CLASS}
 					/>
+					<ImportarPdfDialog triggerClassName={BOTAO_IMPORTAR_CLASS} />
 					<DespesaFormDialog
 						open={dialogNovoOpen}
 						onOpenChange={setDialogNovoOpen}
