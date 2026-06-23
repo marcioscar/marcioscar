@@ -19,6 +19,7 @@ import {
 } from "~/models/dashboard.server";
 import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
+import { CategoriasBarChart } from "~/components/dashboard/categorias-bar-chart";
 import { CategoriasTrendChart } from "~/components/dashboard/categorias-trend-chart";
 import {
 	statCardCaptionClass,
@@ -473,10 +474,9 @@ export default function Home() {
 						quantidade: item.totalDespesas,
 					}))}
 				/>
-				<DespesasPieChart
+				<CategoriasBarChart
 					title='Despesas por categoria'
 					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
-					palette={PALETA_CATEGORIA}
 					items={saldosPorCategoria.map((item) => ({
 						label: item.categoria,
 						valor: item.totalValorDespesas,
