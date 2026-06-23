@@ -12,6 +12,8 @@ FROM node:20-alpine AS build-env
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
+ARG DATABASE_URL=mongodb://build-placeholder
+ENV DATABASE_URL=$DATABASE_URL
 RUN npm run build
 
 FROM node:20-alpine
