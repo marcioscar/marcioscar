@@ -56,14 +56,14 @@ export function AppSidebar() {
 			<SidebarHeader>
 				<div className='flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center'>
 					<img
-						src='/logo.png'
+						src='/logo_hor.svg'
 						alt='Logo Marcioscar'
-						className='size-20 w-full object-scale-down group-data-[collapsible=icon]:hidden'
+						className='h-10 w-full object-contain object-left group-data-[collapsible=icon]:hidden'
 					/>
 					<img
-						src='/icone.png'
+						src='/icon-asfalto-1024.png'
 						alt='Icone Marcioscar'
-						className='hidden w-full size-8 rounded-full object-cover group-data-[collapsible=icon]:block'
+						className='hidden size-8 rounded-lg object-cover group-data-[collapsible=icon]:block'
 					/>
 				</div>
 			</SidebarHeader>

@@ -30,6 +30,19 @@ export const links: Route.LinksFunction = () => [
 		rel: "stylesheet",
 		href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
 	},
+	{
+		rel: "icon",
+		href: "/icon-asfalto-1024.png",
+		type: "image/png",
+		media: "(prefers-color-scheme: dark)",
+	},
+	{
+		rel: "icon",
+		href: "/icon-claro-1024.png",
+		type: "image/png",
+		media: "(prefers-color-scheme: light)",
+	},
+	{ rel: "apple-touch-icon", href: "/icon-asfalto-1024.png" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -70,9 +83,9 @@ export default function App() {
 				<header className='flex h-14 items-center gap-2 border-b px-4'>
 					<SidebarTrigger />
 					<img
-						src='/icone.png'
+						src='/icon-asfalto-1024.png'
 						alt='Icone Marcioscar'
-						className='size-8 rounded-sm object-cover'
+						className='size-8 rounded-lg object-cover'
 					/>
 					<span className='text-sm font-medium'>Marcioscar</span>
 				</header>
