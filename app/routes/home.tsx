@@ -1,7 +1,6 @@
 import { useMemo } from "react";
-import { Form, useLoaderData } from "react-router";
+import { Form, Link, useLoaderData, useSubmit } from "react-router";
 import type { Route } from "./+types/home";
-import { Button } from "~/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -107,6 +106,16 @@ function getNomeMes(mes: number): string {
 	});
 }
 
+function getPrevMesAno(mes: number, ano: number) {
+	if (mes === 1) return { mes: 12, ano: ano - 1 };
+	return { mes: mes - 1, ano };
+}
+
+function getNextMesAno(mes: number, ano: number) {
+	if (mes === 12) return { mes: 1, ano: ano + 1 };
+	return { mes: mes + 1, ano };
+}
+
 function montarSaldosPorContaComPadrao(
 	saldosPorConta: LoaderData["saldosPorConta"],
 ): LoaderData["saldosPorConta"] {
@@ -175,6 +184,11 @@ export async function loader({
 	};
 }
 
+const NAV_BTN =
+	"inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-sm hover:bg-accent hover:text-accent-foreground transition-colors";
+const SELECT_CLASS =
+	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
+
 export default function Home() {
 	const {
 		filtroMes,
@@ -183,59 +197,72 @@ export default function Home() {
 		totalValorDespesasPeriodo,
 		saldosPorConta,
 		saldosPorCategoria,
+		saldoBrassaco,
+		totalDespesasBrassaco,
+		totalPagoBrassaco,
 	} = useLoaderData<typeof loader>();
+
+	const submit = useSubmit();
 	const opcoesAno = useMemo(() => getOpcoesAno(getMesAnoAtual().ano), []);
 	const saldosPorContaExibicao = useMemo(
 		() => montarSaldosPorContaComPadrao(saldosPorConta),
 		[saldosPorConta],
 	);
 
+	const prev = getPrevMesAno(filtroMes, filtroAno);
+	const next = getNextMesAno(filtroMes, filtroAno);
+
 	return (
 		<main className='grid gap-4 md:gap-6'>
 			<div className='flex flex-wrap items-center justify-between gap-2'>
-				<div className='flex flex-col gap-1'>
-					<h1 className='text-2xl font-bold'>Dashboard</h1>
-				</div>
-				<Form method='get' className='flex flex-wrap items-end gap-2'>
-					<label className='grid gap-1 text-sm'>
-						Mes
+				<h1 className='text-2xl font-bold'>Dashboard</h1>
+				<div className='flex items-center gap-2'>
+					<Link
+						to={`?mes=${prev.mes}&ano=${prev.ano}`}
+						className={NAV_BTN}
+						aria-label='Mês anterior'>
+						←
+					</Link>
+					<Form
+						method='get'
+						className='flex items-center gap-2'>
 						<select
 							name='mes'
-							defaultValue={String(filtroMes)}
-							className='border-input bg-background rounded-md border px-3 py-2 capitalize'>
-							{Array.from({ length: 12 }, (_, index) => index + 1).map(
-								(mes) => (
-									<option key={mes} value={mes}>
-										{getNomeMes(mes)}
-									</option>
-								),
-							)}
+							value={String(filtroMes)}
+							onChange={(e) => submit(e.currentTarget.form)}
+							className={SELECT_CLASS}>
+							{Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
+								<option key={mes} value={mes}>
+									{getNomeMes(mes)}
+								</option>
+							))}
 						</select>
-					</label>
-					<label className='grid gap-1 text-sm'>
-						Ano
 						<select
 							name='ano'
-							defaultValue={String(filtroAno)}
-							className='border-input bg-background rounded-md border px-3 py-2'>
+							value={String(filtroAno)}
+							onChange={(e) => submit(e.currentTarget.form)}
+							className={SELECT_CLASS}>
 							{opcoesAno.map((ano) => (
 								<option key={ano} value={ano}>
 									{ano}
 								</option>
 							))}
 						</select>
-					</label>
-					<Button type='submit' variant='outline'>
-						Aplicar
-					</Button>
-				</Form>
+					</Form>
+					<Link
+						to={`?mes=${next.mes}&ano=${next.ano}`}
+						className={NAV_BTN}
+						aria-label='Próximo mês'>
+						→
+					</Link>
+				</div>
 			</div>
 
-			<section className='grid min-w-0 gap-4 md:grid-cols-2'>
+			<section className='grid min-w-0 gap-4 sm:grid-cols-2'>
 				<Card className={statCardSurfaceClass}>
 					<CardHeader>
 						<CardTitle className={statCardTitleClass}>
-							Total de despesas no periodo
+							Total de despesas no período
 						</CardTitle>
 						<CardDescription className={statCardLabelClass}>
 							{getNomeMes(filtroMes)} / {filtroAno}
@@ -246,11 +273,35 @@ export default function Home() {
 							{formatarMoeda(totalValorDespesasPeriodo)}
 						</p>
 						<p className={statCardCaptionClass}>
-							{totalDespesasPeriodo} despesa(s) no periodo
+							{totalDespesasPeriodo} despesa(s) no período
 						</p>
 					</CardContent>
 				</Card>
 
+				<Card className={statCardSurfaceClass}>
+					<CardHeader>
+						<CardTitle className={statCardTitleClass}>Brassaco</CardTitle>
+						<CardDescription className={statCardLabelClass}>
+							Saldo acumulado · {totalDespesasBrassaco} despesa(s)
+						</CardDescription>
+					</CardHeader>
+					<CardContent className='flex flex-col gap-1'>
+						<p
+							className={`${statCardMetricLgClass} ${
+								saldoBrassaco > 0
+									? "text-red-500 dark:text-red-400"
+									: "text-emerald-600 dark:text-emerald-400"
+							}`}>
+							{formatarMoeda(saldoBrassaco)}
+						</p>
+						<p className={statCardCaptionClass}>
+							{formatarMoeda(totalPagoBrassaco)} pago
+						</p>
+					</CardContent>
+				</Card>
+			</section>
+
+			<section className='grid min-w-0 gap-4 sm:grid-cols-2'>
 				{saldosPorContaExibicao.length > 0 ? (
 					saldosPorContaExibicao.map((saldoConta) => (
 						<Card key={saldoConta.conta} className={statCardSurfaceClass}>
@@ -281,7 +332,7 @@ export default function Home() {
 						</CardHeader>
 						<CardContent>
 							<p className={statCardCaptionClass}>
-								Nenhuma despesa encontrada para o periodo selecionado.
+								Nenhuma despesa encontrada para o período selecionado.
 							</p>
 						</CardContent>
 					</Card>
