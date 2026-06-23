@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
 	Bar,
 	BarChart,
@@ -16,6 +16,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
+import type { DespesaResumida } from "~/models/dashboard.server";
 
 const PALETA = [
 	"#f97316",
@@ -32,10 +33,16 @@ function formatarMoeda(valor: number): string {
 	return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function formatarData(data: Date | string): string {
+	const d = typeof data === "string" ? new Date(data) : data;
+	return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+}
+
 type Item = {
 	label: string;
 	valor: number;
 	quantidade: number;
+	despesas: DespesaResumida[];
 };
 
 type Props = {
@@ -47,6 +54,8 @@ type Props = {
 const LIMITE = 8;
 
 export function CategoriasBarChart({ title, description, items }: Props) {
+	const [aberta, setAberta] = useState<string | null>(null);
+
 	const ordenados = useMemo(
 		() => [...items].sort((a, b) => b.valor - a.valor).slice(0, LIMITE),
 		[items],
@@ -146,31 +155,67 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 					</div>
 				</div>
 
-				{/* Category list */}
-				<div className='flex flex-col gap-3'>
+				{/* Category list with collapse */}
+				<div className='flex flex-col'>
 					{ordenados.map((item, i) => {
 						const pct = total > 0 ? ((item.valor / total) * 100).toFixed(1) : "0";
+						const estaAberta = aberta === item.label;
+						const cor = PALETA[i % PALETA.length];
+
 						return (
-							<div key={item.label} className='flex items-center gap-3'>
-								<span
-									className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold'
-									style={{ backgroundColor: PALETA[i % PALETA.length] }}>
-									{item.label.slice(0, 1).toUpperCase()}
-								</span>
-								<div className='flex min-w-0 flex-1 flex-col'>
-									<span className='truncate text-sm font-medium'>
-										{item.label}
+							<div key={item.label} className='border-b border-border last:border-0'>
+								{/* Category row — clickable */}
+								<button
+									type='button'
+									onClick={() => setAberta(estaAberta ? null : item.label)}
+									className='flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-muted/40 rounded-sm px-1'>
+									<span
+										className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold'
+										style={{ backgroundColor: cor }}>
+										{item.label.slice(0, 1).toUpperCase()}
 									</span>
-									<span className='text-xs text-muted-foreground'>
-										{item.quantidade} lançamento(s)
+									<div className='flex min-w-0 flex-1 flex-col'>
+										<span className='truncate text-sm font-medium'>
+											{item.label}
+										</span>
+										<span className='text-xs text-muted-foreground'>
+											{item.quantidade} lançamento(s)
+										</span>
+									</div>
+									<div className='shrink-0 text-right'>
+										<p className='text-sm font-semibold tabular-nums'>
+											{formatarMoeda(item.valor)}
+										</p>
+										<p className='text-xs text-muted-foreground'>{pct}%</p>
+									</div>
+									<span className='text-muted-foreground text-xs ml-1'>
+										{estaAberta ? "▲" : "▼"}
 									</span>
-								</div>
-								<div className='shrink-0 text-right'>
-									<p className='text-sm font-semibold tabular-nums'>
-										{formatarMoeda(item.valor)}
-									</p>
-									<p className='text-xs text-muted-foreground'>{pct}%</p>
-								</div>
+								</button>
+
+								{/* Expanded expenses */}
+								{estaAberta && (
+									<div className='mb-2 ml-11 flex flex-col gap-1'>
+										{item.despesas.map((d) => (
+											<div
+												key={d.id}
+												className='flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs'>
+												<span className='text-muted-foreground shrink-0'>
+													{formatarData(d.data)}
+												</span>
+												<span className='flex-1 truncate font-medium'>
+													{d.nome}
+												</span>
+												<span className='shrink-0 text-muted-foreground'>
+													{d.conta}
+												</span>
+												<span className='shrink-0 font-semibold tabular-nums'>
+													{formatarMoeda(d.valor)}
+												</span>
+											</div>
+										))}
+									</div>
+								)}
 							</div>
 						);
 					})}

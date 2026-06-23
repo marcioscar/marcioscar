@@ -298,10 +298,26 @@ export async function obterResumoDespesasPorContaNoPeriodo(
 	return acumularDespesasPorConta(despesas);
 }
 
+export type DespesaResumida = {
+	id: string;
+	nome: string;
+	valor: number;
+	data: Date;
+	conta: string;
+	obs: string;
+};
+
+export type CategoriaComDespesas = {
+	categoria: string;
+	totalDespesas: number;
+	totalValorDespesas: number;
+	despesas: DespesaResumida[];
+};
+
 export async function obterResumoDespesasPorCategoriaNoPeriodo(
 	ano: number,
 	mes: number,
-): Promise<ResumoCategoriaPeriodo[]> {
+): Promise<CategoriaComDespesas[]> {
 	const intervalo = getIntervaloMesAno(ano, mes);
 	const despesas = await db.despesas.findMany({
 		where: {
@@ -311,12 +327,35 @@ export async function obterResumoDespesasPorCategoriaNoPeriodo(
 			},
 		},
 		select: {
+			id: true,
+			nome: true,
 			categoria: true,
 			valor: true,
+			data: true,
+			conta: true,
+			obs: true,
 		},
+		orderBy: { data: "desc" },
 	});
 
-	return acumularDespesasPorCategoria(despesas);
+	const mapa = new Map<string, CategoriaComDespesas>();
+	for (const d of despesas) {
+		const cat = d.categoria.trim() || "Sem categoria";
+		const item = mapa.get(cat) ?? {
+			categoria: cat,
+			totalDespesas: 0,
+			totalValorDespesas: 0,
+			despesas: [],
+		};
+		item.totalDespesas += 1;
+		item.totalValorDespesas += d.valor;
+		item.despesas.push({ id: d.id, nome: d.nome, valor: d.valor, data: d.data, conta: d.conta, obs: d.obs ?? "" });
+		mapa.set(cat, item);
+	}
+
+	return Array.from(mapa.values()).sort(
+		(a, b) => b.totalValorDespesas - a.totalValorDespesas,
+	);
 }
 
 export type CategoriasMesItem = { mes: string; [categoria: string]: number | string };

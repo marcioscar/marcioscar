@@ -16,6 +16,7 @@ import {
 	obterResumoDespesasPorPeriodo,
 	obterCategoriasPorUltimosMeses,
 	type CategoriasMesItem,
+	type CategoriaComDespesas,
 } from "~/models/dashboard.server";
 import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
@@ -47,11 +48,7 @@ type LoaderData = {
 		conta: string;
 		totalValorDespesas: number;
 	}[];
-	saldosPorCategoria: {
-		categoria: string;
-		totalDespesas: number;
-		totalValorDespesas: number;
-	}[];
+	saldosPorCategoria: CategoriaComDespesas[];
 	categoriasTrend: CategoriasMesItem[];
 };
 
@@ -481,6 +478,7 @@ export default function Home() {
 						label: item.categoria,
 						valor: item.totalValorDespesas,
 						quantidade: item.totalDespesas,
+						despesas: item.despesas,
 					}))}
 				/>
 			</section>
