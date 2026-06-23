@@ -206,78 +206,55 @@ const SELECT_CLASS =
 const COR_ANTERIOR = "#94a3b8";
 const COR_ATUAL = "#3b82f6";
 
-type MiniComparativoProps = {
+function calcPct(atual: number, anterior: number) {
+	if (anterior <= 0) return null;
+	return ((atual - anterior) / anterior) * 100;
+}
+
+type MiniBarChartProps = {
 	atual: number;
 	anterior: number;
 	labelAnterior: string;
 	labelAtual: string;
 };
 
-function MiniComparativo({
-	atual,
-	anterior,
-	labelAnterior,
-	labelAtual,
-}: MiniComparativoProps) {
-	const diff = atual - anterior;
-	const pct = anterior > 0 ? (diff / anterior) * 100 : null;
-	const subindo = diff > 0;
-
+function MiniBarChart({ atual, anterior, labelAnterior, labelAtual }: MiniBarChartProps) {
 	const data = [
 		{ label: labelAnterior, valor: anterior, cor: COR_ANTERIOR },
 		{ label: labelAtual, valor: atual, cor: COR_ATUAL },
 	];
 
 	return (
-		<div className='flex flex-col gap-1 pt-2'>
-			{pct !== null && (
-				<p
-					className={`text-xs font-medium ${
-						subindo
-							? "text-red-500 dark:text-red-400"
-							: "text-emerald-600 dark:text-emerald-400"
-					}`}>
-					{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}% vs mês anterior
-				</p>
-			)}
-			<ResponsiveContainer width='100%' height={72}>
-				<BarChart
-					data={data}
-					barSize={36}
-					margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-					<XAxis
-						dataKey='label'
-						axisLine={false}
-						tickLine={false}
-						tick={{ fontSize: 10, fill: "#94a3b8" }}
-					/>
-					<Bar
-						dataKey='valor'
-						radius={[4, 4, 0, 0]}
-						isAnimationActive={false}
-						activeBar={false}>
-						{data.map((item, i) => (
-							<Cell key={i} fill={item.cor} />
-						))}
-					</Bar>
-					<Tooltip
-						cursor={{ fill: "transparent" }}
-						content={({ active, payload }) => {
-							if (!active || !payload?.length) return null;
-							const item = payload[0];
-							return (
-								<div className='rounded-md border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm'>
-									<p className='text-muted-foreground'>{item?.payload?.label}</p>
-									<p className='font-medium tabular-nums'>
-										{formatarMoeda(Number(item?.value ?? 0))}
-									</p>
-								</div>
-							);
-						}}
-					/>
-				</BarChart>
-			</ResponsiveContainer>
-		</div>
+		<ResponsiveContainer width='100%' height={64}>
+			<BarChart data={data} barSize={28} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
+				<XAxis
+					dataKey='label'
+					axisLine={false}
+					tickLine={false}
+					tick={{ fontSize: 9, fill: "#94a3b8" }}
+				/>
+				<Bar dataKey='valor' radius={[4, 4, 0, 0]} isAnimationActive={false} activeBar={false}>
+					{data.map((item, i) => (
+						<Cell key={i} fill={item.cor} />
+					))}
+				</Bar>
+				<Tooltip
+					cursor={{ fill: "transparent" }}
+					content={({ active, payload }) => {
+						if (!active || !payload?.length) return null;
+						const item = payload[0];
+						return (
+							<div className='rounded-md border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm'>
+								<p className='text-muted-foreground'>{item?.payload?.label}</p>
+								<p className='font-medium tabular-nums'>
+									{formatarMoeda(Number(item?.value ?? 0))}
+								</p>
+							</div>
+						);
+					}}
+				/>
+			</BarChart>
+		</ResponsiveContainer>
 	);
 }
 
@@ -366,19 +343,33 @@ export default function Home() {
 							{getNomeMes(filtroMes)} / {filtroAno}
 						</CardDescription>
 					</CardHeader>
-					<CardContent className='flex flex-col gap-1'>
-						<p className={statCardMetricLgClass}>
-							{formatarMoeda(totalValorDespesasPeriodo)}
-						</p>
-						<p className={statCardCaptionClass}>
-							{totalDespesasPeriodo} despesa(s) no período
-						</p>
-						<MiniComparativo
-							atual={totalValorDespesasPeriodo}
-							anterior={totalValorDespesasMesAnterior}
-							labelAnterior={labelAnterior}
-							labelAtual={labelAtual}
-						/>
+					<CardContent className='flex items-center justify-between gap-4'>
+						<div className='flex min-w-0 flex-col gap-1'>
+							<p className={statCardMetricLgClass}>
+								{formatarMoeda(totalValorDespesasPeriodo)}
+							</p>
+							<p className={statCardCaptionClass}>
+								{totalDespesasPeriodo} despesa(s)
+							</p>
+							{(() => {
+								const pct = calcPct(totalValorDespesasPeriodo, totalValorDespesasMesAnterior);
+								if (pct === null) return null;
+								const subindo = pct > 0;
+								return (
+									<p className={`text-xs font-medium ${subindo ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+										{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
+									</p>
+								);
+							})()}
+						</div>
+						<div className='w-28 shrink-0'>
+							<MiniBarChart
+								atual={totalValorDespesasPeriodo}
+								anterior={totalValorDespesasMesAnterior}
+								labelAnterior={labelAnterior}
+								labelAtual={labelAtual}
+							/>
+						</div>
 					</CardContent>
 				</Card>
 
@@ -407,29 +398,43 @@ export default function Home() {
 
 			<section className='grid min-w-0 gap-4 sm:grid-cols-2'>
 				{saldosPorContaExibicao.length > 0 ? (
-					saldosPorContaExibicao.map((saldoConta) => (
-						<Card key={saldoConta.conta} className={statCardSurfaceClass}>
-							<CardHeader>
-								<CardTitle className={statCardTitleClass}>
-									{saldoConta.conta}
-								</CardTitle>
-							</CardHeader>
-							<CardContent className='flex flex-col gap-1'>
-								<p className={statCardMetricLgClass}>
-									{formatarMoeda(saldoConta.totalValorDespesas)}
-								</p>
-								<p className={statCardCaptionClass}>
-									{saldoConta.totalDespesas} despesa(s)
-								</p>
-								<MiniComparativo
-									atual={saldoConta.totalValorDespesas}
-									anterior={mapaContaMesAnterior.get(saldoConta.conta) ?? 0}
-									labelAnterior={labelAnterior}
-									labelAtual={labelAtual}
-								/>
-							</CardContent>
-						</Card>
-					))
+					saldosPorContaExibicao.map((saldoConta) => {
+						const anterior = mapaContaMesAnterior.get(saldoConta.conta) ?? 0;
+						const pct = calcPct(saldoConta.totalValorDespesas, anterior);
+						const subindo = (pct ?? 0) > 0;
+						return (
+							<Card key={saldoConta.conta} className={statCardSurfaceClass}>
+								<CardHeader>
+									<CardTitle className={statCardTitleClass}>
+										{saldoConta.conta}
+									</CardTitle>
+								</CardHeader>
+								<CardContent className='flex items-center justify-between gap-4'>
+									<div className='flex min-w-0 flex-col gap-1'>
+										<p className={statCardMetricLgClass}>
+											{formatarMoeda(saldoConta.totalValorDespesas)}
+										</p>
+										<p className={statCardCaptionClass}>
+											{saldoConta.totalDespesas} despesa(s)
+										</p>
+										{pct !== null && (
+											<p className={`text-xs font-medium ${subindo ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+												{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
+											</p>
+										)}
+									</div>
+									<div className='w-28 shrink-0'>
+										<MiniBarChart
+											atual={saldoConta.totalValorDespesas}
+											anterior={anterior}
+											labelAnterior={labelAnterior}
+											labelAtual={labelAtual}
+										/>
+									</div>
+								</CardContent>
+							</Card>
+						);
+					})
 				) : (
 					<Card className={statCardSurfaceClass}>
 						<CardHeader>
