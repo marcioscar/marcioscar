@@ -262,7 +262,9 @@ export async function action({
 			}
 			const bytes = await pdfFile.arrayBuffer();
 			const conta = parseString(formData.get("contaPadrao")) || "Nubank";
-			const transacoes = await extrairTransacoesDePdf(Buffer.from(bytes), conta);
+			const dataInicio = parseString(formData.get("dataInicio")) || undefined;
+			const apenasDebitos = formData.get("apenasDebitos") === "on";
+			const transacoes = await extrairTransacoesDePdf(Buffer.from(bytes), conta, dataInicio, apenasDebitos);
 			return {
 				ok: true,
 				message: `${transacoes.length} transações extraídas do PDF.`,

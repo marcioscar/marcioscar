@@ -76,6 +76,8 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [fase, setFase] = useState<Fase>("upload");
 	const [contaSelecionada, setContaSelecionada] = useState("Nubank");
+	const [dataInicio, setDataInicio] = useState("");
+	const [apenasDebitos, setApenasDebitos] = useState(false);
 	const [transacoes, setTransacoes] = useState<TransacaoLocal[]>([]);
 	const [indiceAtual, setIndiceAtual] = useState(0);
 	const [confirmadas, setConfirmadas] = useState(0);
@@ -92,13 +94,11 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 	const isParseando = parseFetcher.state !== "idle";
 	const isSalvando = salvarFetcher.state !== "idle";
 
-	// Verifica pendentes ao montar
 	useEffect(() => {
 		const salvo = carregarEstado();
 		setTemPendentes(!!salvo && salvo.indiceAtual < salvo.transacoes.length);
 	}, []);
 
-	// Restaura estado salvo quando o dialog abre
 	useEffect(() => {
 		if (!dialogOpen) return;
 		const salvo = carregarEstado();
@@ -112,7 +112,6 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 		toast.info(`Retomando análise — ${salvo.transacoes.length - salvo.indiceAtual} transações restantes`);
 	}, [dialogOpen]);
 
-	// PDF processado com sucesso
 	useEffect(() => {
 		if (!parseFetcher.data) return;
 		if (!parseFetcher.data.ok) {
@@ -139,7 +138,6 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 		carregarTransacao(ts[0]);
 	}, [parseFetcher.data]);
 
-	// Erro ao salvar transação individual
 	useEffect(() => {
 		if (salvarFetcher.state !== "idle" || !salvarFetcher.data) return;
 		if (!salvarFetcher.data.ok) {
@@ -206,7 +204,6 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 	function handleFechar() {
 		setDialogOpen(false);
 		setTimeout(() => {
-			// Não reseta estado se ainda há pendentes — para poder retomar
 			const salvo = carregarEstado();
 			if (!salvo) {
 				setFase("upload");
@@ -228,6 +225,7 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 		e.preventDefault();
 		const data = new FormData(e.currentTarget);
 		data.set("intent", "importar-pdf");
+		if (!apenasDebitos) data.delete("apenasDebitos");
 		parseFetcher.submit(data, {
 			method: "post",
 			action: "/contas",
@@ -290,7 +288,7 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 								/>
 
 								<label className='grid gap-1 text-sm'>
-									Arquivo PDF da fatura
+									Arquivo PDF
 									<input
 										ref={fileInputRef}
 										type='file'
@@ -300,6 +298,34 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 										className='text-sm file:mr-3 file:cursor-pointer file:rounded file:border file:border-input file:bg-background file:px-3 file:py-1 file:text-sm'
 									/>
 								</label>
+
+								<div className='grid grid-cols-2 gap-3'>
+									<label className='grid gap-1 text-sm'>
+										A partir de
+										<Input
+											type='date'
+											name='dataInicio'
+											value={dataInicio}
+											onChange={(e) => setDataInicio(e.target.value)}
+										/>
+										<span className='text-xs text-muted-foreground'>
+											Opcional
+										</span>
+									</label>
+
+									<div className='flex flex-col justify-end gap-2 pb-1'>
+										<label className='flex cursor-pointer items-center gap-2 text-sm'>
+											<Checkbox
+												checked={apenasDebitos}
+												onCheckedChange={(v) => setApenasDebitos(v === true)}
+											/>
+											Apenas saídas
+										</label>
+										<p className='text-xs text-muted-foreground'>
+											Para extratos com entradas e saídas
+										</p>
+									</div>
+								</div>
 
 								<Button type='submit' disabled={isParseando} className='w-full'>
 									{isParseando ? "Processando PDF…" : "Extrair transações"}
@@ -312,7 +338,6 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 				{/* Fase: revisao */}
 				{fase === "revisao" && t && (
 					<div className='grid gap-4'>
-						{/* Barra de progresso */}
 						<div className='grid gap-1'>
 							<div className='flex items-center justify-between text-xs text-muted-foreground'>
 								<span>
@@ -330,7 +355,6 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 							</div>
 						</div>
 
-						{/* Card da transação */}
 						<div className='rounded-lg border bg-muted/30 p-4'>
 							<p className='mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground'>
 								Transação {indiceAtual + 1} de {totalTransacoes}
@@ -420,7 +444,6 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 							</div>
 						</div>
 
-						{/* Ações */}
 						<div className='flex gap-2'>
 							<Button
 								type='button'

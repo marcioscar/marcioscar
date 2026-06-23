@@ -13,7 +13,15 @@ export type TransacaoImportada = {
 
 const client = new Anthropic();
 
-function buildPrompt(conta: string): string {
+function buildPrompt(conta: string, dataInicio?: string, apenasDebitos?: boolean): string {
+	const regrasExtrato = apenasDebitos
+		? `- Este é um extrato bancário com entradas e saídas. Extraia SOMENTE as saídas (débitos, compras, pagamentos, transferências enviadas). Ignore completamente depósitos, salários, transferências recebidas, rendimentos e qualquer entrada de dinheiro.`
+		: `- Ignore pagamentos recebidos e créditos (entradas de dinheiro)`;
+
+	const regraData = dataInicio
+		? `- Inclua apenas transações a partir de ${dataInicio} (ignore transações anteriores a esta data)`
+		: "";
+
 	return `Extraia todas as transações de compra/despesa deste extrato bancário ou fatura de cartão.
 
 Retorne APENAS um JSON array válido (sem markdown, sem texto adicional) com objetos neste formato exato:
@@ -22,18 +30,20 @@ Retorne APENAS um JSON array válido (sem markdown, sem texto adicional) com obj
 Categorias disponíveis (use exatamente uma delas): ${CATEGORIAS_DESPESA.join(", ")}
 
 Regras:
-- Ignore pagamentos recebidos e créditos (entradas de dinheiro)
+${regrasExtrato}
 - Ignore linhas de IOF separadas (já estão incluídas na compra correspondente)
 - Para parcelas, inclua o número no nome (ex: "Rocketseat 12/12")
 - Para estabelecimentos repetidos, use o nome real (ex: "Uber", "Amazon", "Shell")
 - Nome máximo 45 caracteres
 - Datas no formato YYYY-MM-DD
-- Valores numéricos positivos (sem R$ ou símbolos)`;
+- Valores numéricos positivos (sem R$ ou símbolos)${regraData ? `\n${regraData}` : ""}`;
 }
 
 export async function extrairTransacoesDePdf(
 	pdfBuffer: Buffer,
 	contaPadrao: string,
+	dataInicio?: string,
+	apenasDebitos?: boolean,
 ): Promise<TransacaoImportada[]> {
 	const response = await client.messages.create({
 		model: "claude-sonnet-4-6",
@@ -52,7 +62,7 @@ export async function extrairTransacoesDePdf(
 					},
 					{
 						type: "text",
-						text: buildPrompt(contaPadrao),
+						text: buildPrompt(contaPadrao, dataInicio, apenasDebitos),
 					},
 				],
 			},
