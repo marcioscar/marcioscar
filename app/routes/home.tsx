@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Form, Link, useLoaderData, useSubmit } from "react-router";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import type { Route } from "./+types/home";
 import {
 	Card,
@@ -203,8 +203,8 @@ const NAV_BTN =
 const SELECT_CLASS =
 	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
 
-const COR_ANTERIOR = "hsl(var(--muted-foreground)/0.35)";
-const COR_ATUAL = "hsl(var(--primary)/0.75)";
+const COR_ANTERIOR = "#94a3b8";
+const COR_ATUAL = "#3b82f6";
 
 type MiniComparativoProps = {
 	atual: number;
@@ -224,8 +224,8 @@ function MiniComparativo({
 	const subindo = diff > 0;
 
 	const data = [
-		{ label: labelAnterior, valor: anterior },
-		{ label: labelAtual, valor: atual },
+		{ label: labelAnterior, valor: anterior, cor: COR_ANTERIOR },
+		{ label: labelAtual, valor: atual, cor: COR_ATUAL },
 	];
 
 	return (
@@ -240,21 +240,28 @@ function MiniComparativo({
 					{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}% vs mês anterior
 				</p>
 			)}
-			<ResponsiveContainer width='100%' height={56}>
+			<ResponsiveContainer width='100%' height={72}>
 				<BarChart
 					data={data}
-					barSize={28}
-					margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-					<Bar dataKey='valor' radius={[3, 3, 0, 0]}>
-						{data.map((_, i) => (
-							<Cell
-								key={i}
-								fill={i === 0 ? COR_ANTERIOR : COR_ATUAL}
-							/>
+					barSize={36}
+					margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+					<XAxis
+						dataKey='label'
+						axisLine={false}
+						tickLine={false}
+						tick={{ fontSize: 10, fill: "#94a3b8" }}
+					/>
+					<Bar
+						dataKey='valor'
+						radius={[4, 4, 0, 0]}
+						isAnimationActive={false}
+						activeBar={false}>
+						{data.map((item, i) => (
+							<Cell key={i} fill={item.cor} />
 						))}
 					</Bar>
 					<Tooltip
-						cursor={{ fill: "hsl(var(--muted)/0.4)" }}
+						cursor={{ fill: "transparent" }}
 						content={({ active, payload }) => {
 							if (!active || !payload?.length) return null;
 							const item = payload[0];
