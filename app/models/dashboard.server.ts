@@ -318,3 +318,60 @@ export async function obterResumoDespesasPorCategoriaNoPeriodo(
 
 	return acumularDespesasPorCategoria(despesas);
 }
+
+export type CategoriasMesItem = { mes: string; [categoria: string]: number | string };
+
+export async function obterCategoriasPorUltimosMeses(
+	meses = 6,
+	topN = 6,
+): Promise<CategoriasMesItem[]> {
+	const mesesNormalizados = Math.max(1, meses);
+	const inicio = getInicioJanelaMensal(mesesNormalizados);
+
+	const despesas = await db.despesas.findMany({
+		where: { data: { gte: inicio } },
+		select: { data: true, valor: true, categoria: true },
+	});
+
+	// Accumulate value per month+category
+	const porMes = new Map<string, Map<string, number>>();
+	const totalPorCategoria = new Map<string, number>();
+
+	for (const d of despesas) {
+		const chave = getChaveMes(d.data.getUTCFullYear(), d.data.getUTCMonth() + 1);
+		const cat = d.categoria.trim() || "Outros";
+		if (!porMes.has(chave)) porMes.set(chave, new Map());
+		const mesMap = porMes.get(chave)!;
+		mesMap.set(cat, (mesMap.get(cat) ?? 0) + d.valor);
+		totalPorCategoria.set(cat, (totalPorCategoria.get(cat) ?? 0) + d.valor);
+	}
+
+	// Pick top N categories by total, group the rest as "Outros"
+	const ordenadas = Array.from(totalPorCategoria.entries())
+		.sort((a, b) => b[1] - a[1])
+		.map(([cat]) => cat);
+
+	const principais = ordenadas.slice(0, topN);
+	const resto = new Set(ordenadas.slice(topN));
+
+	const janela = montarJanelaMensal(mesesNormalizados);
+
+	return janela.map(({ mes, label }) => {
+		const mesMap = porMes.get(mes) ?? new Map<string, number>();
+		const item: CategoriasMesItem = { mes: label };
+
+		for (const cat of principais) {
+			item[cat] = mesMap.get(cat) ?? 0;
+		}
+
+		if (resto.size > 0) {
+			let outrosTotal = 0;
+			for (const cat of resto) {
+				outrosTotal += mesMap.get(cat) ?? 0;
+			}
+			if (outrosTotal > 0) item["Outros"] = outrosTotal;
+		}
+
+		return item;
+	});
+}

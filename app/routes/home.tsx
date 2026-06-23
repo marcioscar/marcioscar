@@ -14,9 +14,12 @@ import {
 	obterResumoDespesasPorCategoriaNoPeriodo,
 	obterResumoDespesasPorContaNoPeriodo,
 	obterResumoDespesasPorPeriodo,
+	obterCategoriasPorUltimosMeses,
+	type CategoriasMesItem,
 } from "~/models/dashboard.server";
 import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
+import { CategoriasTrendChart } from "~/components/dashboard/categorias-trend-chart";
 import {
 	statCardCaptionClass,
 	statCardLabelClass,
@@ -48,6 +51,7 @@ type LoaderData = {
 		totalDespesas: number;
 		totalValorDespesas: number;
 	}[];
+	categoriasTrend: CategoriasMesItem[];
 };
 
 const PALETA_CONTA = [
@@ -174,6 +178,7 @@ export async function loader({
 		saldosPorConta,
 		saldosPorContaMesAnterior,
 		saldosPorCategoria,
+		categoriasTrend,
 	] = await Promise.all([
 		obterResumoDashboardBrassaco(6),
 		obterResumoDespesasPorPeriodo(filtroAno, filtroMes),
@@ -181,6 +186,7 @@ export async function loader({
 		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes),
 		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes),
 		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes),
+		obterCategoriasPorUltimosMeses(6),
 	]);
 
 	return {
@@ -195,6 +201,7 @@ export async function loader({
 		saldosPorConta,
 		saldosPorContaMesAnterior,
 		saldosPorCategoria,
+		categoriasTrend,
 	};
 }
 
@@ -271,6 +278,7 @@ export default function Home() {
 		saldoBrassaco,
 		totalDespesasBrassaco,
 		totalPagoBrassaco,
+		categoriasTrend,
 	} = useLoaderData<typeof loader>();
 
 	const submit = useSubmit();
@@ -476,6 +484,8 @@ export default function Home() {
 					}))}
 				/>
 			</section>
+
+			<CategoriasTrendChart dados={categoriasTrend} />
 		</main>
 	);
 }
