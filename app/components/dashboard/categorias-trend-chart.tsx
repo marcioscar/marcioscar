@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import {
-	Bar,
-	BarChart,
 	CartesianGrid,
+	Line,
+	LineChart,
 	ResponsiveContainer,
 	Tooltip,
 	XAxis,
@@ -57,10 +57,9 @@ export function CategoriasTrendChart({ dados }: Props) {
 			</CardHeader>
 			<CardContent>
 				<ResponsiveContainer width='100%' height={280}>
-					<BarChart
+					<LineChart
 						data={dados}
-						barSize={28}
-						margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+						margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
 						<CartesianGrid
 							strokeDasharray='3 3'
 							vertical={false}
@@ -81,25 +80,24 @@ export function CategoriasTrendChart({ dados }: Props) {
 							width={52}
 						/>
 						<Tooltip
-							cursor={{ fill: "currentColor", fillOpacity: 0.04 }}
+							cursor={{ stroke: "#94a3b8", strokeWidth: 1, strokeDasharray: "4 2" }}
 							content={({ active, payload, label }) => {
 								if (!active || !payload?.length) return null;
-								const total = payload.reduce(
-									(sum, p) => sum + Number(p.value ?? 0),
-									0,
+								const ordenado = [...payload].sort(
+									(a, b) => Number(b.value ?? 0) - Number(a.value ?? 0),
 								);
 								return (
 									<div className='rounded-lg border border-border bg-background p-3 text-xs shadow-md'>
 										<p className='mb-2 font-semibold text-foreground'>{label}</p>
 										<div className='flex flex-col gap-1'>
-											{[...payload].reverse().map((p) => (
+											{ordenado.map((p) => (
 												<div
-													key={p.dataKey}
+													key={p.dataKey as string}
 													className='flex items-center justify-between gap-6'>
 													<div className='flex items-center gap-1.5'>
 														<span
-															className='h-2 w-2 shrink-0 rounded-sm'
-															style={{ backgroundColor: p.fill as string }}
+															className='h-2 w-2 shrink-0 rounded-full'
+															style={{ backgroundColor: p.stroke as string }}
 														/>
 														<span className='text-muted-foreground'>
 															{p.dataKey as string}
@@ -111,34 +109,29 @@ export function CategoriasTrendChart({ dados }: Props) {
 												</div>
 											))}
 										</div>
-										<div className='mt-2 flex justify-between border-t border-border pt-1.5'>
-											<span className='text-muted-foreground'>Total</span>
-											<span className='font-semibold tabular-nums'>
-												{formatarMoeda(total)}
-											</span>
-										</div>
 									</div>
 								);
 							}}
 						/>
 						{categorias.map((cat, i) => (
-							<Bar
+							<Line
 								key={cat}
 								dataKey={cat}
-								stackId='stack'
-								fill={PALETA[i % PALETA.length]}
-								radius={i === categorias.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+								stroke={PALETA[i % PALETA.length]}
+								strokeWidth={2}
+								dot={{ r: 3, fill: PALETA[i % PALETA.length], strokeWidth: 0 }}
+								activeDot={{ r: 5, strokeWidth: 0 }}
 								isAnimationActive={false}
 							/>
 						))}
-					</BarChart>
+					</LineChart>
 				</ResponsiveContainer>
 
 				<div className='mt-3 flex flex-wrap gap-x-4 gap-y-1.5'>
 					{categorias.map((cat, i) => (
 						<div key={cat} className='flex items-center gap-1.5 text-xs'>
 							<span
-								className='h-2.5 w-2.5 shrink-0 rounded-[2px]'
+								className='h-2 w-2 shrink-0 rounded-full'
 								style={{ backgroundColor: PALETA[i % PALETA.length] }}
 							/>
 							<span className='text-muted-foreground'>{cat}</span>
