@@ -1,27 +1,15 @@
-FROM node:20-alpine AS development-dependencies-env
-COPY package.json package-lock.json /app/
+FROM node:20-alpine
+
 WORKDIR /app
+
+COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:20-alpine AS production-dependencies-env
-COPY ./package.json package-lock.json /app/
-WORKDIR /app
-RUN npm ci --omit=dev
-
-FROM node:20-alpine AS build-env
-COPY . /app/
-COPY --from=development-dependencies-env /app/node_modules /app/node_modules
-WORKDIR /app
+COPY . .
 ARG DATABASE_URL=mongodb://build-placeholder
 ENV DATABASE_URL=$DATABASE_URL
 RUN npm run build
 
-FROM node:20-alpine
-COPY ./package.json package-lock.json /app/
-COPY --from=production-dependencies-env /app/node_modules /app/node_modules
-# Keep generated Prisma client in runtime image.
-COPY --from=build-env /app/node_modules/.prisma /app/node_modules/.prisma
-COPY --from=build-env /app/node_modules/@prisma/client /app/node_modules/@prisma/client
-COPY --from=build-env /app/build /app/build
-WORKDIR /app
+RUN npm prune --omit=dev
+
 CMD ["npm", "run", "start"]
