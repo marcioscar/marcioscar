@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Form, Link, useLoaderData, useSubmit } from "react-router";
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import type { Route } from "./+types/home";
 import {
 	Card,
@@ -29,12 +30,17 @@ type LoaderData = {
 	filtroAno: number;
 	totalDespesasPeriodo: number;
 	totalValorDespesasPeriodo: number;
+	totalValorDespesasMesAnterior: number;
 	saldoBrassaco: number;
 	totalDespesasBrassaco: number;
 	totalPagoBrassaco: number;
 	saldosPorConta: {
 		conta: string;
 		totalDespesas: number;
+		totalValorDespesas: number;
+	}[];
+	saldosPorContaMesAnterior: {
+		conta: string;
 		totalValorDespesas: number;
 	}[];
 	saldosPorCategoria: {
@@ -106,6 +112,14 @@ function getNomeMes(mes: number): string {
 	});
 }
 
+function getNomeMesAbreviado(mes: number): string {
+	const data = new Date(Date.UTC(2025, mes - 1, 1));
+	return data.toLocaleString("pt-BR", {
+		month: "short",
+		timeZone: "UTC",
+	});
+}
+
 function getPrevMesAno(mes: number, ano: number) {
 	if (mes === 1) return { mes: 12, ano: ano - 1 };
 	return { mes: mes - 1, ano };
@@ -126,15 +140,8 @@ function montarSaldosPorContaComPadrao(
 
 	const contasBase = contasPadrao.map((conta) => {
 		const saldoConta = mapaSaldos.get(conta);
-		if (saldoConta) {
-			return saldoConta;
-		}
-
-		return {
-			conta,
-			totalDespesas: 0,
-			totalValorDespesas: 0,
-		};
+		if (saldoConta) return saldoConta;
+		return { conta, totalDespesas: 0, totalValorDespesas: 0 };
 	});
 
 	const extras = saldosPorConta.filter(
@@ -158,16 +165,21 @@ export async function loader({
 	const mesAnoAtual = getMesAnoAtual();
 	const filtroMes = parseMes(url.searchParams.get("mes"), mesAnoAtual.mes);
 	const filtroAno = parseAno(url.searchParams.get("ano"), mesAnoAtual.ano);
+	const prev = getPrevMesAno(filtroMes, filtroAno);
 
 	const [
 		resumoBrassaco,
 		resumoDespesasPeriodo,
+		resumoDespesasMesAnterior,
 		saldosPorConta,
+		saldosPorContaMesAnterior,
 		saldosPorCategoria,
 	] = await Promise.all([
 		obterResumoDashboardBrassaco(6),
 		obterResumoDespesasPorPeriodo(filtroAno, filtroMes),
+		obterResumoDespesasPorPeriodo(prev.ano, prev.mes),
 		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes),
+		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes),
 		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes),
 	]);
 
@@ -176,10 +188,12 @@ export async function loader({
 		filtroAno,
 		totalDespesasPeriodo: resumoDespesasPeriodo.totalDespesas,
 		totalValorDespesasPeriodo: resumoDespesasPeriodo.totalValorDespesas,
+		totalValorDespesasMesAnterior: resumoDespesasMesAnterior.totalValorDespesas,
 		saldoBrassaco: resumoBrassaco.saldoBrassaco,
 		totalDespesasBrassaco: resumoBrassaco.totalDespesasBrassaco,
 		totalPagoBrassaco: resumoBrassaco.totalPagoBrassaco,
 		saldosPorConta,
+		saldosPorContaMesAnterior,
 		saldosPorCategoria,
 	};
 }
@@ -189,13 +203,86 @@ const NAV_BTN =
 const SELECT_CLASS =
 	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
 
+const COR_ANTERIOR = "hsl(var(--muted-foreground)/0.35)";
+const COR_ATUAL = "hsl(var(--primary)/0.75)";
+
+type MiniComparativoProps = {
+	atual: number;
+	anterior: number;
+	labelAnterior: string;
+	labelAtual: string;
+};
+
+function MiniComparativo({
+	atual,
+	anterior,
+	labelAnterior,
+	labelAtual,
+}: MiniComparativoProps) {
+	const diff = atual - anterior;
+	const pct = anterior > 0 ? (diff / anterior) * 100 : null;
+	const subindo = diff > 0;
+
+	const data = [
+		{ label: labelAnterior, valor: anterior },
+		{ label: labelAtual, valor: atual },
+	];
+
+	return (
+		<div className='flex flex-col gap-1 pt-2'>
+			{pct !== null && (
+				<p
+					className={`text-xs font-medium ${
+						subindo
+							? "text-red-500 dark:text-red-400"
+							: "text-emerald-600 dark:text-emerald-400"
+					}`}>
+					{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}% vs mês anterior
+				</p>
+			)}
+			<ResponsiveContainer width='100%' height={56}>
+				<BarChart
+					data={data}
+					barSize={28}
+					margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+					<Bar dataKey='valor' radius={[3, 3, 0, 0]}>
+						{data.map((_, i) => (
+							<Cell
+								key={i}
+								fill={i === 0 ? COR_ANTERIOR : COR_ATUAL}
+							/>
+						))}
+					</Bar>
+					<Tooltip
+						cursor={{ fill: "hsl(var(--muted)/0.4)" }}
+						content={({ active, payload }) => {
+							if (!active || !payload?.length) return null;
+							const item = payload[0];
+							return (
+								<div className='rounded-md border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm'>
+									<p className='text-muted-foreground'>{item?.payload?.label}</p>
+									<p className='font-medium tabular-nums'>
+										{formatarMoeda(Number(item?.value ?? 0))}
+									</p>
+								</div>
+							);
+						}}
+					/>
+				</BarChart>
+			</ResponsiveContainer>
+		</div>
+	);
+}
+
 export default function Home() {
 	const {
 		filtroMes,
 		filtroAno,
 		totalDespesasPeriodo,
 		totalValorDespesasPeriodo,
+		totalValorDespesasMesAnterior,
 		saldosPorConta,
+		saldosPorContaMesAnterior,
 		saldosPorCategoria,
 		saldoBrassaco,
 		totalDespesasBrassaco,
@@ -208,9 +295,15 @@ export default function Home() {
 		() => montarSaldosPorContaComPadrao(saldosPorConta),
 		[saldosPorConta],
 	);
+	const mapaContaMesAnterior = useMemo(
+		() => new Map(saldosPorContaMesAnterior.map((c) => [c.conta, c.totalValorDespesas])),
+		[saldosPorContaMesAnterior],
+	);
 
 	const prev = getPrevMesAno(filtroMes, filtroAno);
 	const next = getNextMesAno(filtroMes, filtroAno);
+	const labelAnterior = getNomeMesAbreviado(prev.mes);
+	const labelAtual = getNomeMesAbreviado(filtroMes);
 
 	return (
 		<main className='grid gap-4 md:gap-6'>
@@ -223,9 +316,7 @@ export default function Home() {
 						aria-label='Mês anterior'>
 						←
 					</Link>
-					<Form
-						method='get'
-						className='flex items-center gap-2'>
+					<Form method='get' className='flex items-center gap-2'>
 						<select
 							name='mes'
 							value={String(filtroMes)}
@@ -275,6 +366,12 @@ export default function Home() {
 						<p className={statCardCaptionClass}>
 							{totalDespesasPeriodo} despesa(s) no período
 						</p>
+						<MiniComparativo
+							atual={totalValorDespesasPeriodo}
+							anterior={totalValorDespesasMesAnterior}
+							labelAnterior={labelAnterior}
+							labelAtual={labelAtual}
+						/>
 					</CardContent>
 				</Card>
 
@@ -317,6 +414,12 @@ export default function Home() {
 								<p className={statCardCaptionClass}>
 									{saldoConta.totalDespesas} despesa(s)
 								</p>
+								<MiniComparativo
+									atual={saldoConta.totalValorDespesas}
+									anterior={mapaContaMesAnterior.get(saldoConta.conta) ?? 0}
+									labelAnterior={labelAnterior}
+									labelAtual={labelAtual}
+								/>
 							</CardContent>
 						</Card>
 					))
