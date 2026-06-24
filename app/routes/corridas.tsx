@@ -6,7 +6,7 @@ import {
 	useLoaderData,
 	useNavigation,
 } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	buscarUltimaAtualizacaoCorridas,
@@ -19,6 +19,25 @@ import {
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "~/components/ui/sheet";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import {
+	FilterHorizontalIcon,
+	ArrowReloadHorizontalIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { CorridasDataTable } from "~/components/corridas/corridas-data-table";
 import type { CorridaDataTableRow } from "~/components/corridas/corridas-columns";
 import { CorridasGraficosChart } from "~/components/corridas/corridas-graficos-chart";
@@ -244,111 +263,139 @@ export default function Corridas() {
 		mapCorridaResumoParaDataTableRow,
 	);
 	const filtroFormKey = `${filtroDataInicio}-${filtroDataFim}`;
+	const filtroAtivo = filtroDataInicio !== "" || filtroDataFim !== "";
+	const [filtroAberto, setFiltroAberto] = useState(false);
+	const syncIncrementalRef = useRef<HTMLFormElement>(null);
+	const syncFullRef = useRef<HTMLFormElement>(null);
 
 	useEffect(() => {
-		if (!actionData) {
-			return;
-		}
-
+		if (!actionData) return;
 		if (actionData.ok) {
 			toast.success("Sincronizacao concluida com sucesso.", {
 				description: `Recebidas: ${actionData.totalRecebidas ?? 0} | Upserts: ${actionData.totalSincronizadas ?? 0} | Modo: ${actionData.modo} | After: ${formatarEpoch(actionData.afterUsado)}`,
 			});
-			return;
+		} else {
+			toast.error("Falha na sincronizacao", { description: actionData.message });
 		}
-
-		toast.error("Falha na sincronizacao", {
-			description: actionData.message,
-		});
 	}, [actionData]);
+
+	useEffect(() => {
+		if (navigation.state === "idle") setFiltroAberto(false);
+	}, [navigation.state]);
 
 	return (
 		<main className='grid w-full min-w-0 gap-3'>
-			<div className='flex flex-wrap items-center gap-2'>
-				<h1 className='text-2xl font-bold'>Corridas</h1>
-				<Badge className='text-primary bg-green-600/20' variant='outline'>
-					Total: {totalCorridas ?? 0}
-				</Badge>
-				<Badge className='text-primary bg-blue-600/20' variant='outline'>
-					Exibindo: {totalCorridasFiltradas ?? 0}
-				</Badge>
-				<Badge className='text-primary bg-primary/10' variant='outline'>
-					{ultimaAtualizacao
-						? new Date(ultimaAtualizacao).toLocaleString("pt-BR")
-						: "Nunca sincronizado"}
-				</Badge>
-			</div>
-
-			<div className='flex flex-wrap items-end gap-2'>
-				<Form key={filtroFormKey} method='get' className='grid gap-2'>
-					<div className='flex flex-wrap items-end gap-3'>
-						<label className='grid gap-1 text-sm'>
-							Data inicial
-							<input
-								type='date'
-								name='dataInicio'
-								defaultValue={filtroDataInicio}
-								className='border-input bg-background rounded-md border px-3 py-2'
-							/>
-						</label>
-
-						<label className='grid gap-1 text-sm'>
-							Data final
-							<input
-								type='date'
-								name='dataFim'
-								defaultValue={filtroDataFim}
-								className='border-input bg-background rounded-md border px-3 py-2'
-							/>
-						</label>
-
-						<Button type='submit' variant='outline'>
-							Aplicar filtro
-						</Button>
-					</div>
-				</Form>
-
-				<Form method='get' action='.'>
-					<input type='hidden' name='limpar' value='1' />
-					<Button type='submit' variant='ghost'>
-						Limpar
-					</Button>
-				</Form>
-			</div>
-
-			<Form method='post' style={{ display: "grid", gap: 8 }}>
-				{/* <label>
-					Per page
-					<input type='number' name='perPage' defaultValue={200} min={1} />
-				</label>
-
-				<label>
-					Max paginas
-					<input type='number' name='maxPaginas' defaultValue={100} min={1} />
-				</label> */}
-
-				<div className='flex flex-wrap items-center gap-2'>
-					<Button
-						variant='outline'
-						type='submit'
-						name='modoSync'
-						value='incremental'
-						disabled={isSubmitting}>
-						{isSubmitting ? "Sincronizando..." : "Sincronizar"}
-					</Button>
-
-					<Button
-						type='submit'
-						name='modoSync'
-						value='full'
-						variant='outline'
-						disabled={isSubmitting}>
-						{isSubmitting
-							? "Sincronizando..."
-							: "Sincronizar completo (desde o inicio)"}
-					</Button>
-				</div>
+			{/* Formulários ocultos para sync */}
+			<Form ref={syncIncrementalRef} method='post' className='hidden'>
+				<input type='hidden' name='modoSync' value='incremental' />
 			</Form>
+			<Form ref={syncFullRef} method='post' className='hidden'>
+				<input type='hidden' name='modoSync' value='full' />
+			</Form>
+
+			<div className='flex items-start justify-between gap-2'>
+				<div className='flex flex-wrap items-center gap-2'>
+					<h1 className='text-2xl font-bold'>Corridas</h1>
+					<Badge className='text-primary bg-green-600/20' variant='outline'>
+						Total: {totalCorridas ?? 0}
+					</Badge>
+					<Badge className='text-primary bg-blue-600/20' variant='outline'>
+						Exibindo: {totalCorridasFiltradas ?? 0}
+					</Badge>
+				</div>
+
+				<div className='flex shrink-0 items-center gap-2'>
+					<Sheet open={filtroAberto} onOpenChange={setFiltroAberto}>
+						<SheetTrigger
+							render={
+								<Button
+									variant={filtroAtivo ? "default" : "outline"}
+									size='sm'
+									className='gap-1.5'
+								/>
+							}>
+							<HugeiconsIcon icon={FilterHorizontalIcon} size={15} />
+							Filtrar
+						</SheetTrigger>
+						<SheetContent side='bottom' className='rounded-t-2xl'>
+							<SheetHeader>
+								<SheetTitle>Filtrar corridas</SheetTitle>
+							</SheetHeader>
+							<Form
+								key={filtroFormKey}
+								method='get'
+								className='grid gap-4 py-4'>
+								<label className='grid gap-1 text-sm'>
+									Data inicial
+									<input
+										type='date'
+										name='dataInicio'
+										defaultValue={filtroDataInicio}
+										className='border-input bg-background rounded-md border px-3 py-2'
+									/>
+								</label>
+								<label className='grid gap-1 text-sm'>
+									Data final
+									<input
+										type='date'
+										name='dataFim'
+										defaultValue={filtroDataFim}
+										className='border-input bg-background rounded-md border px-3 py-2'
+									/>
+								</label>
+								<Button type='submit'>Aplicar filtro</Button>
+							</Form>
+							{filtroAtivo && (
+								<Form method='get' action='.'>
+									<input type='hidden' name='limpar' value='1' />
+									<Button
+										type='submit'
+										variant='ghost'
+										className='w-full'>
+										Limpar filtro
+									</Button>
+								</Form>
+							)}
+						</SheetContent>
+					</Sheet>
+
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									variant='outline'
+									size='sm'
+									className='gap-1.5'
+									disabled={isSubmitting}
+								/>
+							}>
+							<HugeiconsIcon icon={ArrowReloadHorizontalIcon} size={15} />
+							{isSubmitting ? "Sincronizando..." : "Sincronizar"}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align='end'>
+							<DropdownMenuItem
+								onClick={() =>
+									syncIncrementalRef.current?.requestSubmit()
+								}
+								disabled={isSubmitting}>
+								Incremental
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								onClick={() => syncFullRef.current?.requestSubmit()}
+								disabled={isSubmitting}>
+								Completo (desde o início)
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			</div>
+
+			<p className='text-muted-foreground text-xs'>
+				{ultimaAtualizacao
+					? `Última sync: ${new Date(ultimaAtualizacao).toLocaleString("pt-BR")}`
+					: "Nunca sincronizado"}
+			</p>
 
 			<CorridasHojeCards corridas={corridasDataTable} />
 
