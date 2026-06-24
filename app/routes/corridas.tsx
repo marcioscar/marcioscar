@@ -21,6 +21,9 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { CorridasDataTable } from "~/components/corridas/corridas-data-table";
 import type { CorridaDataTableRow } from "~/components/corridas/corridas-columns";
+import { CorridasGraficosChart } from "~/components/corridas/corridas-graficos-chart";
+import { CorridasHojeCards } from "~/components/corridas/corridas-hoje-cards";
+import { CorridasSemanaChart } from "~/components/corridas/corridas-semana-chart";
 
 export function meta({}: Route.MetaArgs) {
 	return [
@@ -346,6 +349,16 @@ export default function Corridas() {
 					</Button>
 				</div>
 			</Form>
+
+			<CorridasHojeCards corridas={corridasDataTable} />
+
+			<section className='grid gap-2'>
+				<CorridasSemanaChart corridas={corridasDataTable} />
+			</section>
+
+			<section className='grid gap-2'>
+				<CorridasGraficosChart corridas={corridasDataTable} />
+			</section>
 
 			<section className='grid gap-2'>
 				<h2 className='text-lg font-semibold'>Ultimas corridas sincronizadas</h2>
