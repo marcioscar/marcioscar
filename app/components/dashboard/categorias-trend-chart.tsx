@@ -62,13 +62,13 @@ export function CategoriasTrendChart({ dados }: Props) {
 				<CardDescription>Comparativo com mês anterior · últimos 6 meses</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<div className='flex flex-col divide-y divide-border'>
+				<div className='grid grid-cols-1 divide-y divide-border lg:grid-cols-2 lg:divide-y-0 lg:gap-x-6'>
 					{categorias.map(({ cat, valores, atual, anterior, cor }) => {
 						const pct = calcPct(atual, anterior);
 						const subindo = (pct ?? 0) > 0;
 
 						return (
-							<div key={cat} className='flex items-center gap-3 py-3'>
+							<div key={cat} className='flex items-center gap-3 py-3 lg:border-b lg:border-border'>
 								<span
 									className='h-3 w-3 shrink-0 rounded-full'
 									style={{ backgroundColor: cor }}

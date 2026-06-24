@@ -9,6 +9,32 @@ import {
 	Tooltip,
 	XAxis,
 } from "recharts";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import {
+	DropletIcon,
+	AppStoreIcon,
+	Baby01Icon,
+	UserCircleIcon,
+	WorkoutRunIcon,
+	Mortarboard01Icon,
+	ElectricityStackIcon,
+	Film01Icon,
+	PillIcon,
+	ComputerIcon,
+	Cash01Icon,
+	Home01Icon,
+	Apple01Icon,
+	Package01Icon,
+	Bread01Icon,
+	Restaurant01Icon,
+	Hospital01Icon,
+	ShoppingCart01Icon,
+	Car01Icon,
+	Shirt01Icon,
+	Airplane01Icon,
+	DrinkIcon,
+	GlassesIcon,
+} from "@hugeicons/core-free-icons";
 import {
 	Card,
 	CardContent,
@@ -17,6 +43,32 @@ import {
 	CardTitle,
 } from "~/components/ui/card";
 import type { DespesaResumida } from "~/models/dashboard.server";
+
+const CATEGORIA_ICONES: Record<string, IconSvgElement> = {
+	Agua: DropletIcon,
+	Apps: AppStoreIcon,
+	Arthur: Baby01Icon,
+	Camila: UserCircleIcon,
+	Corrida: WorkoutRunIcon,
+	"Educação": Mortarboard01Icon,
+	Energia: ElectricityStackIcon,
+	Entretenimento: Film01Icon,
+	Farmacia: PillIcon,
+	Hardware: ComputerIcon,
+	Mesada: Cash01Icon,
+	Moradia: Home01Icon,
+	"Nutrição": Apple01Icon,
+	Outros: Package01Icon,
+	Padaria: Bread01Icon,
+	Refeicao: Restaurant01Icon,
+	"Saúde": Hospital01Icon,
+	Supermercado: ShoppingCart01Icon,
+	Transporte: Car01Icon,
+	Vestuario: Shirt01Icon,
+	Viagem: Airplane01Icon,
+	Vinho: DrinkIcon,
+	"Óculos": GlassesIcon,
+};
 
 const PALETA = [
 	"#f97316",
@@ -170,9 +222,20 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 									onClick={() => setAberta(estaAberta ? null : item.label)}
 									className='flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-muted/40 rounded-sm px-1'>
 									<span
-										className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold'
+										className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white'
 										style={{ backgroundColor: cor }}>
-										{item.label.slice(0, 1).toUpperCase()}
+										{CATEGORIA_ICONES[item.label] ? (
+											<HugeiconsIcon
+												icon={CATEGORIA_ICONES[item.label]}
+												size={16}
+												color='white'
+												strokeWidth={1.5}
+											/>
+										) : (
+											<span className='text-xs font-bold'>
+												{item.label.slice(0, 1).toUpperCase()}
+											</span>
+										)}
 									</span>
 									<div className='flex min-w-0 flex-1 flex-col'>
 										<span className='truncate text-sm font-medium'>
