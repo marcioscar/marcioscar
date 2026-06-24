@@ -319,15 +319,14 @@ export default function Corridas() {
 						</SheetTrigger>
 						<SheetContent
 							side='bottom'
-							className='rounded-2xl'
-							style={{ left: 16, right: 16, bottom: 16 }}>
-							<SheetHeader>
+							className='rounded-2xl !left-4 !right-4 !bottom-4 sm:!left-1/2 sm:!right-auto sm:!w-[440px] sm:!-translate-x-1/2'>
+							<SheetHeader className='pb-2'>
 								<SheetTitle>Filtrar corridas</SheetTitle>
 							</SheetHeader>
 							<Form
 								key={filtroFormKey}
 								method='get'
-								className='grid gap-4 py-4'>
+								className='grid gap-4 px-6 pb-4'>
 								<label className='grid gap-1 text-sm'>
 									Data inicial
 									<input
@@ -349,7 +348,7 @@ export default function Corridas() {
 								<Button type='submit'>Aplicar filtro</Button>
 							</Form>
 							{filtroAtivo && (
-								<Form method='get' action='.'>
+								<Form method='get' action='.' className='px-6 pb-6'>
 									<input type='hidden' name='limpar' value='1' />
 									<Button
 										type='submit'
