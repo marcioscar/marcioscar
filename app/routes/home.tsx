@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Form, Link, useLoaderData, useSubmit } from "react-router";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { CreditCard, HandCoins, Landmark, Receipt, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { CreditCard, Landmark, Receipt, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import type { Route } from "./+types/home";
 import {
 	Card,
@@ -353,8 +353,8 @@ export default function Home() {
 				</div>
 			</div>
 
-			{/* --- Cards principais --- */}
-			<section className='grid min-w-0 gap-4 sm:grid-cols-2'>
+			{/* --- Card total + cards por conta --- */}
+			<section className='grid min-w-0 gap-4 lg:grid-cols-[1fr_2fr]'>
 				{/* Total de despesas */}
 				<Card className='min-w-0 overflow-hidden'>
 					<CardHeader>
@@ -398,31 +398,8 @@ export default function Home() {
 					</CardContent>
 				</Card>
 
-				{/* Brassaco */}
-				<Card className={`min-w-0 overflow-hidden ${saldoBrassaco > 0 ? "bg-red-50 dark:bg-red-950/30" : "bg-emerald-50 dark:bg-emerald-950/30"}`}>
-					<CardHeader>
-						<div className='flex items-start justify-between gap-3'>
-							<div className='grid gap-0.5'>
-								<CardDescription>Brassaco · {totalDespesasBrassaco} despesas</CardDescription>
-								<CardTitle className={`text-3xl font-bold tabular-nums ${saldoBrassaco > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-									{formatarMoeda(saldoBrassaco)}
-								</CardTitle>
-							</div>
-							<div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${saldoBrassaco > 0 ? "bg-red-100 dark:bg-red-900/40" : "bg-emerald-100 dark:bg-emerald-900/40"}`}>
-								<HandCoins size={18} className={saldoBrassaco > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"} />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<p className='text-muted-foreground text-xs'>
-							{formatarMoeda(totalPagoBrassaco)} pago no total
-						</p>
-					</CardContent>
-				</Card>
-			</section>
-
-			{/* --- Cards por conta --- */}
-			<section className='grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+				{/* Cards por conta em grid 2x2 */}
+				<div className='grid grid-cols-2 gap-3'>
 				{saldosPorContaExibicao.map((saldoConta) => {
 					const { cor, Icone } = getContaConfig(saldoConta.conta);
 					const anterior = mapaContaMesAnterior.get(saldoConta.conta) ?? 0;
@@ -464,6 +441,7 @@ export default function Home() {
 						</Card>
 					);
 				})}
+				</div>
 			</section>
 
 			<section className='grid gap-4 md:grid-cols-2'>
