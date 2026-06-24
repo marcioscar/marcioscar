@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Form, Link, useLoaderData, useSubmit } from "react-router";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { CreditCard, HandCoins, Landmark, Receipt, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import type { Route } from "./+types/home";
 import {
 	Card,
@@ -51,6 +52,19 @@ type LoaderData = {
 	saldosPorCategoria: CategoriaComDespesas[];
 	categoriasTrend: CategoriasMesItem[];
 };
+
+type ContaConfig = { cor: string; Icone: LucideIcon };
+
+const CONTA_CONFIG: Record<string, ContaConfig> = {
+	Corrente: { cor: "#0ea5e9", Icone: Landmark },
+	"Cartão Itau": { cor: "#f97316", Icone: CreditCard },
+	Nubank: { cor: "#a855f7", Icone: CreditCard },
+	"Cartão Camila": { cor: "#14b8a6", Icone: CreditCard },
+};
+
+function getContaConfig(conta: string): ContaConfig {
+	return CONTA_CONFIG[conta] ?? { cor: "#6b7280", Icone: CreditCard };
+}
 
 const PALETA_CONTA = [
 	"#0ea5e9",
@@ -339,31 +353,36 @@ export default function Home() {
 				</div>
 			</div>
 
+			{/* --- Cards principais --- */}
 			<section className='grid min-w-0 gap-4 sm:grid-cols-2'>
-				<Card className={statCardSurfaceClass}>
+				{/* Total de despesas */}
+				<Card className='min-w-0 overflow-hidden'>
 					<CardHeader>
-						<CardTitle className={statCardTitleClass}>
-							Total de despesas no período
-						</CardTitle>
-						<CardDescription className={statCardLabelClass}>
-							{getNomeMes(filtroMes)} / {filtroAno}
-						</CardDescription>
+						<div className='flex items-start justify-between gap-3'>
+							<div className='grid gap-0.5'>
+								<CardDescription>Total de despesas</CardDescription>
+								<CardTitle className='text-3xl font-bold tabular-nums'>
+									{formatarMoeda(totalValorDespesasPeriodo)}
+								</CardTitle>
+							</div>
+							<div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40'>
+								<Receipt size={18} className='text-blue-600 dark:text-blue-400' />
+							</div>
+						</div>
 					</CardHeader>
-					<CardContent className='flex items-center justify-between gap-4'>
-						<div className='flex min-w-0 flex-col gap-1'>
-							<p className={statCardMetricLgClass}>
-								{formatarMoeda(totalValorDespesasPeriodo)}
-							</p>
-							<p className={statCardCaptionClass}>
-								{totalDespesasPeriodo} despesa(s)
+					<CardContent className='flex items-end justify-between gap-4'>
+						<div className='flex flex-col gap-1'>
+							<p className='text-muted-foreground text-xs'>
+								{totalDespesasPeriodo} despesas · {getNomeMes(filtroMes)} {filtroAno}
 							</p>
 							{(() => {
 								const pct = calcPct(totalValorDespesasPeriodo, totalValorDespesasMesAnterior);
 								if (pct === null) return null;
 								const subindo = pct > 0;
 								return (
-									<p className={`text-xs font-medium ${subindo ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-										{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
+									<p className={`flex items-center gap-1 text-xs font-medium ${subindo ? "text-red-500" : "text-emerald-600"}`}>
+										{subindo ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+										{Math.abs(pct).toFixed(1)}% vs {labelAnterior}
 									</p>
 								);
 							})()}
@@ -379,85 +398,72 @@ export default function Home() {
 					</CardContent>
 				</Card>
 
-				<Card className={statCardSurfaceClass}>
+				{/* Brassaco */}
+				<Card className={`min-w-0 overflow-hidden ${saldoBrassaco > 0 ? "bg-red-50 dark:bg-red-950/30" : "bg-emerald-50 dark:bg-emerald-950/30"}`}>
 					<CardHeader>
-						<CardTitle className={statCardTitleClass}>Brassaco</CardTitle>
-						<CardDescription className={statCardLabelClass}>
-							Saldo acumulado · {totalDespesasBrassaco} despesa(s)
-						</CardDescription>
+						<div className='flex items-start justify-between gap-3'>
+							<div className='grid gap-0.5'>
+								<CardDescription>Brassaco · {totalDespesasBrassaco} despesas</CardDescription>
+								<CardTitle className={`text-3xl font-bold tabular-nums ${saldoBrassaco > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+									{formatarMoeda(saldoBrassaco)}
+								</CardTitle>
+							</div>
+							<div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${saldoBrassaco > 0 ? "bg-red-100 dark:bg-red-900/40" : "bg-emerald-100 dark:bg-emerald-900/40"}`}>
+								<HandCoins size={18} className={saldoBrassaco > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"} />
+							</div>
+						</div>
 					</CardHeader>
-					<CardContent className='flex flex-col gap-1'>
-						<p
-							className={`${statCardMetricLgClass} ${
-								saldoBrassaco > 0
-									? "text-red-500 dark:text-red-400"
-									: "text-emerald-600 dark:text-emerald-400"
-							}`}>
-							{formatarMoeda(saldoBrassaco)}
-						</p>
-						<p className={statCardCaptionClass}>
-							{formatarMoeda(totalPagoBrassaco)} pago
+					<CardContent>
+						<p className='text-muted-foreground text-xs'>
+							{formatarMoeda(totalPagoBrassaco)} pago no total
 						</p>
 					</CardContent>
 				</Card>
 			</section>
 
-			<section className='grid min-w-0 gap-4 sm:grid-cols-2'>
-				{saldosPorContaExibicao.length > 0 ? (
-					saldosPorContaExibicao.map((saldoConta) => {
-						const anterior = mapaContaMesAnterior.get(saldoConta.conta) ?? 0;
-						const pct = calcPct(saldoConta.totalValorDespesas, anterior);
-						const subindo = (pct ?? 0) > 0;
-						return (
-							<Card key={saldoConta.conta} className={statCardSurfaceClass}>
-								<CardHeader>
-									<CardTitle className={statCardTitleClass}>
+			{/* --- Cards por conta --- */}
+			<section className='grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+				{saldosPorContaExibicao.map((saldoConta) => {
+					const { cor, Icone } = getContaConfig(saldoConta.conta);
+					const anterior = mapaContaMesAnterior.get(saldoConta.conta) ?? 0;
+					const pct = calcPct(saldoConta.totalValorDespesas, anterior);
+					const subindo = (pct ?? 0) > 0;
+					return (
+						<Card
+							key={saldoConta.conta}
+							className='min-w-0 overflow-hidden'
+							style={{ borderTop: `3px solid ${cor}` }}>
+							<CardHeader className='pb-2'>
+								<div className='flex items-center justify-between gap-2'>
+									<CardDescription className='text-xs font-medium'>
 										{saldoConta.conta}
-									</CardTitle>
-								</CardHeader>
-								<CardContent className='flex items-center justify-between gap-4'>
-									<div className='flex min-w-0 flex-col gap-1'>
-										<p className={statCardMetricLgClass}>
-											{formatarMoeda(saldoConta.totalValorDespesas)}
-										</p>
-										<p className={statCardCaptionClass}>
-											{saldoConta.totalDespesas} despesa(s)
-										</p>
-										{pct !== null && (
-											<p className={`text-xs font-medium ${subindo ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-												{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
-											</p>
-										)}
+									</CardDescription>
+									<div
+										className='flex h-7 w-7 shrink-0 items-center justify-center rounded-full'
+										style={{ background: `${cor}20` }}>
+										<Icone size={13} style={{ color: cor }} />
 									</div>
-									<div className='w-28 shrink-0'>
-										<MiniBarChart
-											atual={saldoConta.totalValorDespesas}
-											anterior={anterior}
-											labelAnterior={labelAnterior}
-											labelAtual={labelAtual}
-										/>
-									</div>
-								</CardContent>
-							</Card>
-						);
-					})
-				) : (
-					<Card className={statCardSurfaceClass}>
-						<CardHeader>
-							<CardTitle className={statCardTitleClass}>
-								Despesas por conta
-							</CardTitle>
-							<CardDescription className={statCardLabelClass}>
-								{getNomeMes(filtroMes)} / {filtroAno}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<p className={statCardCaptionClass}>
-								Nenhuma despesa encontrada para o período selecionado.
-							</p>
-						</CardContent>
-					</Card>
-				)}
+								</div>
+							</CardHeader>
+							<CardContent className='pt-0'>
+								<p className='text-xl font-bold tabular-nums'>
+									{formatarMoeda(saldoConta.totalValorDespesas)}
+								</p>
+								<div className='mt-1 flex items-center justify-between'>
+									<p className='text-muted-foreground text-xs'>
+										{saldoConta.totalDespesas} desp.
+									</p>
+									{pct !== null && (
+										<p className={`flex items-center gap-0.5 text-xs font-medium ${subindo ? "text-red-500" : "text-emerald-600"}`}>
+											{subindo ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+											{Math.abs(pct).toFixed(1)}%
+										</p>
+									)}
+								</div>
+							</CardContent>
+						</Card>
+					);
+				})}
 			</section>
 
 			<section className='grid gap-4 md:grid-cols-2'>
