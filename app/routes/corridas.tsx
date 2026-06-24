@@ -317,7 +317,10 @@ export default function Corridas() {
 							<HugeiconsIcon icon={FilterHorizontalIcon} size={15} />
 							Filtrar
 						</SheetTrigger>
-						<SheetContent side='bottom' className='rounded-t-2xl'>
+						<SheetContent
+							side='bottom'
+							className='rounded-2xl'
+							style={{ left: 16, right: 16, bottom: 16 }}>
 							<SheetHeader>
 								<SheetTitle>Filtrar corridas</SheetTitle>
 							</SheetHeader>
