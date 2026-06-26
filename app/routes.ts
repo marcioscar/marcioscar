@@ -6,6 +6,7 @@ export default [
   route("corridas", "routes/corridas.tsx"),
   route("contas", "routes/contas.tsx"),
   route("biblioteca", "routes/biblioteca.tsx"),
+  route("treinamento", "routes/treinamento.tsx"),
   route("robots.txt", "routes/robots.ts"),
   route("sitemap.xml", "routes/sitemap.ts"),
 ] satisfies RouteConfig;

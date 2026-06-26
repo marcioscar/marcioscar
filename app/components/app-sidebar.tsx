@@ -8,6 +8,7 @@ import {
 	BitcoinWalletIcon,
 	ChartAverageIcon,
 	Books02Icon,
+	Target01Icon,
 } from "@hugeicons/core-free-icons";
 import {
 	Sidebar,
@@ -38,6 +39,12 @@ const navItems: NavItem[] = [
 		href: "/biblioteca",
 		icon: Books02Icon,
 		color: "purple",
+	},
+	{
+		title: "Treinamento",
+		href: "/treinamento",
+		icon: Target01Icon,
+		color: "red",
 	},
 ];
 
