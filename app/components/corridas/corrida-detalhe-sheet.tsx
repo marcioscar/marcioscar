@@ -1,6 +1,11 @@
 "use client";
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '~/components/ui/dialog'
 import { Button } from '~/components/ui/button'
 import type { AnaliseResult, SplitMetric, LapData } from '~/types/analise'
 import type { CorridaDataTableRow } from './corridas-columns'
@@ -56,24 +61,32 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 		: null
 	const cat = corrida ? categoria(corrida.distanciaMetros) : null
 
+	const hasData = splits || laps
+
+	const lapDistances = laps?.map(l => l.distance) ?? []
+	const lapDistMin = lapDistances.length ? Math.min(...lapDistances) : 0
+	const lapDistMax = lapDistances.length ? Math.max(...lapDistances) : 0
+	const isIntervals = lapDistMax - lapDistMin > 200
+
 	return (
-		<Sheet open={open} onOpenChange={v => !v && onClose()}>
-			<SheetContent className='w-full sm:max-w-xl overflow-y-auto flex flex-col gap-6 pb-10'>
+		<Dialog open={open} onOpenChange={v => !v && onClose()}>
+			<DialogContent className='max-w-4xl w-full max-h-[90vh] overflow-y-auto p-0'>
 
 				{/* ── CABEÇALHO ── */}
-				<SheetHeader className='gap-1'>
-					<SheetTitle className='text-base font-semibold leading-tight pr-6'>
+				<DialogHeader className='px-6 pt-6 pb-4 border-b border-border'>
+					<DialogTitle className='text-lg font-semibold leading-tight'>
 						{corrida?.nome ?? '—'}
-					</SheetTitle>
-					<p className='text-xs text-muted-foreground'>
+					</DialogTitle>
+					<p className='text-sm text-muted-foreground mt-0.5'>
 						{corrida ? new Date(corrida.dataInicio).toLocaleString('pt-BR') : ''}
 					</p>
-				</SheetHeader>
+				</DialogHeader>
 
 				{corrida && (
-					<>
+					<div className='flex flex-col gap-0'>
+
 						{/* ── MÉTRICAS ── */}
-						<div className='grid grid-cols-2 sm:grid-cols-3 gap-3'>
+						<div className='grid grid-cols-2 sm:grid-cols-5 gap-3 px-6 py-4 border-b border-border'>
 							{[
 								{ label: 'Distância', val: formatarDistancia(corrida.distanciaMetros) },
 								{ label: 'Tempo', val: formatarTempo(corrida.tempoMovimentoSeg) },
@@ -88,208 +101,225 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 							))}
 						</div>
 
-						{/* ── VOLTAS (LAPS) ── */}
-						{laps && laps.length > 1 && (() => {
-							const distances = laps.map(l => l.distance)
-							const distMin = Math.min(...distances)
-							const distMax = Math.max(...distances)
-							const isIntervals = distMax - distMin > 200
-							return (
-								<div className='flex flex-col gap-2'>
-									<div className='flex items-center justify-between'>
-										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
-											Voltas registradas
-										</p>
+						{/* ── CORPO: duas colunas em telas grandes ── */}
+						<div className='grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-border'>
+
+							{/* ── COLUNA ESQUERDA: voltas + splits ── */}
+							<div className='flex flex-col gap-5 px-6 py-5'>
+
+								{/* Botão buscar quando não há dados */}
+								{!hasData && !loading && (
+									<div className='flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3'>
+										<p className='text-sm text-muted-foreground'>Splits e voltas não carregados</p>
+										<Button variant='outline' size='sm' className='text-xs h-7' onClick={onBuscarSplits}>
+											Buscar do Strava
+										</Button>
+									</div>
+								)}
+
+								{/* Voltas (laps) */}
+								{laps && laps.length > 1 && (
+									<div className='flex flex-col gap-2'>
+										<div className='flex items-center justify-between'>
+											<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+												Voltas registradas
+											</p>
+											{isIntervals && (
+												<span className='rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400'>
+													Tiros / Intervalos
+												</span>
+											)}
+										</div>
+										<div className='overflow-x-auto rounded-xl border border-border'>
+											<table className='w-full text-xs'>
+												<thead>
+													<tr className='border-b border-border bg-muted/30'>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>#</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Dist.</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Pace</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Tempo</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>FC</th>
+													</tr>
+												</thead>
+												<tbody className='divide-y divide-border'>
+													{laps.map((lap, i) => {
+														const paceStr = mpsParaPace(lap.average_speed)
+														const dist = lap.distance >= 950
+															? `${(lap.distance / 1000).toFixed(2)} km`
+															: `${Math.round(lap.distance)} m`
+														const mins = Math.floor(lap.moving_time / 60)
+														const secs = lap.moving_time % 60
+														const tempo = `${mins}:${String(secs).padStart(2, '0')}`
+														const isWork = isIntervals && lap.distance >= (lapDistMin + lapDistMax) / 2
+														return (
+															<tr key={lap.lap_index ?? i} className={`hover:bg-muted/20 transition-colors ${isWork ? 'font-semibold' : 'text-muted-foreground'}`}>
+																<td className='px-3 py-1.5'>{i + 1}</td>
+																<td className='px-3 py-1.5'>{dist}</td>
+																<td className='px-3 py-1.5 font-mono tabular-nums'>{paceStr}</td>
+																<td className='px-3 py-1.5 tabular-nums'>{tempo}</td>
+																<td className='px-3 py-1.5'>
+																	{lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}
+																</td>
+															</tr>
+														)
+													})}
+												</tbody>
+											</table>
+										</div>
 										{isIntervals && (
-											<span className='rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400'>
-												Tiros / Intervalos
-											</span>
+											<p className='text-[10px] text-muted-foreground'>
+												Negrito = estímulos · esmaecido = recuperações
+											</p>
 										)}
 									</div>
-									<div className='overflow-x-auto rounded-xl border border-border'>
-										<table className='w-full text-xs'>
-											<thead>
-												<tr className='border-b border-border bg-muted/30'>
-													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>#</th>
-													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Distância</th>
-													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Pace</th>
-													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Tempo</th>
-													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>FC</th>
-												</tr>
-											</thead>
-											<tbody className='divide-y divide-border'>
-												{laps.map((lap, i) => {
-													const paceStr = mpsParaPace(lap.average_speed)
-													const dist = lap.distance >= 950
-														? `${(lap.distance / 1000).toFixed(2)} km`
-														: `${Math.round(lap.distance)} m`
-													const mins = Math.floor(lap.moving_time / 60)
-													const secs = lap.moving_time % 60
-													const tempo = `${mins}:${String(secs).padStart(2, '0')}`
-													const isWork = isIntervals && lap.distance >= (distMin + distMax) / 2
-													return (
-														<tr key={lap.lap_index ?? i} className={`hover:bg-muted/20 transition-colors ${isWork ? 'font-semibold' : 'text-muted-foreground'}`}>
-															<td className='px-3 py-1.5'>{i + 1}</td>
-															<td className='px-3 py-1.5'>{dist}</td>
-															<td className='px-3 py-1.5 font-mono tabular-nums'>{paceStr}</td>
-															<td className='px-3 py-1.5 tabular-nums'>{tempo}</td>
-															<td className='px-3 py-1.5'>
-																{lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}
-															</td>
-														</tr>
-													)
-												})}
-											</tbody>
-										</table>
-									</div>
-									{isIntervals && (
-										<p className='text-[10px] text-muted-foreground px-1'>
-											Linhas em destaque = estímulos (distâncias maiores). Linhas esmaecidas = recuperações.
+								)}
+
+								{/* Splits por km */}
+								{splits && splits.length > 0 && (
+									<div className='flex flex-col gap-2'>
+										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+											Splits por km
 										</p>
-									)}
-								</div>
-							)
-						})()}
-
-						{/* ── SPLITS ── */}
-						{!splits && !laps && !loading && (
-							<div className='flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3'>
-								<p className='text-sm text-muted-foreground'>Splits e voltas não carregados</p>
-								<Button variant='outline' size='sm' className='text-xs h-7' onClick={onBuscarSplits}>
-									Buscar do Strava
-								</Button>
-							</div>
-						)}
-
-						{splits && splits.length > 0 && (
-							<div className='flex flex-col gap-2'>
-								<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
-									Splits por km
-								</p>
-								<div className='overflow-x-auto rounded-xl border border-border'>
-									<table className='w-full text-xs'>
-										<thead>
-											<tr className='border-b border-border bg-muted/30'>
-												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Km</th>
-												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Pace</th>
-												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>FC</th>
-												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Elev.</th>
-											</tr>
-										</thead>
-										<tbody className='divide-y divide-border'>
-											{splits.map((s) => {
-												const paceStr = mpsParaPace(s.average_speed)
-												const elevStr = s.elevation_difference >= 0
-													? `+${s.elevation_difference.toFixed(0)}m`
-													: `${s.elevation_difference.toFixed(0)}m`
-												const elevColor = s.elevation_difference > 10
-													? 'text-orange-600 dark:text-orange-400'
-													: s.elevation_difference < -10
-													? 'text-emerald-600 dark:text-emerald-400'
-													: 'text-muted-foreground'
-												return (
-													<tr key={s.split} className='hover:bg-muted/20 transition-colors'>
-														<td className='px-3 py-1.5 font-medium'>{s.split}</td>
-														<td className='px-3 py-1.5 font-mono tabular-nums'>{paceStr}</td>
-														<td className='px-3 py-1.5 text-muted-foreground'>
-															{s.average_heartrate ? Math.round(s.average_heartrate) : '—'}
-														</td>
-														<td className={`px-3 py-1.5 ${elevColor}`}>{elevStr}</td>
+										<div className='overflow-x-auto rounded-xl border border-border'>
+											<table className='w-full text-xs'>
+												<thead>
+													<tr className='border-b border-border bg-muted/30'>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Km</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Pace</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>FC</th>
+														<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Elev.</th>
 													</tr>
-												)
-											})}
-										</tbody>
-									</table>
-								</div>
-							</div>
-						)}
-
-						{/* ── ANÁLISE CANOVA ── */}
-						<div className='flex flex-col gap-4'>
-							<div className='flex items-center justify-between'>
-								<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
-									Análise Canova
-								</p>
-								{!analise && !loading && (
-									<Button size='sm' onClick={onAnalisar} className='text-xs h-7'>
-										✦ Analisar com IA
-									</Button>
+												</thead>
+												<tbody className='divide-y divide-border'>
+													{splits.map((s) => {
+														const paceStr = mpsParaPace(s.average_speed)
+														const elevStr = s.elevation_difference >= 0
+															? `+${s.elevation_difference.toFixed(0)}m`
+															: `${s.elevation_difference.toFixed(0)}m`
+														const elevColor = s.elevation_difference > 10
+															? 'text-orange-600 dark:text-orange-400'
+															: s.elevation_difference < -10
+															? 'text-emerald-600 dark:text-emerald-400'
+															: 'text-muted-foreground'
+														return (
+															<tr key={s.split} className='hover:bg-muted/20 transition-colors'>
+																<td className='px-3 py-1.5 font-medium'>{s.split}</td>
+																<td className='px-3 py-1.5 font-mono tabular-nums'>{paceStr}</td>
+																<td className='px-3 py-1.5 text-muted-foreground'>
+																	{s.average_heartrate ? Math.round(s.average_heartrate) : '—'}
+																</td>
+																<td className={`px-3 py-1.5 ${elevColor}`}>{elevStr}</td>
+															</tr>
+														)
+													})}
+												</tbody>
+											</table>
+										</div>
+									</div>
 								)}
 							</div>
 
-							{loading && (
-								<div className='flex items-center gap-3 py-6 text-muted-foreground'>
-									<div className='size-5 rounded-full border-2 border-foreground/20 border-t-foreground animate-spin shrink-0' />
-									<p className='text-sm'>Buscando splits e analisando com Claude...</p>
-								</div>
-							)}
-
-							{error && !loading && (
-								<div className='rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400'>
-									{error}
-								</div>
-							)}
-
-							{analise && !loading && style && (
-								<div className='flex flex-col gap-4'>
-									<div className='flex items-start gap-3'>
-										<div className='flex flex-col gap-1'>
-											<span className='text-xs text-muted-foreground'>Tipo de sessão</span>
-											<span className='font-semibold'>{analise.tipoSessao}</span>
-										</div>
-										<div className={`ml-auto shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${style.bg} ${style.text}`}>
-											{style.label}
-										</div>
-									</div>
-
-									<div className='rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm leading-relaxed'>
-										{analise.resumo}
-									</div>
-
-									{analise.pontosPositivos.length > 0 && (
-										<ul className='flex flex-col gap-1.5'>
-											{analise.pontosPositivos.map((p, i) => (
-												<li key={i} className='flex gap-2 text-sm text-emerald-700 dark:text-emerald-400'>
-													<span className='mt-0.5 shrink-0'>✓</span><span>{p}</span>
-												</li>
-											))}
-										</ul>
-									)}
-
-									{analise.pontosAtencao.length > 0 && (
-										<ul className='flex flex-col gap-1.5'>
-											{analise.pontosAtencao.map((p, i) => (
-												<li key={i} className='flex gap-2 text-sm text-amber-700 dark:text-amber-400'>
-													<span className='mt-0.5 shrink-0'>⚠</span><span>{p}</span>
-												</li>
-											))}
-										</ul>
-									)}
-
-									<div className='flex flex-col gap-1'>
-										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Metodologia Canova</p>
-										<p className='text-sm leading-relaxed'>{analise.alinhamentoCanova}</p>
-									</div>
-
-									<div className='rounded-2xl border border-foreground/10 bg-foreground/5 px-4 py-3'>
-										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1'>Próximo treino</p>
-										<p className='text-sm leading-relaxed'>{analise.recomendacao}</p>
-									</div>
-
-									<div className='flex items-center justify-between pt-1 border-t border-border'>
-										{analisadaEm && (
-											<p className='text-xs text-muted-foreground'>Analisado em {analisadaEm}</p>
-										)}
-										<Button variant='outline' size='sm' onClick={onReanalisar} className='ml-auto text-xs h-7'>
-											Re-analisar
+							{/* ── COLUNA DIREITA: análise ── */}
+							<div className='flex flex-col gap-4 px-6 py-5'>
+								<div className='flex items-center justify-between'>
+									<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+										Análise Canova
+									</p>
+									{!analise && !loading && (
+										<Button size='sm' onClick={onAnalisar} className='text-xs h-7'>
+											✦ Analisar com IA
 										</Button>
-									</div>
+									)}
 								</div>
-							)}
+
+								{loading && (
+									<div className='flex items-center gap-3 py-8 text-muted-foreground'>
+										<div className='size-5 rounded-full border-2 border-foreground/20 border-t-foreground animate-spin shrink-0' />
+										<p className='text-sm'>Buscando dados e analisando com Claude...</p>
+									</div>
+								)}
+
+								{error && !loading && (
+									<div className='rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400'>
+										{error}
+									</div>
+								)}
+
+								{!analise && !loading && !error && (
+									<p className='text-sm text-muted-foreground leading-relaxed'>
+										Clique em "Analisar com IA" para obter uma análise do treino baseada na metodologia Canova.
+									</p>
+								)}
+
+								{analise && !loading && style && (
+									<div className='flex flex-col gap-4'>
+
+										{/* Tipo + Avaliação */}
+										<div className='flex items-start justify-between gap-3'>
+											<div className='flex flex-col gap-0.5'>
+												<span className='text-[10px] text-muted-foreground uppercase tracking-wide'>Tipo de sessão</span>
+												<span className='text-base font-semibold'>{analise.tipoSessao}</span>
+											</div>
+											<div className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${style.bg} ${style.text}`}>
+												{style.label}
+											</div>
+										</div>
+
+										{/* Resumo */}
+										<div className='rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm leading-relaxed'>
+											{analise.resumo}
+										</div>
+
+										{/* Pontos positivos */}
+										{analise.pontosPositivos.length > 0 && (
+											<ul className='flex flex-col gap-2'>
+												{analise.pontosPositivos.map((p, i) => (
+													<li key={i} className='flex gap-2 text-sm text-emerald-700 dark:text-emerald-400'>
+														<span className='mt-0.5 shrink-0'>✓</span><span>{p}</span>
+													</li>
+												))}
+											</ul>
+										)}
+
+										{/* Pontos de atenção */}
+										{analise.pontosAtencao.length > 0 && (
+											<ul className='flex flex-col gap-2'>
+												{analise.pontosAtencao.map((p, i) => (
+													<li key={i} className='flex gap-2 text-sm text-amber-700 dark:text-amber-400'>
+														<span className='mt-0.5 shrink-0'>⚠</span><span>{p}</span>
+													</li>
+												))}
+											</ul>
+										)}
+
+										{/* Metodologia */}
+										<div className='flex flex-col gap-1'>
+											<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Metodologia Canova</p>
+											<p className='text-sm leading-relaxed'>{analise.alinhamentoCanova}</p>
+										</div>
+
+										{/* Recomendação */}
+										<div className='rounded-2xl border border-foreground/10 bg-foreground/5 px-4 py-3'>
+											<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1'>Próximo treino</p>
+											<p className='text-sm leading-relaxed'>{analise.recomendacao}</p>
+										</div>
+
+										{/* Rodapé */}
+										<div className='flex items-center justify-between pt-1 border-t border-border'>
+											{analisadaEm && (
+												<p className='text-xs text-muted-foreground'>Analisado em {analisadaEm}</p>
+											)}
+											<Button variant='outline' size='sm' onClick={onReanalisar} className='ml-auto text-xs h-7'>
+												Re-analisar
+											</Button>
+										</div>
+									</div>
+								)}
+							</div>
 						</div>
-					</>
+					</div>
 				)}
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	)
 }
