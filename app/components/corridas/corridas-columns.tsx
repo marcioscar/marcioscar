@@ -91,12 +91,6 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 		cell: ({ row }) => formatarData(row.original.dataInicio),
 	},
 	{
-		accessorKey: "nome",
-		header: ({ column }) =>
-			sortableHeader("Nome", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
-		cell: ({ row }) => row.original.nome,
-	},
-	{
 		id: "analise",
 		header: () => <span className='text-xs font-medium text-muted-foreground'>Análise</span>,
 		cell: ({ row }) => {
