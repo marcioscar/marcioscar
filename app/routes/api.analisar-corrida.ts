@@ -180,7 +180,7 @@ export async function action({ request }: { request: Request }) {
 		// 2. Call Claude with enriched prompt (laps + splits)
 		const message = await client.messages.create({
 			model: 'claude-sonnet-4-6',
-			max_tokens: 1024,
+			max_tokens: 2048,
 			messages: [{ role: 'user', content: buildPrompt(input, splits, laps) }],
 		})
 
