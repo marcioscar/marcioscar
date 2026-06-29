@@ -239,6 +239,26 @@ export function CorridasDataTable({
 		if (!corridaDetalhe) return
 		chamarAnalise(corridaDetalhe)
 	}
+
+	async function handleBuscarSplits() {
+		if (!corridaDetalhe) return
+		setDetalheError(null)
+		setDetalheLoading(true)
+		try {
+			const res = await fetch('/api/buscar-splits', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ stravaId: corridaDetalhe.stravaId }),
+			})
+			if (!res.ok) throw new Error('Falha ao buscar splits')
+			const data = await res.json() as { splits: SplitMetric[] }
+			setDetalheSplits(data.splits)
+		} catch {
+			setDetalheError('Não foi possível buscar os splits do Strava.')
+		} finally {
+			setDetalheLoading(false)
+		}
+	}
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
 	const dadosFiltradosFaixa = React.useMemo(
 		() => filtrarPorFaixaDistancia(data, faixaSelecionada),
@@ -474,6 +494,7 @@ export function CorridasDataTable({
 				error={detalheError}
 				onAnalisar={handleAnalisar}
 				onReanalisar={handleReanalisar}
+				onBuscarSplits={handleBuscarSplits}
 			/>
 		</div>
 	);

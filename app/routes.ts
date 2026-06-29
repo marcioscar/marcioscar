@@ -8,6 +8,7 @@ export default [
   route("biblioteca", "routes/biblioteca.tsx"),
   route("treinamento", "routes/treinamento.tsx"),
   route("api/analisar-corrida", "routes/api.analisar-corrida.ts"),
+  route("api/buscar-splits", "routes/api.buscar-splits.ts"),
   route("robots.txt", "routes/robots.ts"),
   route("sitemap.xml", "routes/sitemap.ts"),
 ] satisfies RouteConfig;

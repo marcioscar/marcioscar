@@ -15,6 +15,7 @@ type Props = {
 	error: string | null
 	onAnalisar: () => void
 	onReanalisar: () => void
+	onBuscarSplits: () => void
 }
 
 const AVALIACAO_STYLE: Record<string, { bg: string; text: string; label: string }> = {
@@ -47,7 +48,7 @@ function categoria(m: number) {
 	return null
 }
 
-export function CorridaDetalheSheet({ open, onClose, corrida, splits, analise, loading, error, onAnalisar, onReanalisar }: Props) {
+export function CorridaDetalheSheet({ open, onClose, corrida, splits, analise, loading, error, onAnalisar, onReanalisar, onBuscarSplits }: Props) {
 	const style = analise ? (AVALIACAO_STYLE[analise.avaliacao] ?? AVALIACAO_STYLE.regular) : null
 	const analisadaEm = corrida?.analisadaEm
 		? new Date(corrida.analisadaEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -87,6 +88,15 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, analise, l
 						</div>
 
 						{/* ── SPLITS ── */}
+						{!splits && !loading && (
+							<div className='flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3'>
+								<p className='text-sm text-muted-foreground'>Splits por km não carregados</p>
+								<Button variant='outline' size='sm' className='text-xs h-7' onClick={onBuscarSplits}>
+									Buscar splits
+								</Button>
+							</div>
+						)}
+
 						{splits && splits.length > 0 && (
 							<div className='flex flex-col gap-2'>
 								<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
