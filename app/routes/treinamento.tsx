@@ -56,6 +56,11 @@ const DEFAULT_PACE: Record<string, string> = { meia: '5:00', maratona: '5:12' }
 const DEFAULT_KM: Record<string, number> = { meia: 60, maratona: 70 }
 const DEFAULT_DAYS: DayOfWeek[] = ['Seg', 'Ter', 'Qui', 'Sex', 'Sáb']
 
+function parseDateInput(str: string): Date {
+	const [y, m, d] = str.split('-').map(Number)
+	return new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
+}
+
 // ── Loader ────────────────────────────────────────────────────────────────────
 
 export async function loader() {
@@ -72,7 +77,7 @@ export async function action({ request }: Route.ActionArgs) {
 	if (intent === 'criarProva') {
 		const nome = form.get('nome') as string
 		const plano = form.get('plano') as string
-		const dataProva = new Date(form.get('dataProva') as string)
+		const dataProva = parseDateInput(form.get('dataProva') as string)
 		const paceAlvo = form.get('paceAlvo') as string
 		const kmSemanais = parseInt(form.get('kmSemanais') as string)
 		const diasTreino = form.getAll('diasTreino') as string[]
@@ -105,7 +110,7 @@ export async function action({ request }: Route.ActionArgs) {
 		const id = form.get('id') as string
 		const nome = form.get('nome') as string
 		const plano = form.get('plano') as string
-		const dataProva = new Date(form.get('dataProva') as string)
+		const dataProva = parseDateInput(form.get('dataProva') as string)
 		const paceAlvo = form.get('paceAlvo') as string
 		const kmSemanais = parseInt(form.get('kmSemanais') as string)
 		const diasTreino = form.getAll('diasTreino') as string[]
@@ -124,11 +129,11 @@ export async function action({ request }: Route.ActionArgs) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function computeDaysUntilRace(dataProva: Date): number {
-	const race = new Date(dataProva)
-	race.setHours(0, 0, 0, 0)
-	const today = new Date()
-	today.setHours(0, 0, 0, 0)
-	return Math.round((race.getTime() - today.getTime()) / 86_400_000)
+	const r = new Date(dataProva)
+	const raceDay = Date.UTC(r.getUTCFullYear(), r.getUTCMonth(), r.getUTCDate())
+	const t = new Date()
+	const todayDay = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())
+	return Math.round((raceDay - todayDay) / 86_400_000)
 }
 
 function computeCurrentWeek(daysUntilRace: number, totalWeeks: number): number | null {
@@ -138,7 +143,9 @@ function computeCurrentWeek(daysUntilRace: number, totalWeeks: number): number |
 }
 
 function formatDate(date: Date): string {
-	return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+	return new Date(date).toLocaleDateString('pt-BR', {
+		day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
+	})
 }
 
 function toDateInput(date: Date): string {
