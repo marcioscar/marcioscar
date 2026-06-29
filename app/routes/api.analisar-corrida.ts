@@ -47,14 +47,15 @@ function buildLapsBlock(laps: LapData[]): string {
 	const distMax = Math.max(...distances)
 	const isIntervals = distMax - distMin > 200
 	const tipoStr = isIntervals
-		? `ATENÇÃO: distâncias variáveis (${Math.round(distMin)}m a ${Math.round(distMax)}m) — provavelmente estímulos + recuperações`
+		? `ATENÇÃO: distâncias variáveis (${Math.round(distMin)}m a ${Math.round(distMax)}m) — provavelmente estímulos + recuperações passivas`
 		: `Voltas uniformes (~${Math.round(distances[0])}m cada)`
 
 	return `
 ## Voltas registradas pelo GPS (laps — pressão manual no dispositivo)
 ${rows.join('\n')}
 
-Interpretação: ${tipoStr}`
+Interpretação: ${tipoStr}
+IMPORTANTE: voltas curtas com pace muito baixo (ex: >8:00/km) ou velocidade próxima de zero NÃO indicam recuperação em movimento — indicam DESCANSO PASSIVO (atleta parado ou caminhando). Trate essas voltas como intervalo de recuperação, não como parte do esforço.`
 }
 
 function buildSplitsBlock(splits: SplitMetric[]): string {
@@ -133,6 +134,7 @@ Princípios-chave de Canova:
 - Longões chegam a 35-38 km para maratona no pico
 - Usar os splits E as voltas (laps) para identificar a estrutura real do treino
 - Para treinos de tiros/intervalados, as VOLTAS são mais importantes que os splits por km
+- Splits ou voltas com pace muito baixo (>8:00/km) ou velocidade próxima de zero = DESCANSO PASSIVO (atleta parado ou caminhando), nunca interpretar como ritmo de corrida
 
 ## Sessão realizada
 - Nome: ${corrida.nome}
