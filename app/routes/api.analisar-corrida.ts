@@ -1,35 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { db } from '../../db.server'
+import type { AnaliseInput, AnaliseResult } from '~/types/analise'
+
+export type { AnaliseInput, AnaliseResult }
 
 const client = new Anthropic()
-
-export type AnaliseInput = {
-	corrida: {
-		nome: string
-		distanciaKm: number
-		paceSegPorKm: number
-		tempoSeg: number
-		elevacaoMetros: number
-		dataInicio: string
-	}
-	provaAlvo?: {
-		plano: string
-		paceAlvo: string
-		kmSemanais: number
-		dataProva: string
-		semanaAtual?: number
-		totalSemanas?: number
-	} | null
-}
-
-export type AnaliseResult = {
-	tipoSessao: string
-	avaliacao: 'excelente' | 'bom' | 'regular' | 'ruim'
-	resumo: string
-	pontosPositivos: string[]
-	pontosAtencao: string[]
-	alinhamentoCanova: string
-	recomendacao: string
-}
 
 function formatarPace(segPorKm: number): string {
 	const min = Math.floor(segPorKm / 60)
@@ -70,7 +45,7 @@ function buildPrompt(input: AnaliseInput): string {
 - Modalidade: ${provaAlvo.plano === 'meia' ? 'Meia Maratona' : 'Maratona'}
 - Pace alvo: ${provaAlvo.paceAlvo} /km
 - Volume semanal planejado: ${provaAlvo.kmSemanais} km
-- Data da prova: ${provaAlvo.dataProva}${provaAlvo.semanaAtual ? `\n- Semana atual do plano: ${provaAlvo.semanaAtual} de ${provaAlvo.totalSemanas}` : ''}
+- Data da prova: ${provaAlvo.dataProva}
 - Diferença de pace: ${diffPace}`
 		: `
 ## Prova alvo
@@ -140,6 +115,13 @@ export async function action({ request }: { request: Request }) {
 
 		const text = message.content.find(b => b.type === 'text')?.text ?? ''
 		const analise: AnaliseResult = JSON.parse(text)
+
+		// Persist analysis to the Corrida record
+		await db.corrida.update({
+			where: { stravaId: input.stravaId },
+			data: { analise, analisadaEm: new Date() },
+		})
+
 		return Response.json(analise)
 	} catch (err) {
 		console.error('Erro na análise Claude:', err)

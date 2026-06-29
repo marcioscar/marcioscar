@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import type { AnaliseResult } from "~/types/analise";
 
 export type CorridaDataTableRow = {
 	stravaId: number;
@@ -17,6 +18,8 @@ export type CorridaDataTableRow = {
 	tempoMovimentoSeg: number;
 	paceMedioSegPorKm: number | null;
 	dataInicio: string;
+	analise: AnaliseResult | null;
+	analisadaEm: string | null;
 };
 
 function formatarData(dataIso: string): string {
@@ -188,16 +191,20 @@ export function getCorridasColumns(
 	{
 		id: 'analisar',
 		header: '',
-		cell: ({ row }) => (
-			<Button
-				variant='ghost'
-				size='sm'
-				className='h-7 px-2 text-xs text-muted-foreground hover:text-foreground'
-				onClick={(e) => { e.stopPropagation(); onAnalisar(row.original) }}
-			>
-				✦ Analisar
-			</Button>
-		),
+		cell: ({ row }) => {
+			const temAnalise = !!row.original.analise
+			return (
+				<Button
+					variant='ghost'
+					size='sm'
+					className={`h-7 px-2 text-xs ${temAnalise ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+					onClick={(e) => { e.stopPropagation(); onAnalisar(row.original) }}
+					title={temAnalise ? `Ver análise · ${row.original.analisadaEm ? new Date(row.original.analisadaEm).toLocaleDateString('pt-BR') : ''}` : 'Analisar com IA'}
+				>
+					{temAnalise ? '✦ Ver análise' : '✦ Analisar'}
+				</Button>
+			)
+		},
 		enableSorting: false,
 	},
 ]

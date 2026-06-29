@@ -25,7 +25,7 @@ import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
 import { getCorridasColumns, type CorridaDataTableRow } from "./corridas-columns";
 import { CorridaAnaliseSheet } from "./corrida-analise-sheet";
-import type { AnaliseResult, AnaliseInput } from "~/routes/api.analisar-corrida";
+import type { AnaliseResult, AnaliseInput } from "~/types/analise";
 
 const CorridasMap = React.lazy(async () => {
 	const mod = await import("./corridas-map");
@@ -182,18 +182,17 @@ export function CorridasDataTable({
 	const [analiseLoading, setAnaliseLoading] = React.useState(false);
 	const [analiseError, setAnaliseError] = React.useState<string | null>(null);
 
-	async function handleAnalisar(corrida: CorridaDataTableRow) {
-		setCorridaAnalisada(corrida)
+	async function chamarClaudeAnalise(corrida: CorridaDataTableRow) {
 		setAnalise(null)
 		setAnaliseError(null)
 		setAnaliseLoading(true)
-		setAnaliseOpen(true)
 
 		const paceSegPorKm = corrida.paceMedioSegPorKm ?? (
 			corrida.tempoMovimentoSeg / (corrida.distanciaMetros / 1000)
 		)
 
 		const input: AnaliseInput = {
+			stravaId: corrida.stravaId,
 			corrida: {
 				nome: corrida.nome,
 				distanciaKm: corrida.distanciaMetros / 1000,
@@ -212,13 +211,33 @@ export function CorridasDataTable({
 				body: JSON.stringify(input),
 			})
 			if (!res.ok) throw new Error('Falha na análise')
-			const data = await res.json() as AnaliseResult
-			setAnalise(data)
+			const result = await res.json() as AnaliseResult
+			setAnalise(result)
 		} catch {
 			setAnaliseError('Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.')
 		} finally {
 			setAnaliseLoading(false)
 		}
+	}
+
+	function handleAnalisar(corrida: CorridaDataTableRow) {
+		setCorridaAnalisada(corrida)
+		setAnaliseOpen(true)
+
+		// Show cached analysis immediately if available
+		if (corrida.analise) {
+			setAnalise(corrida.analise)
+			setAnaliseLoading(false)
+			setAnaliseError(null)
+			return
+		}
+
+		chamarClaudeAnalise(corrida)
+	}
+
+	function handleReanalisar() {
+		if (!corridaAnalisada) return
+		chamarClaudeAnalise(corridaAnalisada)
 	}
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
 	const dadosFiltradosFaixa = React.useMemo(
@@ -454,6 +473,7 @@ export function CorridasDataTable({
 				analise={analise}
 				loading={analiseLoading}
 				error={analiseError}
+				onReanalisar={handleReanalisar}
 			/>
 		</div>
 	);

@@ -14,6 +14,8 @@ export type CorridaResumo = {
   localLat: number | null;
   localLng: number | null;
   dataInicio: Date;
+  analise: unknown;
+  analisadaEm: Date | null;
 };
 
 type CorridaDbSelecionada = {
@@ -25,6 +27,8 @@ type CorridaDbSelecionada = {
   velocidadeMedia: number | null;
   dataInicio: Date;
   dadosBrutos: unknown;
+  analise: unknown;
+  analisadaEm: Date | null;
 };
 
 export async function contarCorridasSalvas(): Promise<number> {
@@ -62,6 +66,8 @@ export async function listarUltimasCorridas(
       velocidadeMedia: true,
       dataInicio: true,
       dadosBrutos: true,
+      analise: true,
+      analisadaEm: true,
     },
   });
 
@@ -104,6 +110,8 @@ function mapCorridaDbParaResumo(corrida: CorridaDbSelecionada): CorridaResumo {
     localLat: localCoords.localLat,
     localLng: localCoords.localLng,
     dataInicio: corrida.dataInicio,
+    analise: corrida.analise ?? null,
+    analisadaEm: corrida.analisadaEm ?? null,
   };
 }
 

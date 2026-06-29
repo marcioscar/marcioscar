@@ -1,7 +1,8 @@
 "use client";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
-import type { AnaliseResult } from '~/routes/api.analisar-corrida'
+import { Button } from '~/components/ui/button'
+import type { AnaliseResult } from '~/types/analise'
 import type { CorridaDataTableRow } from './corridas-columns'
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 	analise: AnaliseResult | null
 	loading: boolean
 	error: string | null
+	onReanalisar: () => void
 }
 
 const AVALIACAO_STYLE: Record<string, { bg: string; text: string; label: string }> = {
@@ -36,8 +38,11 @@ function formatarTempo(seg: number): string {
 	return h > 0 ? `${h}h${String(m).padStart(2, '0')}m` : `${m}min${String(s).padStart(2, '0')}s`
 }
 
-export function CorridaAnaliseSheet({ open, onClose, corrida, analise, loading, error }: Props) {
+export function CorridaAnaliseSheet({ open, onClose, corrida, analise, loading, error, onReanalisar }: Props) {
 	const style = analise ? (AVALIACAO_STYLE[analise.avaliacao] ?? AVALIACAO_STYLE.regular) : null
+	const analisadaEm = corrida?.analisadaEm
+		? new Date(corrida.analisadaEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+		: null
 
 	return (
 		<Sheet open={open} onOpenChange={v => !v && onClose()}>
@@ -127,6 +132,22 @@ export function CorridaAnaliseSheet({ open, onClose, corrida, analise, loading, 
 						<div className='rounded-2xl border border-foreground/10 bg-foreground/5 px-4 py-3 flex flex-col gap-1'>
 							<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Próximo treino</p>
 							<p className='text-sm leading-relaxed'>{analise.recomendacao}</p>
+						</div>
+
+						{/* Footer: data + re-analisar */}
+						<div className='flex items-center justify-between pt-1 border-t border-border'>
+							{analisadaEm && (
+								<p className='text-xs text-muted-foreground'>Analisado em {analisadaEm}</p>
+							)}
+							<Button
+								variant='outline'
+								size='sm'
+								onClick={onReanalisar}
+								disabled={loading}
+								className='ml-auto text-xs'
+							>
+								Re-analisar
+							</Button>
 						</div>
 					</div>
 				)}
