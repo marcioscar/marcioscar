@@ -66,6 +66,20 @@ export async function toggleSemanaCompleta(
 	return { semanasCompletas: novas };
 }
 
+export async function editarProva(
+	id: string,
+	data: {
+		nome: string;
+		plano: string;
+		dataProva: Date;
+		paceAlvo: string;
+		kmSemanais: number;
+		diasTreino: string[];
+	},
+): Promise<void> {
+	await db.provaAlvo.update({ where: { id }, data });
+}
+
 export async function deletarProva(id: string): Promise<void> {
 	await db.provaAlvo.delete({ where: { id } });
 }

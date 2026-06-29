@@ -15,6 +15,7 @@ import {
 	selecionarProva,
 	atualizarConfigs,
 	toggleSemanaCompleta,
+	editarProva,
 	deletarProva,
 	type ProvaAlvo,
 } from '~/models/provas.server'
@@ -31,6 +32,7 @@ import {
 	Medal01Icon,
 	Add01Icon,
 	Delete02Icon,
+	Edit01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
@@ -99,6 +101,18 @@ export async function action({ request }: Route.ActionArgs) {
 		return result
 	}
 
+	if (intent === 'editarProva') {
+		const id = form.get('id') as string
+		const nome = form.get('nome') as string
+		const plano = form.get('plano') as string
+		const dataProva = new Date(form.get('dataProva') as string)
+		const paceAlvo = form.get('paceAlvo') as string
+		const kmSemanais = parseInt(form.get('kmSemanais') as string)
+		const diasTreino = form.getAll('diasTreino') as string[]
+		await editarProva(id, { nome, plano, dataProva, paceAlvo, kmSemanais, diasTreino })
+		return { ok: true }
+	}
+
 	if (intent === 'deletarProva') {
 		await deletarProva(form.get('id') as string)
 		return { ok: true }
@@ -127,6 +141,14 @@ function formatDate(date: Date): string {
 	return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function toDateInput(date: Date): string {
+	const d = new Date(date)
+	const y = d.getUTCFullYear()
+	const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+	const day = String(d.getUTCDate()).padStart(2, '0')
+	return `${y}-${m}-${day}`
+}
+
 // ── Route component ───────────────────────────────────────────────────────────
 
 export default function TreinamentoRoute() {
@@ -148,6 +170,7 @@ export default function TreinamentoRoute() {
 	const [phaseFilter, setPhaseFilter] = useState<Phase | 'all'>('all')
 	const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set())
 	const [showNewForm, setShowNewForm] = useState(false)
+	const [editingProvaId, setEditingProvaId] = useState<string | null>(null)
 	const [settingsDirty, setSettingsDirty] = useState(false)
 
 	// Sync state when active prova changes
@@ -235,6 +258,11 @@ export default function TreinamentoRoute() {
 		setSettingsDirty(false)
 	}
 
+	function handleEditarProva(id: string) {
+		setEditingProvaId(id)
+		setShowNewForm(false)
+	}
+
 	function handleDeletarProva(id: string) {
 		if (!confirm('Remover esta prova?')) return
 		submit({ _intent: 'deletarProva', id }, { method: 'post' })
@@ -278,12 +306,87 @@ export default function TreinamentoRoute() {
 								key={prova.id}
 								prova={prova}
 								isActive={prova.ativa}
+								isEditing={editingProvaId === prova.id}
 								onSelect={() => handleSelecionarProva(prova.id)}
+								onEdit={() => handleEditarProva(prova.id)}
 								onDelete={() => handleDeletarProva(prova.id)}
 							/>
 						))}
 					</div>
 				)}
+
+				{/* Edit race form */}
+				{editingProvaId && (() => {
+					const prova = provas.find(p => p.id === editingProvaId)
+					if (!prova) return null
+					return (
+						<Card size='sm'>
+							<CardContent className='pt-4'>
+								<p className='text-xs font-medium text-muted-foreground mb-3'>Editar prova</p>
+								<Form
+									method='post'
+									onSubmit={() => setEditingProvaId(null)}
+									className='flex flex-col gap-3'
+								>
+									<input type='hidden' name='_intent' value='editarProva' />
+									<input type='hidden' name='id' value={prova.id} />
+									<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+										<div>
+											<label className='text-xs font-medium text-muted-foreground block mb-1.5'>Nome da prova</label>
+											<Input name='nome' defaultValue={prova.nome} required />
+										</div>
+										<div>
+											<label className='text-xs font-medium text-muted-foreground block mb-1.5'>Data da prova</label>
+											<Input type='date' name='dataProva' defaultValue={toDateInput(new Date(prova.dataProva))} required />
+										</div>
+										<div>
+											<label className='text-xs font-medium text-muted-foreground block mb-1.5'>Modalidade</label>
+											<div className='flex gap-2'>
+												{(['meia', 'maratona'] as const).map(k => (
+													<label key={k} className='flex items-center gap-1.5 cursor-pointer'>
+														<input type='radio' name='plano' value={k} defaultChecked={prova.plano === k} className='accent-foreground' />
+														<span className='text-sm'>{k === 'meia' ? 'Meia' : 'Maratona'}</span>
+													</label>
+												))}
+											</div>
+										</div>
+										<div>
+											<label className='text-xs font-medium text-muted-foreground block mb-1.5'>Pace alvo</label>
+											<Input name='paceAlvo' defaultValue={prova.paceAlvo} placeholder='5:00' />
+										</div>
+										<div>
+											<label className='text-xs font-medium text-muted-foreground block mb-1.5'>Volume semanal (km)</label>
+											<Input type='number' name='kmSemanais' defaultValue={prova.kmSemanais} min={20} max={150} />
+										</div>
+										<div>
+											<label className='text-xs font-medium text-muted-foreground block mb-1.5'>Dias de treino</label>
+											<div className='flex gap-1 flex-wrap'>
+												{DAYS_OF_WEEK.map(day => (
+													<label key={day} className='flex items-center gap-1 cursor-pointer'>
+														<input
+															type='checkbox'
+															name='diasTreino'
+															value={day}
+															defaultChecked={prova.diasTreino.includes(day)}
+															className='accent-foreground'
+														/>
+														<span className='text-xs'>{day}</span>
+													</label>
+												))}
+											</div>
+										</div>
+									</div>
+									<div className='flex gap-2 pt-1'>
+										<Button type='submit' size='sm'>Salvar alterações</Button>
+										<Button type='button' variant='outline' size='sm' onClick={() => setEditingProvaId(null)}>
+											Cancelar
+										</Button>
+									</div>
+								</Form>
+							</CardContent>
+						</Card>
+					)
+				})()}
 
 				{provas.length === 0 && !showNewForm && (
 					<div className='rounded-2xl border border-dashed border-border px-6 py-8 text-center text-sm text-muted-foreground'>
@@ -548,30 +651,46 @@ export default function TreinamentoRoute() {
 // ── ProvaCard ─────────────────────────────────────────────────────────────────
 
 function ProvaCard({
-	prova, isActive, onSelect, onDelete,
-}: { prova: ProvaAlvo; isActive: boolean; onSelect: () => void; onDelete: () => void }) {
+	prova, isActive, isEditing, onSelect, onEdit, onDelete,
+}: {
+	prova: ProvaAlvo
+	isActive: boolean
+	isEditing: boolean
+	onSelect: () => void
+	onEdit: () => void
+	onDelete: () => void
+}) {
 	const days = computeDaysUntilRace(new Date(prova.dataProva))
 	return (
 		<div
 			className={cn(
 				'group relative rounded-2xl border px-4 py-3 cursor-pointer transition-colors min-w-[160px]',
-				isActive
-					? 'border-foreground bg-foreground/5 ring-1 ring-foreground/20'
-					: 'border-border bg-card hover:border-foreground/40',
+				isActive && !isEditing && 'border-foreground bg-foreground/5 ring-1 ring-foreground/20',
+				isEditing && 'border-blue-500/60 bg-blue-500/5 ring-1 ring-blue-500/20',
+				!isActive && !isEditing && 'border-border bg-card hover:border-foreground/40',
 			)}
 			onClick={onSelect}
 		>
-			<button
-				onClick={e => { e.stopPropagation(); onDelete() }}
-				className='absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive'
-				aria-label='Remover prova'
-			>
-				<HugeiconsIcon icon={Delete02Icon} className='size-3.5' />
-			</button>
+			<div className='absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+				<button
+					onClick={e => { e.stopPropagation(); onEdit() }}
+					className='text-muted-foreground hover:text-foreground p-0.5 rounded'
+					aria-label='Editar prova'
+				>
+					<HugeiconsIcon icon={Edit01Icon} className='size-3.5' />
+				</button>
+				<button
+					onClick={e => { e.stopPropagation(); onDelete() }}
+					className='text-muted-foreground hover:text-destructive p-0.5 rounded'
+					aria-label='Remover prova'
+				>
+					<HugeiconsIcon icon={Delete02Icon} className='size-3.5' />
+				</button>
+			</div>
 			<p className='text-xs font-medium text-muted-foreground capitalize'>
 				{prova.plano === 'meia' ? 'Meia Maratona' : 'Maratona'}
 			</p>
-			<p className='text-sm font-semibold mt-0.5 pr-4 leading-tight'>{prova.nome}</p>
+			<p className='text-sm font-semibold mt-0.5 pr-10 leading-tight'>{prova.nome}</p>
 			<p className='text-xs text-muted-foreground mt-1'>{formatDate(prova.dataProva)}</p>
 			{isActive && days >= 0 && (
 				<p className='text-xs font-medium text-foreground mt-1'>{days}d restantes</p>
