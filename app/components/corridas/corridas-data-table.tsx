@@ -23,9 +23,9 @@ import {
 } from "~/components/ui/table";
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
-import { getCorridasColumns, type CorridaDataTableRow } from "./corridas-columns";
-import { CorridaAnaliseSheet } from "./corrida-analise-sheet";
-import type { AnaliseResult, AnaliseInput } from "~/types/analise";
+import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
+import { CorridaDetalheSheet } from "./corrida-detalhe-sheet";
+import type { AnaliseResult, SplitMetric, AnalyzeApiResponse, AnaliseInput } from "~/types/analise";
 
 const CorridasMap = React.lazy(async () => {
 	const mod = await import("./corridas-map");
@@ -175,17 +175,26 @@ export function CorridasDataTable({
 	const [mostrarMapa, setMostrarMapa] = React.useState(false);
 	const [mostrarGlobo, setMostrarGlobo] = React.useState(false);
 
-	// ── Análise ──
-	const [analiseOpen, setAnaliseOpen] = React.useState(false);
-	const [corridaAnalisada, setCorridaAnalisada] = React.useState<CorridaDataTableRow | null>(null);
-	const [analise, setAnalise] = React.useState<AnaliseResult | null>(null);
-	const [analiseLoading, setAnaliseLoading] = React.useState(false);
-	const [analiseError, setAnaliseError] = React.useState<string | null>(null);
+	// ── Detalhe / Análise ──
+	const [detalheOpen, setDetalheOpen] = React.useState(false);
+	const [corridaDetalhe, setCorridaDetalhe] = React.useState<CorridaDataTableRow | null>(null);
+	const [detalheAnalise, setDetalheAnalise] = React.useState<AnaliseResult | null>(null);
+	const [detalheSplits, setDetalheSplits] = React.useState<SplitMetric[] | null>(null);
+	const [detalheLoading, setDetalheLoading] = React.useState(false);
+	const [detalheError, setDetalheError] = React.useState<string | null>(null);
 
-	async function chamarClaudeAnalise(corrida: CorridaDataTableRow) {
-		setAnalise(null)
-		setAnaliseError(null)
-		setAnaliseLoading(true)
+	function handleRowClick(corrida: CorridaDataTableRow) {
+		setCorridaDetalhe(corrida)
+		setDetalheAnalise(corrida.analise ?? null)
+		setDetalheSplits(corrida.splits ?? null)
+		setDetalheError(null)
+		setDetalheLoading(false)
+		setDetalheOpen(true)
+	}
+
+	async function chamarAnalise(corrida: CorridaDataTableRow) {
+		setDetalheError(null)
+		setDetalheLoading(true)
 
 		const paceSegPorKm = corrida.paceMedioSegPorKm ?? (
 			corrida.tempoMovimentoSeg / (corrida.distanciaMetros / 1000)
@@ -211,33 +220,24 @@ export function CorridasDataTable({
 				body: JSON.stringify(input),
 			})
 			if (!res.ok) throw new Error('Falha na análise')
-			const result = await res.json() as AnaliseResult
-			setAnalise(result)
+			const result = await res.json() as AnalyzeApiResponse
+			setDetalheAnalise(result.analise)
+			setDetalheSplits(result.splits)
 		} catch {
-			setAnaliseError('Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.')
+			setDetalheError('Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.')
 		} finally {
-			setAnaliseLoading(false)
+			setDetalheLoading(false)
 		}
 	}
 
-	function handleAnalisar(corrida: CorridaDataTableRow) {
-		setCorridaAnalisada(corrida)
-		setAnaliseOpen(true)
-
-		// Show cached analysis immediately if available
-		if (corrida.analise) {
-			setAnalise(corrida.analise)
-			setAnaliseLoading(false)
-			setAnaliseError(null)
-			return
-		}
-
-		chamarClaudeAnalise(corrida)
+	function handleAnalisar() {
+		if (!corridaDetalhe) return
+		chamarAnalise(corridaDetalhe)
 	}
 
 	function handleReanalisar() {
-		if (!corridaAnalisada) return
-		chamarClaudeAnalise(corridaAnalisada)
+		if (!corridaDetalhe) return
+		chamarAnalise(corridaDetalhe)
 	}
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
 	const dadosFiltradosFaixa = React.useMemo(
@@ -248,12 +248,6 @@ export function CorridasDataTable({
 		() => filtrarPorNomeOuData(dadosFiltradosFaixa, nomeBusca, dataBusca),
 		[dadosFiltradosFaixa, nomeBusca, dataBusca],
 	);
-
-	const corridasColumns = React.useMemo(
-		() => getCorridasColumns(handleAnalisar),
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[provaAtiva],
-	)
 
 	const table = useReactTable({
 		data: dadosFiltrados,
@@ -359,7 +353,11 @@ export function CorridasDataTable({
 					<TableBody>
 						{table.getRowModel().rows.length > 0 ? (
 							table.getRowModel().rows.map((row) => (
-								<TableRow key={row.id}>
+								<TableRow
+									key={row.id}
+									className='cursor-pointer'
+									onClick={() => handleRowClick(row.original)}
+								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell key={cell.id}>
 											{flexRender(
@@ -466,13 +464,15 @@ export function CorridasDataTable({
 				</div>
 			)}
 
-			<CorridaAnaliseSheet
-				open={analiseOpen}
-				onClose={() => setAnaliseOpen(false)}
-				corrida={corridaAnalisada}
-				analise={analise}
-				loading={analiseLoading}
-				error={analiseError}
+			<CorridaDetalheSheet
+				open={detalheOpen}
+				onClose={() => setDetalheOpen(false)}
+				corrida={corridaDetalhe}
+				splits={detalheSplits}
+				analise={detalheAnalise}
+				loading={detalheLoading}
+				error={detalheError}
+				onAnalisar={handleAnalisar}
 				onReanalisar={handleReanalisar}
 			/>
 		</div>

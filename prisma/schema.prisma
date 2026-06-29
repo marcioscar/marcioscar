@@ -22,6 +22,7 @@ model Corrida {
     frequenciaMedia     Float?
     frequenciaMaxima    Float?
     dadosBrutos         Json
+    splits              Json?
     analise             Json?
     analisadaEm         DateTime?
     createdAt           DateTime @default(now())

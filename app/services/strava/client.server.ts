@@ -6,6 +6,7 @@ import type {
 const STRAVA_AUTH_ENDPOINT = "https://www.strava.com/oauth/token";
 const STRAVA_ACTIVITIES_ENDPOINT =
   "https://www.strava.com/api/v3/athlete/activities";
+const STRAVA_ACTIVITY_ENDPOINT = "https://www.strava.com/api/v3/activities";
 
 type TokenResponse = {
   access_token?: string;
@@ -104,6 +105,18 @@ async function buscarPagina(
   }
 
   return payload as CorridaStrava[];
+}
+
+export async function buscarAtividadeDetalhada(stravaId: number): Promise<Record<string, unknown>> {
+  const token = await getAccessToken();
+  const url = `${STRAVA_ACTIVITY_ENDPOINT}/${stravaId}`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Strava atividade ${stravaId} falhou: ${response.status}`);
+  }
+  return response.json() as Promise<Record<string, unknown>>;
 }
 
 export async function buscarCorridasStrava(

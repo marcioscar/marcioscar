@@ -175,6 +175,7 @@ function mapCorridaResumoParaDataTableRow(
 		tempoMovimentoSeg: corrida.tempoMovimentoSeg,
 		paceMedioSegPorKm,
 		dataInicio: new Date(corrida.dataInicio).toISOString(),
+		splits: (corrida.splits as import('~/types/analise').SplitMetric[] | null) ?? null,
 		analise: (corrida.analise as import('~/types/analise').AnaliseResult | null) ?? null,
 		analisadaEm: corrida.analisadaEm ? corrida.analisadaEm.toISOString() : null,
 	};
