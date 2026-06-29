@@ -1,6 +1,6 @@
 import { db } from '../../db.server'
 import { buscarAtividadeDetalhada } from '~/services/strava/client.server'
-import type { SplitMetric } from '~/types/analise'
+import type { SplitMetric, LapData, BuscarDetalhesResponse } from '~/types/analise'
 
 export async function action({ request }: { request: Request }) {
 	if (request.method !== 'POST') {
@@ -18,10 +18,17 @@ export async function action({ request }: { request: Request }) {
 	try {
 		const detailed = await buscarAtividadeDetalhada(stravaId)
 		const splits = (detailed.splits_metric ?? []) as SplitMetric[]
-		await db.corrida.update({ where: { stravaId }, data: { splits } })
-		return Response.json({ splits })
+		const laps = (detailed.laps ?? []) as LapData[]
+
+		await db.corrida.update({
+			where: { stravaId },
+			data: { splits, laps },
+		})
+
+		const response: BuscarDetalhesResponse = { splits, laps }
+		return Response.json(response)
 	} catch (err) {
-		console.error('Erro ao buscar splits:', err)
-		return Response.json({ error: 'Falha ao buscar splits do Strava' }, { status: 500 })
+		console.error('Erro ao buscar detalhes:', err)
+		return Response.json({ error: 'Falha ao buscar dados do Strava' }, { status: 500 })
 	}
 }

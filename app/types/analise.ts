@@ -9,9 +9,29 @@ export type SplitMetric = {
 	pace_zone?: number
 }
 
+export type LapData = {
+	lap_index: number
+	name: string
+	distance: number
+	elapsed_time: number
+	moving_time: number
+	average_speed: number
+	max_speed?: number
+	average_heartrate?: number
+	max_heartrate?: number
+	total_elevation_gain?: number
+	pace_zone?: number
+}
+
 export type AnalyzeApiResponse = {
 	analise: AnaliseResult
 	splits: SplitMetric[]
+	laps: LapData[]
+}
+
+export type BuscarDetalhesResponse = {
+	splits: SplitMetric[]
+	laps: LapData[]
 }
 
 export type AnaliseResult = {

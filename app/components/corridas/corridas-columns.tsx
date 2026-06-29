@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import type { AnaliseResult, SplitMetric } from "~/types/analise";
+import type { AnaliseResult, SplitMetric, LapData } from "~/types/analise";
 
 export type CorridaDataTableRow = {
 	stravaId: number;
@@ -18,6 +18,7 @@ export type CorridaDataTableRow = {
 	paceMedioSegPorKm: number | null;
 	dataInicio: string;
 	splits: SplitMetric[] | null;
+	laps: LapData[] | null;
 	analise: AnaliseResult | null;
 	analisadaEm: string | null;
 };

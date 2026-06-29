@@ -15,6 +15,7 @@ export type CorridaResumo = {
   localLng: number | null;
   dataInicio: Date;
   splits: unknown;
+  laps: unknown;
   analise: unknown;
   analisadaEm: Date | null;
 };
@@ -29,6 +30,7 @@ type CorridaDbSelecionada = {
   dataInicio: Date;
   dadosBrutos: unknown;
   splits: unknown;
+  laps: unknown;
   analise: unknown;
   analisadaEm: Date | null;
 };
@@ -69,6 +71,7 @@ export async function listarUltimasCorridas(
       dataInicio: true,
       dadosBrutos: true,
       splits: true,
+      laps: true,
       analise: true,
       analisadaEm: true,
     },
@@ -114,6 +117,7 @@ function mapCorridaDbParaResumo(corrida: CorridaDbSelecionada): CorridaResumo {
     localLng: localCoords.localLng,
     dataInicio: corrida.dataInicio,
     splits: corrida.splits ?? null,
+    laps: corrida.laps ?? null,
     analise: corrida.analise ?? null,
     analisadaEm: corrida.analisadaEm ?? null,
   };

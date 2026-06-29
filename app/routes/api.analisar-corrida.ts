@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { db } from '../../db.server'
 import { buscarAtividadeDetalhada } from '~/services/strava/client.server'
-import type { AnaliseInput, AnaliseResult, SplitMetric, AnalyzeApiResponse } from '~/types/analise'
+import type { AnaliseInput, AnaliseResult, SplitMetric, LapData, AnalyzeApiResponse } from '~/types/analise'
 
-export type { AnaliseInput, AnaliseResult, SplitMetric, AnalyzeApiResponse }
+export type { AnaliseInput, AnaliseResult, SplitMetric, LapData, AnalyzeApiResponse }
 
 const client = new Anthropic()
 
@@ -27,6 +27,34 @@ function formatarTempo(seg: number): string {
 	const m = Math.floor((seg % 3600) / 60)
 	const s = seg % 60
 	return h > 0 ? `${h}h${String(m).padStart(2, '0')}min` : `${m}min${String(s).padStart(2, '0')}s`
+}
+
+function buildLapsBlock(laps: LapData[]): string {
+	if (!laps.length || laps.length <= 1) return ''
+
+	const rows = laps.map(l => {
+		const dist = l.distance >= 1000
+			? `${(l.distance / 1000).toFixed(2)} km`
+			: `${Math.round(l.distance)} m`
+		const pace = mpsParaPaceStr(l.average_speed)
+		const tempo = formatarTempo(l.moving_time)
+		const fc = l.average_heartrate ? `FC ${Math.round(l.average_heartrate)}` : '—'
+		return `  Volta ${String(l.lap_index + 1).padStart(2)}: ${dist.padEnd(8)} ${pace.padEnd(9)} ${tempo.padEnd(8)} ${fc}`
+	})
+
+	const distances = laps.map(l => l.distance)
+	const distMin = Math.min(...distances)
+	const distMax = Math.max(...distances)
+	const isIntervals = distMax - distMin > 200
+	const tipoStr = isIntervals
+		? `ATENÇÃO: distâncias variáveis (${Math.round(distMin)}m a ${Math.round(distMax)}m) — provavelmente estímulos + recuperações`
+		: `Voltas uniformes (~${Math.round(distances[0])}m cada)`
+
+	return `
+## Voltas registradas pelo GPS (laps — pressão manual no dispositivo)
+${rows.join('\n')}
+
+Interpretação: ${tipoStr}`
 }
 
 function buildSplitsBlock(splits: SplitMetric[]): string {
@@ -58,7 +86,7 @@ Análise dos splits:
 - ${variacaoStr}`
 }
 
-function buildPrompt(input: AnaliseInput, splits: SplitMetric[]): string {
+function buildPrompt(input: AnaliseInput, splits: SplitMetric[], laps: LapData[]): string {
 	const { corrida, provaAlvo } = input
 
 	const diffPace = provaAlvo
@@ -103,7 +131,8 @@ Princípios-chave de Canova:
 - Todo treino deve ter objetivo claro; evitar "zona cinza"
 - Recuperação é MUITO mais lenta do que o atleta imagina
 - Longões chegam a 35-38 km para maratona no pico
-- Usar os splits para identificar a estrutura real do treino
+- Usar os splits E as voltas (laps) para identificar a estrutura real do treino
+- Para treinos de tiros/intervalados, as VOLTAS são mais importantes que os splits por km
 
 ## Sessão realizada
 - Nome: ${corrida.nome}
@@ -113,6 +142,7 @@ Princípios-chave de Canova:
 - Pace médio: ${formatarPace(corrida.paceSegPorKm)}
 - Ganho de elevação: ${corrida.elevacaoMetros.toFixed(0)} m
 ${provaCtx}
+${buildLapsBlock(laps)}
 ${buildSplitsBlock(splits)}
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem \`\`\`), com exatamente esta estrutura:
@@ -140,27 +170,28 @@ export async function action({ request }: { request: Request }) {
 	}
 
 	try {
-		// 1. Fetch detailed activity from Strava to get splits_metric
+		// 1. Fetch detailed activity from Strava (splits + laps)
 		const detailed = await buscarAtividadeDetalhada(input.stravaId)
 		const splits = (detailed.splits_metric ?? []) as SplitMetric[]
+		const laps = (detailed.laps ?? []) as LapData[]
 
-		// 2. Call Claude with enriched prompt (splits included)
+		// 2. Call Claude with enriched prompt (laps + splits)
 		const message = await client.messages.create({
 			model: 'claude-sonnet-4-6',
 			max_tokens: 1024,
-			messages: [{ role: 'user', content: buildPrompt(input, splits) }],
+			messages: [{ role: 'user', content: buildPrompt(input, splits, laps) }],
 		})
 
 		const text = message.content.find(b => b.type === 'text')?.text ?? ''
 		const analise: AnaliseResult = JSON.parse(text)
 
-		// 3. Persist both splits and analysis
+		// 3. Persist splits, laps and analysis
 		await db.corrida.update({
 			where: { stravaId: input.stravaId },
-			data: { splits, analise, analisadaEm: new Date() },
+			data: { splits, laps, analise, analisadaEm: new Date() },
 		})
 
-		const response: AnalyzeApiResponse = { analise, splits }
+		const response: AnalyzeApiResponse = { analise, splits, laps }
 		return Response.json(response)
 	} catch (err) {
 		console.error('Erro na análise Claude:', err)

@@ -2,7 +2,7 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
 import { Button } from '~/components/ui/button'
-import type { AnaliseResult, SplitMetric } from '~/types/analise'
+import type { AnaliseResult, SplitMetric, LapData } from '~/types/analise'
 import type { CorridaDataTableRow } from './corridas-columns'
 
 type Props = {
@@ -10,6 +10,7 @@ type Props = {
 	onClose: () => void
 	corrida: CorridaDataTableRow | null
 	splits: SplitMetric[] | null
+	laps: LapData[] | null
 	analise: AnaliseResult | null
 	loading: boolean
 	error: string | null
@@ -48,7 +49,7 @@ function categoria(m: number) {
 	return null
 }
 
-export function CorridaDetalheSheet({ open, onClose, corrida, splits, analise, loading, error, onAnalisar, onReanalisar, onBuscarSplits }: Props) {
+export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, analise, loading, error, onAnalisar, onReanalisar, onBuscarSplits }: Props) {
 	const style = analise ? (AVALIACAO_STYLE[analise.avaliacao] ?? AVALIACAO_STYLE.regular) : null
 	const analisadaEm = corrida?.analisadaEm
 		? new Date(corrida.analisadaEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -87,12 +88,75 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, analise, l
 							))}
 						</div>
 
+						{/* ── VOLTAS (LAPS) ── */}
+						{laps && laps.length > 1 && (() => {
+							const distances = laps.map(l => l.distance)
+							const distMin = Math.min(...distances)
+							const distMax = Math.max(...distances)
+							const isIntervals = distMax - distMin > 200
+							return (
+								<div className='flex flex-col gap-2'>
+									<div className='flex items-center justify-between'>
+										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+											Voltas registradas
+										</p>
+										{isIntervals && (
+											<span className='rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400'>
+												Tiros / Intervalos
+											</span>
+										)}
+									</div>
+									<div className='overflow-x-auto rounded-xl border border-border'>
+										<table className='w-full text-xs'>
+											<thead>
+												<tr className='border-b border-border bg-muted/30'>
+													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>#</th>
+													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Distância</th>
+													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Pace</th>
+													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Tempo</th>
+													<th className='text-left px-3 py-2 font-medium text-muted-foreground'>FC</th>
+												</tr>
+											</thead>
+											<tbody className='divide-y divide-border'>
+												{laps.map((lap, i) => {
+													const paceStr = mpsParaPace(lap.average_speed)
+													const dist = lap.distance >= 950
+														? `${(lap.distance / 1000).toFixed(2)} km`
+														: `${Math.round(lap.distance)} m`
+													const mins = Math.floor(lap.moving_time / 60)
+													const secs = lap.moving_time % 60
+													const tempo = `${mins}:${String(secs).padStart(2, '0')}`
+													const isWork = isIntervals && lap.distance >= (distMin + distMax) / 2
+													return (
+														<tr key={lap.lap_index ?? i} className={`hover:bg-muted/20 transition-colors ${isWork ? 'font-semibold' : 'text-muted-foreground'}`}>
+															<td className='px-3 py-1.5'>{i + 1}</td>
+															<td className='px-3 py-1.5'>{dist}</td>
+															<td className='px-3 py-1.5 font-mono tabular-nums'>{paceStr}</td>
+															<td className='px-3 py-1.5 tabular-nums'>{tempo}</td>
+															<td className='px-3 py-1.5'>
+																{lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}
+															</td>
+														</tr>
+													)
+												})}
+											</tbody>
+										</table>
+									</div>
+									{isIntervals && (
+										<p className='text-[10px] text-muted-foreground px-1'>
+											Linhas em destaque = estímulos (distâncias maiores). Linhas esmaecidas = recuperações.
+										</p>
+									)}
+								</div>
+							)
+						})()}
+
 						{/* ── SPLITS ── */}
-						{!splits && !loading && (
+						{!splits && !laps && !loading && (
 							<div className='flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3'>
-								<p className='text-sm text-muted-foreground'>Splits por km não carregados</p>
+								<p className='text-sm text-muted-foreground'>Splits e voltas não carregados</p>
 								<Button variant='outline' size='sm' className='text-xs h-7' onClick={onBuscarSplits}>
-									Buscar splits
+									Buscar do Strava
 								</Button>
 							</div>
 						)}

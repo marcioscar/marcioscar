@@ -25,7 +25,7 @@ import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
 import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
 import { CorridaDetalheSheet } from "./corrida-detalhe-sheet";
-import type { AnaliseResult, SplitMetric, AnalyzeApiResponse, AnaliseInput } from "~/types/analise";
+import type { AnaliseResult, SplitMetric, LapData, AnalyzeApiResponse, BuscarDetalhesResponse, AnaliseInput } from "~/types/analise";
 
 const CorridasMap = React.lazy(async () => {
 	const mod = await import("./corridas-map");
@@ -180,6 +180,7 @@ export function CorridasDataTable({
 	const [corridaDetalhe, setCorridaDetalhe] = React.useState<CorridaDataTableRow | null>(null);
 	const [detalheAnalise, setDetalheAnalise] = React.useState<AnaliseResult | null>(null);
 	const [detalheSplits, setDetalheSplits] = React.useState<SplitMetric[] | null>(null);
+	const [detalheLaps, setDetalheLaps] = React.useState<LapData[] | null>(null);
 	const [detalheLoading, setDetalheLoading] = React.useState(false);
 	const [detalheError, setDetalheError] = React.useState<string | null>(null);
 
@@ -187,6 +188,7 @@ export function CorridasDataTable({
 		setCorridaDetalhe(corrida)
 		setDetalheAnalise(corrida.analise ?? null)
 		setDetalheSplits(corrida.splits ?? null)
+		setDetalheLaps(corrida.laps ?? null)
 		setDetalheError(null)
 		setDetalheLoading(false)
 		setDetalheOpen(true)
@@ -223,6 +225,7 @@ export function CorridasDataTable({
 			const result = await res.json() as AnalyzeApiResponse
 			setDetalheAnalise(result.analise)
 			setDetalheSplits(result.splits)
+			setDetalheLaps(result.laps)
 		} catch {
 			setDetalheError('Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.')
 		} finally {
@@ -251,8 +254,9 @@ export function CorridasDataTable({
 				body: JSON.stringify({ stravaId: corridaDetalhe.stravaId }),
 			})
 			if (!res.ok) throw new Error('Falha ao buscar splits')
-			const data = await res.json() as { splits: SplitMetric[] }
+			const data = await res.json() as BuscarDetalhesResponse
 			setDetalheSplits(data.splits)
+			setDetalheLaps(data.laps)
 		} catch {
 			setDetalheError('Não foi possível buscar os splits do Strava.')
 		} finally {
@@ -489,6 +493,7 @@ export function CorridasDataTable({
 				onClose={() => setDetalheOpen(false)}
 				corrida={corridaDetalhe}
 				splits={detalheSplits}
+				laps={detalheLaps}
 				analise={detalheAnalise}
 				loading={detalheLoading}
 				error={detalheError}
