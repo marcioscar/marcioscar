@@ -58,6 +58,22 @@ model pagamentosBrassaco {
     @@index([data])
 }
 
+model ProvaAlvo {
+    id               String   @id @default(auto()) @map("_id") @db.ObjectId
+    nome             String
+    plano            String
+    dataProva        DateTime
+    paceAlvo         String
+    kmSemanais       Int
+    diasTreino       String[]
+    semanasCompletas Int[]
+    ativa            Boolean  @default(false)
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    @@index([dataProva])
+}
+
 model biblioteca {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String
