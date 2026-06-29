@@ -108,7 +108,10 @@ function sortableHeader(
 	);
 }
 
-export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
+export function getCorridasColumns(
+	onAnalisar: (row: CorridaDataTableRow) => void,
+): ColumnDef<CorridaDataTableRow>[] {
+	return [
 	{
 		id: "select",
 		header: ({ table }) => (
@@ -182,4 +185,22 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 			),
 		cell: ({ row }) => formatarPace(row.original.paceMedioSegPorKm),
 	},
-];
+	{
+		id: 'analisar',
+		header: '',
+		cell: ({ row }) => (
+			<Button
+				variant='ghost'
+				size='sm'
+				className='h-7 px-2 text-xs text-muted-foreground hover:text-foreground'
+				onClick={(e) => { e.stopPropagation(); onAnalisar(row.original) }}
+			>
+				✦ Analisar
+			</Button>
+		),
+		enableSorting: false,
+	},
+]
+}
+
+export const corridasColumns = getCorridasColumns(() => {});

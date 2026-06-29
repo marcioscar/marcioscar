@@ -23,7 +23,9 @@ import {
 } from "~/components/ui/table";
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
-import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
+import { getCorridasColumns, type CorridaDataTableRow } from "./corridas-columns";
+import { CorridaAnaliseSheet } from "./corrida-analise-sheet";
+import type { AnaliseResult, AnaliseInput } from "~/routes/api.analisar-corrida";
 
 const CorridasMap = React.lazy(async () => {
 	const mod = await import("./corridas-map");
@@ -40,10 +42,20 @@ const MaratonasBarrasChart = React.lazy(async () => {
 	return { default: mod.MaratonasBarrasChart };
 });
 
+type ProvaAtivaInfo = {
+	plano: string
+	paceAlvo: string
+	kmSemanais: number
+	dataProva: string
+	semanaAtual?: number
+	totalSemanas?: number
+} | null
+
 type CorridasDataTableProps = {
 	data: CorridaDataTableRow[];
 	mapboxToken: string | null;
 	maratonasGraficoBarras: MaratonaBarrasDado[];
+	provaAtiva?: ProvaAtivaInfo;
 };
 
 type DistanciaFaixa = {
@@ -151,6 +163,7 @@ export function CorridasDataTable({
 	data,
 	mapboxToken,
 	maratonasGraficoBarras,
+	provaAtiva,
 }: CorridasDataTableProps) {
 	const [sorting, setSorting] = React.useState<SortingState>([
 		{ id: "dataInicio", desc: true },
@@ -161,6 +174,52 @@ export function CorridasDataTable({
 	const [dataBusca, setDataBusca] = React.useState("");
 	const [mostrarMapa, setMostrarMapa] = React.useState(false);
 	const [mostrarGlobo, setMostrarGlobo] = React.useState(false);
+
+	// ── Análise ──
+	const [analiseOpen, setAnaliseOpen] = React.useState(false);
+	const [corridaAnalisada, setCorridaAnalisada] = React.useState<CorridaDataTableRow | null>(null);
+	const [analise, setAnalise] = React.useState<AnaliseResult | null>(null);
+	const [analiseLoading, setAnaliseLoading] = React.useState(false);
+	const [analiseError, setAnaliseError] = React.useState<string | null>(null);
+
+	async function handleAnalisar(corrida: CorridaDataTableRow) {
+		setCorridaAnalisada(corrida)
+		setAnalise(null)
+		setAnaliseError(null)
+		setAnaliseLoading(true)
+		setAnaliseOpen(true)
+
+		const paceSegPorKm = corrida.paceMedioSegPorKm ?? (
+			corrida.tempoMovimentoSeg / (corrida.distanciaMetros / 1000)
+		)
+
+		const input: AnaliseInput = {
+			corrida: {
+				nome: corrida.nome,
+				distanciaKm: corrida.distanciaMetros / 1000,
+				paceSegPorKm,
+				tempoSeg: corrida.tempoMovimentoSeg,
+				elevacaoMetros: corrida.elevacaoGanhoMetros,
+				dataInicio: new Date(corrida.dataInicio).toLocaleDateString('pt-BR'),
+			},
+			provaAlvo: provaAtiva ?? null,
+		}
+
+		try {
+			const res = await fetch('/api/analisar-corrida', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(input),
+			})
+			if (!res.ok) throw new Error('Falha na análise')
+			const data = await res.json() as AnaliseResult
+			setAnalise(data)
+		} catch {
+			setAnaliseError('Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.')
+		} finally {
+			setAnaliseLoading(false)
+		}
+	}
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
 	const dadosFiltradosFaixa = React.useMemo(
 		() => filtrarPorFaixaDistancia(data, faixaSelecionada),
@@ -170,6 +229,12 @@ export function CorridasDataTable({
 		() => filtrarPorNomeOuData(dadosFiltradosFaixa, nomeBusca, dataBusca),
 		[dadosFiltradosFaixa, nomeBusca, dataBusca],
 	);
+
+	const corridasColumns = React.useMemo(
+		() => getCorridasColumns(handleAnalisar),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[provaAtiva],
+	)
 
 	const table = useReactTable({
 		data: dadosFiltrados,
@@ -288,7 +353,7 @@ export function CorridasDataTable({
 							))
 						) : (
 							<TableRow>
-								<TableCell colSpan={corridasColumns.length}>
+								<TableCell colSpan={table.getAllColumns().length}>
 									Nenhuma corrida sincronizada ainda.
 								</TableCell>
 							</TableRow>
@@ -381,6 +446,15 @@ export function CorridasDataTable({
 					Clique em "Mostrar globo" para carregar o globo sob demanda.
 				</div>
 			)}
+
+			<CorridaAnaliseSheet
+				open={analiseOpen}
+				onClose={() => setAnaliseOpen(false)}
+				corrida={corridaAnalisada}
+				analise={analise}
+				loading={analiseLoading}
+				error={analiseError}
+			/>
 		</div>
 	);
 }
