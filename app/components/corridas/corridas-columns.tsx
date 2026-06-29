@@ -94,14 +94,33 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 		accessorKey: "nome",
 		header: ({ column }) =>
 			sortableHeader("Nome", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
-		cell: ({ row }) => (
-			<span className='flex items-center gap-1.5'>
-				{row.original.nome}
-				{row.original.analise && (
-					<span className='text-emerald-500 text-xs' title='Análise Canova salva'>✦</span>
-				)}
-			</span>
-		),
+		cell: ({ row }) => row.original.nome,
+	},
+	{
+		id: "analise",
+		header: () => <span className='text-xs font-medium text-muted-foreground'>Análise</span>,
+		cell: ({ row }) => {
+			const analise = row.original.analise
+			if (!analise) return null
+			const BADGE: Record<string, string> = {
+				excelente: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+				bom:       'bg-blue-500/10 text-blue-700 dark:text-blue-400',
+				regular:   'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+				ruim:      'bg-red-500/10 text-red-700 dark:text-red-400',
+			}
+			const cls = BADGE[analise.avaliacao] ?? BADGE.regular
+			return (
+				<div className='flex flex-col gap-0.5 min-w-[80px]'>
+					<span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${cls}`}>
+						{analise.avaliacao}
+					</span>
+					<span className='text-[10px] text-muted-foreground leading-tight'>
+						{analise.tipoSessao}
+					</span>
+				</div>
+			)
+		},
+		enableSorting: false,
 	},
 	{
 		accessorKey: "distanciaMetros",
