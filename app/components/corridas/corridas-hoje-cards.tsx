@@ -42,17 +42,17 @@ function getInicioSemana(): Date {
 }
 
 const TIPO_BG: Record<string, string> = {
-	estimulo:       'bg-blue-500/10',
-	principal:      'bg-emerald-500/10',
-	aquecimento:    'bg-amber-500/10',
-	desaquecimento: 'bg-amber-500/10',
-	recuperacao:    'bg-muted/30',
+	estimulo:       'bg-lime-500/10',
+	principal:      'bg-lime-500/10',
+	aquecimento:    'bg-muted/40',
+	desaquecimento: 'bg-muted/40',
+	recuperacao:    '',
 }
 const TIPO_TEXT: Record<string, string> = {
-	estimulo:       'font-semibold text-blue-700 dark:text-blue-400',
-	principal:      'font-semibold text-emerald-700 dark:text-emerald-400',
-	aquecimento:    'text-amber-700 dark:text-amber-400',
-	desaquecimento: 'text-amber-700 dark:text-amber-400',
+	estimulo:       'font-semibold text-lime-700 dark:text-lime-500',
+	principal:      'font-semibold text-lime-700 dark:text-lime-500',
+	aquecimento:    'text-muted-foreground',
+	desaquecimento: 'text-muted-foreground',
 	recuperacao:    'text-muted-foreground',
 }
 
@@ -65,13 +65,13 @@ function LapsSemana({ laps, anotacoes }: { laps: LapData[]; anotacoes?: LapAnota
 	const threshold = (distMin + distMax) / 2;
 
 	return (
-		<div className='mt-2 max-h-48 overflow-y-auto rounded-xl border border-border'>
+		<div className='max-h-52 overflow-y-auto'>
 			<table className='w-full text-xs'>
-				<thead className='sticky top-0 bg-muted/60 backdrop-blur-sm'>
-					<tr className='border-b border-border'>
-						<th className='text-left px-2 py-1.5 font-medium text-muted-foreground'>Volta</th>
-						{temAnotacao && <th className='text-right px-2 py-1.5 font-medium text-muted-foreground'>Prescrito</th>}
-						<th className='text-right px-2 py-1.5 font-medium text-muted-foreground'>Real</th>
+				<thead className='sticky top-0 bg-card border-b border-border'>
+					<tr>
+						<th className='text-left px-3 py-1.5 font-medium text-muted-foreground'>Volta</th>
+						{temAnotacao && <th className='text-right px-3 py-1.5 font-medium text-muted-foreground'>Prescrito</th>}
+						<th className='text-right px-3 py-1.5 font-medium text-muted-foreground'>Real</th>
 					</tr>
 				</thead>
 				<tbody className='divide-y divide-border'>
@@ -85,26 +85,25 @@ function LapsSemana({ laps, anotacoes }: { laps: LapData[]; anotacoes?: LapAnota
 						const label = anot?.label ?? dist;
 						const subLabel = anot ? dist : null;
 						const paceReal = mpsParaPaceStr(lap.average_speed);
-
 						const labelCls = tipo
 							? (TIPO_TEXT[tipo] ?? 'text-muted-foreground')
-							: isWork ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-muted-foreground';
+							: isWork ? 'font-semibold text-lime-700 dark:text-lime-500' : 'text-muted-foreground';
 						const rowBg = tipo
 							? (TIPO_BG[tipo] ?? '')
-							: isWork ? 'bg-blue-500/5' : '';
+							: isWork ? 'bg-lime-500/10' : '';
 
 						return (
 							<tr key={lap.lap_index ?? i} className={`${rowBg} hover:bg-muted/20 transition-colors`}>
-								<td className='px-2 py-1.5'>
-									<span className={`font-medium ${labelCls}`}>{label}</span>
+								<td className='px-3 py-1.5'>
+									<span className={labelCls}>{label}</span>
 									{subLabel && <span className='ml-1 text-muted-foreground font-normal'>({subLabel})</span>}
 								</td>
 								{temAnotacao && (
-									<td className='px-2 py-1.5 text-right font-mono tabular-nums text-muted-foreground'>
+									<td className='px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground'>
 										{anot?.meta ?? '—'}
 									</td>
 								)}
-								<td className={`px-2 py-1.5 text-right font-mono tabular-nums ${paceReal === '—' ? 'text-muted-foreground' : labelCls}`}>
+								<td className={`px-3 py-1.5 text-right font-mono tabular-nums ${paceReal === '—' ? 'text-muted-foreground' : labelCls}`}>
 									{paceReal}
 								</td>
 							</tr>
@@ -137,51 +136,59 @@ export function CorridasHojeCards({ corridas }: Props) {
 				{corridasAlvo.map((corrida) => {
 					const hojeIso = new Date().toISOString().slice(0, 10);
 					const isHoje = corrida.dataInicio.slice(0, 10) === hojeIso;
+					const temLaps = corrida.laps && corrida.laps.length > 1;
 					return (
 						<div
 							key={corrida.stravaId}
-							className='bg-card ring-foreground/10 flex items-start gap-4 overflow-hidden rounded-2xl p-4 ring-1'>
-							<div className='bg-primary/10 text-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-full'>
-								<HugeiconsIcon icon={WorkoutRunIcon} size={22} />
-							</div>
-							<div className='min-w-0 flex-1'>
-								<div className='flex items-center gap-2'>
-									<p className='truncate font-semibold'>{corrida.nome}</p>
-									{isHoje && (
-										<Badge className='shrink-0 text-xs' variant='outline'>
-											Hoje
-										</Badge>
-									)}
-								</div>
-								<p className='text-muted-foreground text-sm'>
-									{new Date(corrida.dataInicio).toLocaleString("pt-BR", {
-										weekday: "short",
-										day: "numeric",
-										month: "short",
-										hour: "2-digit",
-										minute: "2-digit",
-									})}
-								</p>
-								<div className='mt-2 flex flex-wrap gap-1'>
-									<Badge variant='secondary' className='font-mono text-xs'>
-										{formatarDuracao(corrida.tempoMovimentoSeg)}
-									</Badge>
-									{corrida.distanciaMetros > 0 && (
-										<Badge variant='secondary' className='font-mono text-xs'>
-											{formatarDistancia(corrida.distanciaMetros)}
-										</Badge>
-									)}
-									{corrida.paceMedioSegPorKm != null && (
-										<Badge variant='secondary' className='font-mono text-xs'>
-											{formatarPace(corrida.paceMedioSegPorKm)}
-										</Badge>
-									)}
-								</div>
+							className='bg-card ring-foreground/10 overflow-hidden rounded-2xl ring-1'>
 
-								{corrida.laps && corrida.laps.length > 1 && (
-									<LapsSemana laps={corrida.laps} anotacoes={corrida.analise?.lapsAnotados} />
-								)}
+							{/* Cabeçalho do card */}
+							<div className='flex items-start gap-4 p-4'>
+								<div className='bg-primary/10 text-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-full'>
+									<HugeiconsIcon icon={WorkoutRunIcon} size={22} />
+								</div>
+								<div className='min-w-0 flex-1'>
+									<div className='flex items-center gap-2'>
+										<p className='truncate font-semibold'>{corrida.nome}</p>
+										{isHoje && (
+											<Badge className='shrink-0 text-xs' variant='outline'>
+												Hoje
+											</Badge>
+										)}
+									</div>
+									<p className='text-muted-foreground text-sm'>
+										{new Date(corrida.dataInicio).toLocaleString("pt-BR", {
+											weekday: "short",
+											day: "numeric",
+											month: "short",
+											hour: "2-digit",
+											minute: "2-digit",
+										})}
+									</p>
+									<div className='mt-2 flex flex-wrap gap-1'>
+										<Badge variant='secondary' className='font-mono text-xs'>
+											{formatarDuracao(corrida.tempoMovimentoSeg)}
+										</Badge>
+										{corrida.distanciaMetros > 0 && (
+											<Badge variant='secondary' className='font-mono text-xs'>
+												{formatarDistancia(corrida.distanciaMetros)}
+											</Badge>
+										)}
+										{corrida.paceMedioSegPorKm != null && (
+											<Badge variant='secondary' className='font-mono text-xs'>
+												{formatarPace(corrida.paceMedioSegPorKm)}
+											</Badge>
+										)}
+									</div>
+								</div>
 							</div>
+
+							{/* Tabela de laps: largura total, separada por borda */}
+							{temLaps && (
+								<div className='border-t border-border'>
+									<LapsSemana laps={corrida.laps!} anotacoes={corrida.analise?.lapsAnotados} />
+								</div>
+							)}
 						</div>
 					);
 				})}
