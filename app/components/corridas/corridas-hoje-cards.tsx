@@ -23,7 +23,7 @@ function formatarPace(seg: number): string {
 }
 
 function mpsParaPaceStr(mps: number): string {
-	if (!mps || mps <= 0) return '—';
+	if (!mps || mps < 1.0) return '—';
 	const spk = 1000 / mps;
 	const min = Math.floor(spk / 60);
 	const seg = Math.round(spk % 60);

@@ -43,7 +43,7 @@ function formatarPace(segPorKm: number | null) {
 	return `${Math.floor(segPorKm / 60)}:${String(Math.round(segPorKm % 60)).padStart(2, '0')} /km`
 }
 function mpsParaPace(mps: number) {
-	if (!mps || mps <= 0) return '—'
+	if (!mps || mps < 1.0) return '—'
 	const spk = 1000 / mps
 	return `${Math.floor(spk / 60)}:${String(Math.round(spk % 60)).padStart(2, '0')}`
 }
@@ -164,9 +164,10 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 
 												const metaPaceStr = anot?.meta ?? null
 												const diffEl = (() => {
-													if (!metaPaceStr || !lap.average_speed) return null
-													const [mm, ss] = metaPaceStr.replace('/km','').trim().split(':').map(Number)
-													const metaSeg = mm * 60 + (ss ?? 0)
+													if (!metaPaceStr || lap.average_speed < 1.0) return null
+													const parts = metaPaceStr.replace('/km','').trim().split(':').map(Number)
+													if (parts.length < 2 || parts.some(isNaN)) return null
+													const metaSeg = parts[0] * 60 + parts[1]
 													const realSeg = 1000 / lap.average_speed
 													const diff = Math.round(realSeg - metaSeg)
 													if (Math.abs(diff) < 3) return <span className='text-emerald-600 dark:text-emerald-400'>✓</span>

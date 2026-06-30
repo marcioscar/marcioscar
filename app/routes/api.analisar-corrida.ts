@@ -8,7 +8,7 @@ export type { AnaliseInput, AnaliseResult, SplitMetric, LapData, AnalyzeApiRespo
 const client = new Anthropic()
 
 function mpsParaPaceStr(mps: number): string {
-	if (!mps || mps <= 0) return '—'
+	if (!mps || mps < 1.0) return 'DESCANSO'
 	const segPorKm = 1000 / mps
 	const min = Math.floor(segPorKm / 60)
 	const seg = Math.round(segPorKm % 60)
@@ -39,7 +39,7 @@ function buildLapsBlock(laps: LapData[]): string {
 		const pace = mpsParaPaceStr(l.average_speed)
 		const tempo = formatarTempo(l.moving_time)
 		const fc = l.average_heartrate ? `FC ${Math.round(l.average_heartrate)}` : '—'
-		return `  Volta ${String(l.lap_index + 1).padStart(2)}: ${dist.padEnd(8)} ${pace.padEnd(9)} ${tempo.padEnd(8)} ${fc}`
+		return `  Volta ${String(l.lap_index + 1).padStart(2)} [lap_index=${l.lap_index}]: ${dist.padEnd(8)} ${pace.padEnd(9)} ${tempo.padEnd(8)} ${fc}`
 	})
 
 	const distances = laps.map(l => l.distance)
@@ -95,7 +95,7 @@ ${plano}
 
 Com base no plano acima e nas voltas registradas:
 1. Inclua "comparacaoTreinus": análise de 2-3 frases sobre o que foi seguido, o que divergiu e se a execução foi adequada.
-2. Inclua "lapsAnotados": array anotando CADA volta (use o lap_index exato das voltas listadas acima), classificando em tipo "aquecimento", "estimulo", "recuperacao", "principal" ou "desaquecimento", com label curta (ex: "Aquec.", "Est 1", "Rec 1", "Est 2") e "meta" com o pace alvo do plano quando aplicável (ex: "4:15/km"), ou null se não houver meta para aquela volta.`
+2. Inclua "lapsAnotados": array anotando CADA volta usando o valor numérico exato de [lap_index=X] mostrado ao lado de cada volta acima. Classifique cada volta em tipo "aquecimento", "estimulo", "recuperacao", "principal" ou "desaquecimento". Voltas marcadas como DESCANSO no pace são recuperações passivas. Inclua label curta (ex: "Aquec.", "Est 1", "Rec 1", "Est 2") e "meta" com o pace alvo do plano quando aplicável (ex: "4:15/km"), ou null.`
 }
 
 function buildPrompt(input: AnaliseInput, splits: SplitMetric[], laps: LapData[]): string {
