@@ -3,7 +3,7 @@
 import { WorkoutRunIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "~/components/ui/badge";
-import type { LapData } from "~/types/analise";
+import type { LapAnotado, LapData } from "~/types/analise";
 import type { CorridaDataTableRow } from "./corridas-columns";
 
 function formatarDuracao(seg: number): string {
@@ -41,7 +41,23 @@ function getInicioSemana(): Date {
 	return agora;
 }
 
-function LapsSemana({ laps }: { laps: LapData[] }) {
+const TIPO_BG: Record<string, string> = {
+	estimulo:       'bg-blue-500/10',
+	principal:      'bg-emerald-500/10',
+	aquecimento:    'bg-amber-500/10',
+	desaquecimento: 'bg-amber-500/10',
+	recuperacao:    'bg-muted/30',
+}
+const TIPO_TEXT: Record<string, string> = {
+	estimulo:       'font-semibold text-blue-700 dark:text-blue-400',
+	principal:      'font-semibold text-emerald-700 dark:text-emerald-400',
+	aquecimento:    'text-amber-700 dark:text-amber-400',
+	desaquecimento: 'text-amber-700 dark:text-amber-400',
+	recuperacao:    'text-muted-foreground',
+}
+
+function LapsSemana({ laps, anotacoes }: { laps: LapData[]; anotacoes?: LapAnotado[] | null }) {
+	const temAnotacao = anotacoes && anotacoes.length > 0;
 	const distances = laps.map(l => l.distance);
 	const distMin = Math.min(...distances);
 	const distMax = Math.max(...distances);
@@ -52,17 +68,14 @@ function LapsSemana({ laps }: { laps: LapData[] }) {
 		<div className='mt-2 overflow-x-auto'>
 			<div className='flex gap-1 w-max'>
 				{laps.map((lap, i) => {
-					const isWork = isIntervals && lap.distance >= threshold;
-					const dist = lap.distance >= 950
-						? `${(lap.distance / 1000).toFixed(2)}km`
-						: `${Math.round(lap.distance)}m`;
+					const anot = temAnotacao ? anotacoes!.find(a => a.lap_index === (lap.lap_index ?? i)) : null;
+					const bg = anot ? (TIPO_BG[anot.tipo] ?? 'bg-muted/30') : (isIntervals && lap.distance >= threshold ? 'bg-blue-500/10' : 'bg-muted/30');
+					const text = anot ? (TIPO_TEXT[anot.tipo] ?? 'text-muted-foreground') : (isIntervals && lap.distance >= threshold ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-muted-foreground');
+					const topLabel = anot?.label ?? (lap.distance >= 950 ? `${(lap.distance / 1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`);
 					return (
-						<div
-							key={lap.lap_index ?? i}
-							className={`flex flex-col items-center rounded-lg px-2 py-1 min-w-[38px] ${isWork ? 'bg-blue-500/10' : 'bg-muted/30'}`}
-						>
-							<span className='text-[9px] text-muted-foreground leading-none'>{dist}</span>
-							<span className={`text-[11px] font-mono leading-tight tabular-nums ${isWork ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-muted-foreground'}`}>
+						<div key={lap.lap_index ?? i} className={`flex flex-col items-center rounded-lg px-2 py-1 min-w-[38px] ${bg}`}>
+							<span className='text-[9px] text-muted-foreground leading-none'>{topLabel}</span>
+							<span className={`text-[11px] font-mono leading-tight tabular-nums ${text}`}>
 								{mpsParaPaceStr(lap.average_speed)}
 							</span>
 						</div>
@@ -136,7 +149,7 @@ export function CorridasHojeCards({ corridas }: Props) {
 								</div>
 
 								{corrida.laps && corrida.laps.length > 1 && (
-									<LapsSemana laps={corrida.laps} />
+									<LapsSemana laps={corrida.laps} anotacoes={corrida.analise?.lapsAnotados} />
 								)}
 							</div>
 						</div>

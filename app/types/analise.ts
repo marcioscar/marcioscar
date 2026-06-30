@@ -34,6 +34,13 @@ export type BuscarDetalhesResponse = {
 	laps: LapData[]
 }
 
+export type LapAnotado = {
+	lap_index: number
+	tipo: 'aquecimento' | 'estimulo' | 'recuperacao' | 'principal' | 'desaquecimento'
+	label: string
+	meta?: string | null
+}
+
 export type AnaliseResult = {
 	tipoSessao: string
 	avaliacao: 'excelente' | 'bom' | 'regular' | 'ruim'
@@ -43,6 +50,7 @@ export type AnaliseResult = {
 	alinhamentoCanova: string
 	recomendacao: string
 	comparacaoTreinus?: string
+	lapsAnotados?: LapAnotado[]
 }
 
 export type AnaliseInput = {

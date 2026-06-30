@@ -113,15 +113,25 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 						)}
 
 						{/* VOLTAS (LAPS) */}
-						{laps && laps.length > 1 && (
+						{laps && laps.length > 1 && (() => {
+							const anotacoes = analise?.lapsAnotados
+							const temAnotacao = anotacoes && anotacoes.length > 0
+							const TIPO_STYLE: Record<string, { row: string; label: string }> = {
+								estimulo:      { row: 'font-semibold',            label: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
+								aquecimento:   { row: 'text-muted-foreground',    label: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+								desaquecimento:{ row: 'text-muted-foreground',    label: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+								recuperacao:   { row: 'text-muted-foreground',    label: 'bg-muted/60 text-muted-foreground' },
+								principal:     { row: 'font-semibold',            label: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+							}
+							return (
 							<div className='flex flex-col gap-2'>
 								<div className='flex items-center justify-between'>
 									<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
 										Voltas registradas
 									</p>
-									{isIntervals && (
+									{(temAnotacao || isIntervals) && (
 										<span className='rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400'>
-											Tiros / Intervalos
+											{temAnotacao ? 'Anotado pelo plano' : 'Tiros / Intervalos'}
 										</span>
 									)}
 								</div>
@@ -129,15 +139,21 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 									<table className='w-full text-xs'>
 										<thead>
 											<tr className='border-b border-border bg-muted/30'>
+												{temAnotacao && <th className='text-left px-3 py-2 font-medium text-muted-foreground'>Tipo</th>}
 												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>#</th>
 												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Dist.</th>
 												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Pace</th>
+												{temAnotacao && <th className='text-left px-3 py-2 font-medium text-muted-foreground'>Meta</th>}
 												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>Tempo</th>
 												<th className='text-left px-3 py-2 font-medium text-muted-foreground'>FC</th>
 											</tr>
 										</thead>
 										<tbody className='divide-y divide-border'>
 											{laps.map((lap, i) => {
+												const anot = anotacoes?.find(a => a.lap_index === (lap.lap_index ?? i))
+												const tipoStyle = anot ? (TIPO_STYLE[anot.tipo] ?? TIPO_STYLE.recuperacao) : null
+												const isWork = !temAnotacao && isIntervals && lap.distance >= (lapDistMin + lapDistMax) / 2
+												const rowCls = tipoStyle?.row ?? (isWork ? 'font-semibold' : 'text-muted-foreground')
 												const paceStr = mpsParaPace(lap.average_speed)
 												const dist = lap.distance >= 950
 													? `${(lap.distance / 1000).toFixed(2)} km`
@@ -145,12 +161,41 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 												const mins = Math.floor(lap.moving_time / 60)
 												const secs = lap.moving_time % 60
 												const tempo = `${mins}:${String(secs).padStart(2, '0')}`
-												const isWork = isIntervals && lap.distance >= (lapDistMin + lapDistMax) / 2
+
+												const metaPaceStr = anot?.meta ?? null
+												const diffEl = (() => {
+													if (!metaPaceStr || !lap.average_speed) return null
+													const [mm, ss] = metaPaceStr.replace('/km','').trim().split(':').map(Number)
+													const metaSeg = mm * 60 + (ss ?? 0)
+													const realSeg = 1000 / lap.average_speed
+													const diff = Math.round(realSeg - metaSeg)
+													if (Math.abs(diff) < 3) return <span className='text-emerald-600 dark:text-emerald-400'>✓</span>
+													return diff > 0
+														? <span className='text-amber-600 dark:text-amber-400'>+{diff}s</span>
+														: <span className='text-emerald-600 dark:text-emerald-400'>{diff}s</span>
+												})()
+
 												return (
-													<tr key={lap.lap_index ?? i} className={`hover:bg-muted/20 transition-colors ${isWork ? 'font-semibold' : 'text-muted-foreground'}`}>
+													<tr key={lap.lap_index ?? i} className={`hover:bg-muted/20 transition-colors ${rowCls}`}>
+														{temAnotacao && (
+															<td className='px-3 py-1.5'>
+																{anot && (
+																	<span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tipoStyle?.label}`}>
+																		{anot.label}
+																	</span>
+																)}
+															</td>
+														)}
 														<td className='px-3 py-1.5'>{i + 1}</td>
 														<td className='px-3 py-1.5'>{dist}</td>
 														<td className='px-3 py-1.5 font-mono tabular-nums'>{paceStr}</td>
+														{temAnotacao && (
+															<td className='px-3 py-1.5 font-mono tabular-nums text-muted-foreground'>
+																{metaPaceStr
+																	? <span className='flex items-center gap-1'>{metaPaceStr} {diffEl}</span>
+																	: '—'}
+															</td>
+														)}
 														<td className='px-3 py-1.5 tabular-nums'>{tempo}</td>
 														<td className='px-3 py-1.5'>
 															{lap.average_heartrate ? Math.round(lap.average_heartrate) : '—'}
@@ -161,13 +206,19 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 										</tbody>
 									</table>
 								</div>
-								{isIntervals && (
+								{!temAnotacao && isIntervals && (
 									<p className='text-[10px] text-muted-foreground'>
 										Negrito = estímulos · esmaecido = recuperações
 									</p>
 								)}
+								{temAnotacao && (
+									<p className='text-[10px] text-muted-foreground'>
+										Meta = pace alvo do plano · diff vs pace realizado
+									</p>
+								)}
 							</div>
-						)}
+							)
+						})()}
 
 						{/* SPLITS POR KM */}
 						{splits && splits.length > 0 && (

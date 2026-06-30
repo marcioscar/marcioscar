@@ -93,7 +93,9 @@ function buildPromptComparacao(plano: string): string {
 ## Treino planejado (Treinus)
 ${plano}
 
-Compare o treino planejado acima com o executado (splits e voltas) e inclua no JSON o campo "comparacaoTreinus" com uma análise de 2-3 frases: o que foi seguido, o que divergiu e se a execução foi adequada.`
+Com base no plano acima e nas voltas registradas:
+1. Inclua "comparacaoTreinus": análise de 2-3 frases sobre o que foi seguido, o que divergiu e se a execução foi adequada.
+2. Inclua "lapsAnotados": array anotando CADA volta (use o lap_index exato das voltas listadas acima), classificando em tipo "aquecimento", "estimulo", "recuperacao", "principal" ou "desaquecimento", com label curta (ex: "Aquec.", "Est 1", "Rec 1", "Est 2") e "meta" com o pace alvo do plano quando aplicável (ex: "4:15/km"), ou null se não houver meta para aquela volta.`
 }
 
 function buildPrompt(input: AnaliseInput, splits: SplitMetric[], laps: LapData[]): string {
@@ -165,7 +167,8 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem \`\`\`), com exata
   "pontosAtencao": ["ponto 1"],
   "alinhamentoCanova": "como esta sessão se alinha ou não com Canova, usando os splits como evidência",
   "recomendacao": "o que focar no próximo treino",
-  "comparacaoTreinus": "inclua SOMENTE se uma imagem do Treinus foi fornecida; caso contrário omita o campo"
+  "comparacaoTreinus": "inclua somente se o plano Treinus foi fornecido; caso contrário omita",
+  "lapsAnotados": [{ "lap_index": 0, "tipo": "aquecimento", "label": "Aquec.", "meta": null }]
 }`
 }
 
