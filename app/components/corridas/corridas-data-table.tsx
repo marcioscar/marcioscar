@@ -183,6 +183,7 @@ export function CorridasDataTable({
 	const [detalheLaps, setDetalheLaps] = React.useState<LapData[] | null>(null);
 	const [detalheLoading, setDetalheLoading] = React.useState(false);
 	const [detalheError, setDetalheError] = React.useState<string | null>(null);
+	const [treinusPlano, setTreinusPlano] = React.useState('');
 
 	function handleRowClick(corrida: CorridaDataTableRow) {
 		setCorridaDetalhe(corrida)
@@ -191,6 +192,7 @@ export function CorridasDataTable({
 		setDetalheLaps(corrida.laps ?? null)
 		setDetalheError(null)
 		setDetalheLoading(false)
+		setTreinusPlano('')
 		setDetalheOpen(true)
 	}
 
@@ -213,6 +215,7 @@ export function CorridasDataTable({
 				dataInicio: new Date(corrida.dataInicio).toLocaleDateString('pt-BR'),
 			},
 			provaAlvo: provaAtiva ?? null,
+			treinusPlano: treinusPlano || null,
 		}
 
 		try {
@@ -500,6 +503,8 @@ export function CorridasDataTable({
 				onAnalisar={handleAnalisar}
 				onReanalisar={handleReanalisar}
 				onBuscarSplits={handleBuscarSplits}
+				treinusPlano={treinusPlano}
+				onTreinusPlanoChange={setTreinusPlano}
 			/>
 		</div>
 	);

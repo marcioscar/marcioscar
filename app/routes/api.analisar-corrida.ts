@@ -87,6 +87,15 @@ Análise dos splits:
 - ${variacaoStr}`
 }
 
+function buildPromptComparacao(plano: string): string {
+	return `
+
+## Treino planejado (Treinus)
+${plano}
+
+Compare o treino planejado acima com o executado (splits e voltas) e inclua no JSON o campo "comparacaoTreinus" com uma análise de 2-3 frases: o que foi seguido, o que divergiu e se a execução foi adequada.`
+}
+
 function buildPrompt(input: AnaliseInput, splits: SplitMetric[], laps: LapData[]): string {
 	const { corrida, provaAlvo } = input
 
@@ -155,7 +164,8 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem \`\`\`), com exata
   "pontosPositivos": ["ponto 1", "ponto 2"],
   "pontosAtencao": ["ponto 1"],
   "alinhamentoCanova": "como esta sessão se alinha ou não com Canova, usando os splits como evidência",
-  "recomendacao": "o que focar no próximo treino"
+  "recomendacao": "o que focar no próximo treino",
+  "comparacaoTreinus": "inclua SOMENTE se uma imagem do Treinus foi fornecida; caso contrário omita o campo"
 }`
 }
 
@@ -177,17 +187,21 @@ export async function action({ request }: { request: Request }) {
 		const splits = (detailed.splits_metric ?? []) as SplitMetric[]
 		const laps = (detailed.laps ?? []) as LapData[]
 
-		// 2. Call Claude with enriched prompt (laps + splits)
+		// 2. Build prompt
+		const promptText = buildPrompt(input, splits, laps)
+			+ (input.treinusPlano ? buildPromptComparacao(input.treinusPlano) : '')
+
+		// 3. Call Claude
 		const message = await client.messages.create({
 			model: 'claude-sonnet-4-6',
 			max_tokens: 2048,
-			messages: [{ role: 'user', content: buildPrompt(input, splits, laps) }],
+			messages: [{ role: 'user', content: promptText }],
 		})
 
 		const text = message.content.find(b => b.type === 'text')?.text ?? ''
 		const analise: AnaliseResult = JSON.parse(text)
 
-		// 3. Persist splits, laps and analysis
+		// 4. Persist splits, laps and analysis
 		await db.corrida.update({
 			where: { stravaId: input.stravaId },
 			data: { splits, laps, analise, analisadaEm: new Date() },

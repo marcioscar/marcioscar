@@ -42,6 +42,7 @@ export type AnaliseResult = {
 	pontosAtencao: string[]
 	alinhamentoCanova: string
 	recomendacao: string
+	comparacaoTreinus?: string
 }
 
 export type AnaliseInput = {
@@ -60,4 +61,5 @@ export type AnaliseInput = {
 		kmSemanais: number
 		dataProva: string
 	} | null
+	treinusPlano?: string | null
 }

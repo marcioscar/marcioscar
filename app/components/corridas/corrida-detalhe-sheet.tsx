@@ -22,6 +22,8 @@ type Props = {
 	onAnalisar: () => void
 	onReanalisar: () => void
 	onBuscarSplits: () => void
+	treinusPlano: string
+	onTreinusPlanoChange: (v: string) => void
 }
 
 const AVALIACAO_STYLE: Record<string, { bg: string; text: string; label: string }> = {
@@ -54,7 +56,7 @@ function categoria(m: number) {
 	return null
 }
 
-export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, analise, loading, error, onAnalisar, onReanalisar, onBuscarSplits }: Props) {
+export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, analise, loading, error, onAnalisar, onReanalisar, onBuscarSplits, treinusPlano, onTreinusPlanoChange }: Props) {
 	const style = analise ? (AVALIACAO_STYLE[analise.avaliacao] ?? AVALIACAO_STYLE.regular) : null
 	const analisadaEm = corrida?.analisadaEm
 		? new Date(corrida.analisadaEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -227,6 +229,20 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 								)}
 							</div>
 
+							{/* TREINUS PLANO */}
+							<div className='flex flex-col gap-1.5'>
+								<p className='text-[10px] font-medium text-muted-foreground uppercase tracking-wide'>
+									Treino planejado (Treinus)
+								</p>
+								<textarea
+									value={treinusPlano}
+									onChange={e => onTreinusPlanoChange(e.target.value)}
+									placeholder='Cole aqui o treino prescrito, ex: 6x800m a 4:15/km · rec 90s'
+									rows={2}
+									className='w-full rounded-xl border border-border bg-muted/20 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring'
+								/>
+							</div>
+
 							{loading && (
 								<div className='flex items-center gap-3 py-8 text-muted-foreground'>
 									<div className='size-5 rounded-full border-2 border-foreground/20 border-t-foreground animate-spin shrink-0' />
@@ -287,6 +303,13 @@ export function CorridaDetalheSheet({ open, onClose, corrida, splits, laps, anal
 										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Metodologia Canova</p>
 										<p className='text-sm leading-relaxed'>{analise.alinhamentoCanova}</p>
 									</div>
+
+									{analise.comparacaoTreinus && (
+										<div className='rounded-2xl border border-violet-500/20 bg-violet-500/5 px-4 py-3'>
+											<p className='text-xs font-medium text-violet-700 dark:text-violet-400 uppercase tracking-wide mb-1'>Planejado vs Executado</p>
+											<p className='text-sm leading-relaxed'>{analise.comparacaoTreinus}</p>
+										</div>
+									)}
 
 									<div className='rounded-2xl border border-foreground/10 bg-foreground/5 px-4 py-3'>
 										<p className='text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1'>Próximo treino</p>
