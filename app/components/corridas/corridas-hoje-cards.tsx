@@ -3,6 +3,7 @@
 import { WorkoutRunIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "~/components/ui/badge";
+import type { LapData } from "~/types/analise";
 import type { CorridaDataTableRow } from "./corridas-columns";
 
 function formatarDuracao(seg: number): string {
@@ -21,6 +22,14 @@ function formatarPace(seg: number): string {
 	return `${min}'${s.toString().padStart(2, "0")}" /km`;
 }
 
+function mpsParaPaceStr(mps: number): string {
+	if (!mps || mps <= 0) return '—';
+	const spk = 1000 / mps;
+	const min = Math.floor(spk / 60);
+	const seg = Math.round(spk % 60);
+	return `${min}:${seg.toString().padStart(2, '0')}`;
+}
+
 function formatarDistancia(metros: number): string {
 	return `${(metros / 1000).toFixed(2)} km`;
 }
@@ -30,6 +39,38 @@ function getInicioSemana(): Date {
 	agora.setUTCHours(0, 0, 0, 0);
 	agora.setUTCDate(agora.getUTCDate() - agora.getUTCDay());
 	return agora;
+}
+
+function LapsSemana({ laps }: { laps: LapData[] }) {
+	const distances = laps.map(l => l.distance);
+	const distMin = Math.min(...distances);
+	const distMax = Math.max(...distances);
+	const isIntervals = distMax - distMin > 200;
+	const threshold = (distMin + distMax) / 2;
+
+	return (
+		<div className='mt-2 overflow-x-auto'>
+			<div className='flex gap-1 w-max'>
+				{laps.map((lap, i) => {
+					const isWork = isIntervals && lap.distance >= threshold;
+					const dist = lap.distance >= 950
+						? `${(lap.distance / 1000).toFixed(2)}km`
+						: `${Math.round(lap.distance)}m`;
+					return (
+						<div
+							key={lap.lap_index ?? i}
+							className={`flex flex-col items-center rounded-lg px-2 py-1 min-w-[38px] ${isWork ? 'bg-blue-500/10' : 'bg-muted/30'}`}
+						>
+							<span className='text-[9px] text-muted-foreground leading-none'>{dist}</span>
+							<span className={`text-[11px] font-mono leading-tight tabular-nums ${isWork ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-muted-foreground'}`}>
+								{mpsParaPaceStr(lap.average_speed)}
+							</span>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
 }
 
 type Props = {
@@ -93,6 +134,10 @@ export function CorridasHojeCards({ corridas }: Props) {
 										</Badge>
 									)}
 								</div>
+
+								{corrida.laps && corrida.laps.length > 1 && (
+									<LapsSemana laps={corrida.laps} />
+								)}
 							</div>
 						</div>
 					);
