@@ -65,23 +65,53 @@ function LapsSemana({ laps, anotacoes }: { laps: LapData[]; anotacoes?: LapAnota
 	const threshold = (distMin + distMax) / 2;
 
 	return (
-		<div className='mt-2 overflow-x-auto'>
-			<div className='flex gap-1 w-max'>
-				{laps.map((lap, i) => {
-					const anot = temAnotacao ? anotacoes!.find(a => a.lap_index === (lap.lap_index ?? i)) : null;
-					const bg = anot ? (TIPO_BG[anot.tipo] ?? 'bg-muted/30') : (isIntervals && lap.distance >= threshold ? 'bg-blue-500/10' : 'bg-muted/30');
-					const text = anot ? (TIPO_TEXT[anot.tipo] ?? 'text-muted-foreground') : (isIntervals && lap.distance >= threshold ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-muted-foreground');
-					const topLabel = anot?.label ?? (lap.distance >= 950 ? `${(lap.distance / 1000).toFixed(2)}km` : `${Math.round(lap.distance)}m`);
-					return (
-						<div key={lap.lap_index ?? i} className={`flex flex-col items-center rounded-lg px-2 py-1 min-w-[38px] ${bg}`}>
-							<span className='text-[9px] text-muted-foreground leading-none'>{topLabel}</span>
-							<span className={`text-[11px] font-mono leading-tight tabular-nums ${text}`}>
-								{mpsParaPaceStr(lap.average_speed)}
-							</span>
-						</div>
-					);
-				})}
-			</div>
+		<div className='mt-2 max-h-48 overflow-y-auto rounded-xl border border-border'>
+			<table className='w-full text-xs'>
+				<thead className='sticky top-0 bg-muted/60 backdrop-blur-sm'>
+					<tr className='border-b border-border'>
+						<th className='text-left px-2 py-1.5 font-medium text-muted-foreground'>Volta</th>
+						{temAnotacao && <th className='text-right px-2 py-1.5 font-medium text-muted-foreground'>Prescrito</th>}
+						<th className='text-right px-2 py-1.5 font-medium text-muted-foreground'>Real</th>
+					</tr>
+				</thead>
+				<tbody className='divide-y divide-border'>
+					{laps.map((lap, i) => {
+						const anot = temAnotacao ? anotacoes!.find(a => a.lap_index === (lap.lap_index ?? i)) : null;
+						const isWork = !temAnotacao && isIntervals && lap.distance >= threshold;
+						const tipo = anot?.tipo;
+						const dist = lap.distance >= 950
+							? `${(lap.distance / 1000).toFixed(1)}km`
+							: `${Math.round(lap.distance)}m`;
+						const label = anot?.label ?? dist;
+						const subLabel = anot ? dist : null;
+						const paceReal = mpsParaPaceStr(lap.average_speed);
+
+						const labelCls = tipo
+							? (TIPO_TEXT[tipo] ?? 'text-muted-foreground')
+							: isWork ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-muted-foreground';
+						const rowBg = tipo
+							? (TIPO_BG[tipo] ?? '')
+							: isWork ? 'bg-blue-500/5' : '';
+
+						return (
+							<tr key={lap.lap_index ?? i} className={`${rowBg} hover:bg-muted/20 transition-colors`}>
+								<td className='px-2 py-1.5'>
+									<span className={`font-medium ${labelCls}`}>{label}</span>
+									{subLabel && <span className='ml-1 text-muted-foreground font-normal'>({subLabel})</span>}
+								</td>
+								{temAnotacao && (
+									<td className='px-2 py-1.5 text-right font-mono tabular-nums text-muted-foreground'>
+										{anot?.meta ?? '—'}
+									</td>
+								)}
+								<td className={`px-2 py-1.5 text-right font-mono tabular-nums ${paceReal === '—' ? 'text-muted-foreground' : labelCls}`}>
+									{paceReal}
+								</td>
+							</tr>
+						);
+					})}
+				</tbody>
+			</table>
 		</div>
 	);
 }
@@ -110,7 +140,7 @@ export function CorridasHojeCards({ corridas }: Props) {
 					return (
 						<div
 							key={corrida.stravaId}
-							className='bg-card ring-foreground/10 flex items-center gap-4 overflow-hidden rounded-2xl p-4 ring-1'>
+							className='bg-card ring-foreground/10 flex items-start gap-4 overflow-hidden rounded-2xl p-4 ring-1'>
 							<div className='bg-primary/10 text-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-full'>
 								<HugeiconsIcon icon={WorkoutRunIcon} size={22} />
 							</div>
