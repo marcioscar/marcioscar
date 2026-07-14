@@ -16,7 +16,6 @@ import {
 	sincronizarCorridasDoStrava,
 	type CorridaResumo,
 } from "~/models/corridas.server";
-import { obterProvaAtiva } from "~/models/provas.server";
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -70,12 +69,6 @@ type LoaderData = {
 	maratonasGraficoBarras: MaratonaBarrasDado[];
 	filtroDataInicio: string;
 	filtroDataFim: string;
-	provaAtivaInfo: {
-		plano: string
-		paceAlvo: string
-		kmSemanais: number
-		dataProva: string
-	} | null;
 };
 
 function parseNumberFromFormData(
@@ -190,21 +183,13 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 	const dataFim = parseDateFromSearchParam(filtroDataFim, "fim");
 	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
 
-	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas, maratonasGraficoBarras, provaAtiva] =
+	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas, maratonasGraficoBarras] =
 		await Promise.all([
 			contarCorridasSalvas(),
 			buscarUltimaAtualizacaoCorridas(),
 			listarUltimasCorridas(undefined, intervaloData),
 			listarMaratonasParaGraficoBarras(15),
-			obterProvaAtiva(),
 		]);
-
-	const provaAtivaInfo = provaAtiva ? {
-		plano: provaAtiva.plano,
-		paceAlvo: provaAtiva.paceAlvo,
-		kmSemanais: provaAtiva.kmSemanais,
-		dataProva: new Date(provaAtiva.dataProva).toLocaleDateString('pt-BR'),
-	} : null
 
 	return {
 		totalCorridas,
@@ -215,7 +200,6 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
-		provaAtivaInfo,
 	};
 }
 
@@ -278,7 +262,6 @@ export default function Corridas() {
 		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
-		provaAtivaInfo,
 	} = loaderData;
 	const corridasDataTable = ultimasCorridas.map(
 		mapCorridaResumoParaDataTableRow,
@@ -436,7 +419,6 @@ export default function Corridas() {
 					data={corridasDataTable}
 					mapboxToken={mapboxToken}
 					maratonasGraficoBarras={maratonasGraficoBarras}
-					provaAtiva={provaAtivaInfo}
 				/>
 			</section>
 		</main>

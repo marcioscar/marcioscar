@@ -48,6 +48,30 @@ export async function buscarUltimaAtualizacaoCorridas(): Promise<Date | null> {
   return ultimaCorrida?.updatedAt ?? null;
 }
 
+export async function buscarCorridaPorStravaId(
+  stravaId: number,
+): Promise<CorridaResumo | null> {
+  const corrida = await db.corrida.findUnique({
+    where: { stravaId },
+    select: {
+      stravaId: true,
+      nome: true,
+      distanciaMetros: true,
+      elevacaoGanhoMetros: true,
+      tempoMovimentoSeg: true,
+      velocidadeMedia: true,
+      dataInicio: true,
+      dadosBrutos: true,
+      splits: true,
+      laps: true,
+      analise: true,
+      analisadaEm: true,
+    },
+  });
+
+  return corrida ? mapCorridaDbParaResumo(corrida) : null;
+}
+
 export async function listarUltimasCorridas(
   limite?: number,
   intervaloData?: {

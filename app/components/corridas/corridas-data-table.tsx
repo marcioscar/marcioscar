@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useNavigate } from "react-router";
 import {
 	type RowSelectionState,
 	flexRender,
@@ -24,8 +25,6 @@ import {
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
 import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
-import { CorridaDetalheSheet } from "./corrida-detalhe-sheet";
-import type { AnaliseResult, SplitMetric, LapData, AnalyzeApiResponse, BuscarDetalhesResponse, AnaliseInput } from "~/types/analise";
 
 const CorridasMap = React.lazy(async () => {
 	const mod = await import("./corridas-map");
@@ -42,20 +41,10 @@ const MaratonasBarrasChart = React.lazy(async () => {
 	return { default: mod.MaratonasBarrasChart };
 });
 
-type ProvaAtivaInfo = {
-	plano: string
-	paceAlvo: string
-	kmSemanais: number
-	dataProva: string
-	semanaAtual?: number
-	totalSemanas?: number
-} | null
-
 type CorridasDataTableProps = {
 	data: CorridaDataTableRow[];
 	mapboxToken: string | null;
 	maratonasGraficoBarras: MaratonaBarrasDado[];
-	provaAtiva?: ProvaAtivaInfo;
 };
 
 type DistanciaFaixa = {
@@ -163,8 +152,8 @@ export function CorridasDataTable({
 	data,
 	mapboxToken,
 	maratonasGraficoBarras,
-	provaAtiva,
 }: CorridasDataTableProps) {
+	const navigate = useNavigate();
 	const [sorting, setSorting] = React.useState<SortingState>([
 		{ id: "dataInicio", desc: true },
 	]);
@@ -175,97 +164,10 @@ export function CorridasDataTable({
 	const [mostrarMapa, setMostrarMapa] = React.useState(false);
 	const [mostrarGlobo, setMostrarGlobo] = React.useState(false);
 
-	// ── Detalhe / Análise ──
-	const [detalheOpen, setDetalheOpen] = React.useState(false);
-	const [corridaDetalhe, setCorridaDetalhe] = React.useState<CorridaDataTableRow | null>(null);
-	const [detalheAnalise, setDetalheAnalise] = React.useState<AnaliseResult | null>(null);
-	const [detalheSplits, setDetalheSplits] = React.useState<SplitMetric[] | null>(null);
-	const [detalheLaps, setDetalheLaps] = React.useState<LapData[] | null>(null);
-	const [detalheLoading, setDetalheLoading] = React.useState(false);
-	const [detalheError, setDetalheError] = React.useState<string | null>(null);
-	const [treinusPlano, setTreinusPlano] = React.useState('');
-
 	function handleRowClick(corrida: CorridaDataTableRow) {
-		setCorridaDetalhe(corrida)
-		setDetalheAnalise(corrida.analise ?? null)
-		setDetalheSplits(corrida.splits ?? null)
-		setDetalheLaps(corrida.laps ?? null)
-		setDetalheError(null)
-		setDetalheLoading(false)
-		setTreinusPlano('')
-		setDetalheOpen(true)
+		navigate(`/corridas/${corrida.stravaId}`);
 	}
 
-	async function chamarAnalise(corrida: CorridaDataTableRow) {
-		setDetalheError(null)
-		setDetalheLoading(true)
-
-		const paceSegPorKm = corrida.paceMedioSegPorKm ?? (
-			corrida.tempoMovimentoSeg / (corrida.distanciaMetros / 1000)
-		)
-
-		const input: AnaliseInput = {
-			stravaId: corrida.stravaId,
-			corrida: {
-				nome: corrida.nome,
-				distanciaKm: corrida.distanciaMetros / 1000,
-				paceSegPorKm,
-				tempoSeg: corrida.tempoMovimentoSeg,
-				elevacaoMetros: corrida.elevacaoGanhoMetros,
-				dataInicio: new Date(corrida.dataInicio).toLocaleDateString('pt-BR'),
-			},
-			provaAlvo: provaAtiva ?? null,
-			treinusPlano: treinusPlano || null,
-		}
-
-		try {
-			const res = await fetch('/api/analisar-corrida', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(input),
-			})
-			if (!res.ok) throw new Error('Falha na análise')
-			const result = await res.json() as AnalyzeApiResponse
-			setDetalheAnalise(result.analise)
-			setDetalheSplits(result.splits)
-			setDetalheLaps(result.laps)
-		} catch {
-			setDetalheError('Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.')
-		} finally {
-			setDetalheLoading(false)
-		}
-	}
-
-	function handleAnalisar() {
-		if (!corridaDetalhe) return
-		chamarAnalise(corridaDetalhe)
-	}
-
-	function handleReanalisar() {
-		if (!corridaDetalhe) return
-		chamarAnalise(corridaDetalhe)
-	}
-
-	async function handleBuscarSplits() {
-		if (!corridaDetalhe) return
-		setDetalheError(null)
-		setDetalheLoading(true)
-		try {
-			const res = await fetch('/api/buscar-splits', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ stravaId: corridaDetalhe.stravaId }),
-			})
-			if (!res.ok) throw new Error('Falha ao buscar splits')
-			const data = await res.json() as BuscarDetalhesResponse
-			setDetalheSplits(data.splits)
-			setDetalheLaps(data.laps)
-		} catch {
-			setDetalheError('Não foi possível buscar os splits do Strava.')
-		} finally {
-			setDetalheLoading(false)
-		}
-	}
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
 	const dadosFiltradosFaixa = React.useMemo(
 		() => filtrarPorFaixaDistancia(data, faixaSelecionada),
@@ -490,22 +392,6 @@ export function CorridasDataTable({
 					Clique em "Mostrar globo" para carregar o globo sob demanda.
 				</div>
 			)}
-
-			<CorridaDetalheSheet
-				open={detalheOpen}
-				onClose={() => setDetalheOpen(false)}
-				corrida={corridaDetalhe}
-				splits={detalheSplits}
-				laps={detalheLaps}
-				analise={detalheAnalise}
-				loading={detalheLoading}
-				error={detalheError}
-				onAnalisar={handleAnalisar}
-				onReanalisar={handleReanalisar}
-				onBuscarSplits={handleBuscarSplits}
-				treinusPlano={treinusPlano}
-				onTreinusPlanoChange={setTreinusPlano}
-			/>
 		</div>
 	);
 }
