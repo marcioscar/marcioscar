@@ -6,7 +6,7 @@ import {
 	Home01Icon,
 	WorkoutRunIcon,
 	BitcoinWalletIcon,
-	ChartAverageIcon,
+	MoneyBag01Icon,
 	Books02Icon,
 	Target01Icon,
 } from "@hugeicons/core-free-icons";
@@ -31,20 +31,26 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-	{ title: "Dashboard", href: "/", icon: ChartAverageIcon, color: "orange" },
+	{ title: "Início", href: "/", icon: Home01Icon, color: "orange" },
 	{ title: "Corridas", href: "/corridas", icon: WorkoutRunIcon, color: "blue" },
+	{
+		title: "Treinamento",
+		href: "/treinamento",
+		icon: Target01Icon,
+		color: "red",
+	},
+	{
+		title: "Financeiro",
+		href: "/financeiro",
+		icon: MoneyBag01Icon,
+		color: "yellow",
+	},
 	{ title: "Contas", href: "/contas", icon: BitcoinWalletIcon, color: "green" },
 	{
 		title: "Biblioteca",
 		href: "/biblioteca",
 		icon: Books02Icon,
 		color: "purple",
-	},
-	{
-		title: "Treinamento",
-		href: "/treinamento",
-		icon: Target01Icon,
-		color: "red",
 	},
 ];
 

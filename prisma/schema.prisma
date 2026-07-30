@@ -78,6 +78,18 @@ model ProvaAlvo {
     @@index([dataProva])
 }
 
+model CoachInsight {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    provaId   String   @db.ObjectId
+    semana    String
+    resumo    String
+    insights  Json
+    dicas     String[]
+    geradoEm  DateTime @default(now())
+
+    @@unique([provaId, semana])
+}
+
 model biblioteca {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String

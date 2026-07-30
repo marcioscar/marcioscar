@@ -10,6 +10,8 @@ export type CorridaResumo = {
   elevacaoGanhoMetros: number;
   tempoMovimentoSeg: number;
   velocidadeMedia: number | null;
+  frequenciaMedia: number | null;
+  frequenciaMaxima: number | null;
   summaryPolyline: string | null;
   localLat: number | null;
   localLng: number | null;
@@ -27,6 +29,8 @@ type CorridaDbSelecionada = {
   elevacaoGanhoMetros: number;
   tempoMovimentoSeg: number;
   velocidadeMedia: number | null;
+  frequenciaMedia: number | null;
+  frequenciaMaxima: number | null;
   dataInicio: Date;
   dadosBrutos: unknown;
   splits: unknown;
@@ -60,6 +64,8 @@ export async function buscarCorridaPorStravaId(
       elevacaoGanhoMetros: true,
       tempoMovimentoSeg: true,
       velocidadeMedia: true,
+      frequenciaMedia: true,
+      frequenciaMaxima: true,
       dataInicio: true,
       dadosBrutos: true,
       splits: true,
@@ -92,6 +98,8 @@ export async function listarUltimasCorridas(
       elevacaoGanhoMetros: true,
       tempoMovimentoSeg: true,
       velocidadeMedia: true,
+      frequenciaMedia: true,
+      frequenciaMaxima: true,
       dataInicio: true,
       dadosBrutos: true,
       splits: true,
@@ -136,6 +144,8 @@ function mapCorridaDbParaResumo(corrida: CorridaDbSelecionada): CorridaResumo {
     elevacaoGanhoMetros: corrida.elevacaoGanhoMetros,
     tempoMovimentoSeg: corrida.tempoMovimentoSeg,
     velocidadeMedia: corrida.velocidadeMedia,
+    frequenciaMedia: corrida.frequenciaMedia,
+    frequenciaMaxima: corrida.frequenciaMaxima,
     summaryPolyline: extrairSummaryPolyline(corrida.dadosBrutos),
     localLat: localCoords.localLat,
     localLng: localCoords.localLng,

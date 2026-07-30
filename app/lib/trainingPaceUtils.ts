@@ -7,7 +7,7 @@ export function parsePace(pace: string): number {
 }
 
 export function formatPace(totalSeconds: number): string {
-  const abs = Math.abs(totalSeconds)
+  const abs = Math.round(Math.abs(totalSeconds))
   const m = Math.floor(abs / 60)
   const s = abs % 60
   return `${m}'${String(s).padStart(2, '0')}"/km`

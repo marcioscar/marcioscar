@@ -5,6 +5,13 @@ import { halfMarathonPlan } from '~/data/halfMarathonPlan'
 import { marathonPlan } from '~/data/marathonPlan'
 import type { TrainingPlan, Week, Phase, Session } from '~/data/halfMarathonPlan'
 import { resolvePace, resolveWeeklyKm, phaseStyle } from '~/lib/trainingPaceUtils'
+import {
+	computeDaysUntilRace,
+	computeCurrentWeek,
+	formatDate,
+	toDateInput,
+	parseDateInput,
+} from '~/lib/provaUtils'
 import { cn } from '~/lib/utils'
 import { Input } from '~/components/ui/input'
 import { Button } from '~/components/ui/button'
@@ -55,11 +62,6 @@ type DayOfWeek = (typeof DAYS_OF_WEEK)[number]
 const DEFAULT_PACE: Record<string, string> = { meia: '5:00', maratona: '5:12' }
 const DEFAULT_KM: Record<string, number> = { meia: 60, maratona: 70 }
 const DEFAULT_DAYS: DayOfWeek[] = ['Seg', 'Ter', 'Qui', 'Sex', 'Sáb']
-
-function parseDateInput(str: string): Date {
-	const [y, m, d] = str.split('-').map(Number)
-	return new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
-}
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
@@ -124,36 +126,6 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	return { ok: false }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function computeDaysUntilRace(dataProva: Date): number {
-	const r = new Date(dataProva)
-	const raceDay = Date.UTC(r.getUTCFullYear(), r.getUTCMonth(), r.getUTCDate())
-	const t = new Date()
-	const todayDay = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())
-	return Math.round((raceDay - todayDay) / 86_400_000)
-}
-
-function computeCurrentWeek(daysUntilRace: number, totalWeeks: number): number | null {
-	if (daysUntilRace < 0) return null
-	const week = totalWeeks - Math.ceil(daysUntilRace / 7) + 1
-	return week >= 1 && week <= totalWeeks ? week : null
-}
-
-function formatDate(date: Date): string {
-	return new Date(date).toLocaleDateString('pt-BR', {
-		day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
-	})
-}
-
-function toDateInput(date: Date): string {
-	const d = new Date(date)
-	const y = d.getUTCFullYear()
-	const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-	const day = String(d.getUTCDate()).padStart(2, '0')
-	return `${y}-${m}-${day}`
 }
 
 // ── Route component ───────────────────────────────────────────────────────────

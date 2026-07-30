@@ -1,473 +1,241 @@
-import { useMemo } from "react";
-import { Form, Link, useLoaderData, useSubmit } from "react-router";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { CreditCard, Landmark, Receipt, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { Link } from "react-router";
 import type { Route } from "./+types/home";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Target01Icon } from "@hugeicons/core-free-icons";
+import { halfMarathonPlan } from "~/data/halfMarathonPlan";
+import { marathonPlan } from "~/data/marathonPlan";
+import type { Session, Phase } from "~/data/halfMarathonPlan";
+import { listarProvas } from "~/models/provas.server";
+import { listarUltimasCorridas, type CorridaResumo } from "~/models/corridas.server";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "~/components/ui/card";
+	obterTendenciaVolumeSemanal,
+	obterResumoSemanaAtual,
+	type VolumeSemanaItem,
+	type CorridaSemanaAtual,
+} from "~/models/corrida-dashboard.server";
 import {
-	obterResumoDashboardBrassaco,
-	obterResumoDespesasPorCategoriaNoPeriodo,
-	obterResumoDespesasPorContaNoPeriodo,
-	obterResumoDespesasPorPeriodo,
-	obterCategoriasPorUltimosMeses,
-	type CategoriasMesItem,
-	type CategoriaComDespesas,
-} from "~/models/dashboard.server";
-import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
-import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
-import { CategoriasBarChart } from "~/components/dashboard/categorias-bar-chart";
-import { CategoriasTrendChart } from "~/components/dashboard/categorias-trend-chart";
-import {
-	statCardCaptionClass,
-	statCardLabelClass,
-	statCardMetricLgClass,
-	statCardSurfaceClass,
-	statCardTitleClass,
-} from "~/lib/stat-card-gradient";
-
-type LoaderData = {
-	filtroMes: number;
-	filtroAno: number;
-	totalDespesasPeriodo: number;
-	totalValorDespesasPeriodo: number;
-	totalValorDespesasMesAnterior: number;
-	saldoBrassaco: number;
-	totalDespesasBrassaco: number;
-	totalPagoBrassaco: number;
-	saldosPorConta: {
-		conta: string;
-		totalDespesas: number;
-		totalValorDespesas: number;
-	}[];
-	saldosPorContaMesAnterior: {
-		conta: string;
-		totalValorDespesas: number;
-	}[];
-	saldosPorCategoria: CategoriaComDespesas[];
-	categoriasTrend: CategoriasMesItem[];
-};
-
-type ContaConfig = { cor: string; Icone: LucideIcon };
-
-const CONTA_CONFIG: Record<string, ContaConfig> = {
-	Corrente: { cor: "#0ea5e9", Icone: Landmark },
-	"Cartão Itau": { cor: "#f97316", Icone: CreditCard },
-	Nubank: { cor: "#a855f7", Icone: CreditCard },
-	"Cartão Camila": { cor: "#14b8a6", Icone: CreditCard },
-};
-
-function getContaConfig(conta: string): ContaConfig {
-	return CONTA_CONFIG[conta] ?? { cor: "#6b7280", Icone: CreditCard };
-}
-
-const PALETA_CONTA = [
-	"#0ea5e9",
-	"#f97316",
-	"#a855f7",
-	"#14b8a6",
-	"#22c55e",
-	"#06b6d4",
-] as const;
-
-const PALETA_CATEGORIA = [
-	"#f97316",
-	"#ef4444",
-	"#eab308",
-	"#a855f7",
-	"#ec4899",
-	"#84cc16",
-	"#f59e0b",
-] as const;
-
-function formatarMoeda(valor: number): string {
-	return valor.toLocaleString("pt-BR", {
-		style: "currency",
-		currency: "BRL",
-	});
-}
-
-function getMesAnoAtual(): { mes: number; ano: number } {
-	const hoje = new Date();
-	return {
-		mes: hoje.getUTCMonth() + 1,
-		ano: hoje.getUTCFullYear(),
-	};
-}
-
-function parseMes(valor: string | null, fallback: number): number {
-	const parsed = Number(valor);
-	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 12) {
-		return fallback;
-	}
-	return parsed;
-}
-
-function parseAno(valor: string | null, fallback: number): number {
-	const parsed = Number(valor);
-	if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100) {
-		return fallback;
-	}
-	return parsed;
-}
-
-function getOpcoesAno(anoBase: number): number[] {
-	return [anoBase - 3, anoBase - 2, anoBase - 1, anoBase, anoBase + 1];
-}
-
-function getNomeMes(mes: number): string {
-	const data = new Date(Date.UTC(2025, mes - 1, 1));
-	return data.toLocaleString("pt-BR", {
-		month: "long",
-		timeZone: "UTC",
-	});
-}
-
-function getNomeMesAbreviado(mes: number): string {
-	const data = new Date(Date.UTC(2025, mes - 1, 1));
-	return data.toLocaleString("pt-BR", {
-		month: "short",
-		timeZone: "UTC",
-	});
-}
-
-function getPrevMesAno(mes: number, ano: number) {
-	if (mes === 1) return { mes: 12, ano: ano - 1 };
-	return { mes: mes - 1, ano };
-}
-
-function getNextMesAno(mes: number, ano: number) {
-	if (mes === 12) return { mes: 1, ano: ano + 1 };
-	return { mes: mes + 1, ano };
-}
-
-function montarSaldosPorContaComPadrao(
-	saldosPorConta: LoaderData["saldosPorConta"],
-): LoaderData["saldosPorConta"] {
-	const contasPadrao: readonly string[] = CONTAS_DESPESA;
-	const mapaSaldos = new Map(
-		saldosPorConta.map((item) => [item.conta, item] as const),
-	);
-
-	const contasBase = contasPadrao.map((conta) => {
-		const saldoConta = mapaSaldos.get(conta);
-		if (saldoConta) return saldoConta;
-		return { conta, totalDespesas: 0, totalValorDespesas: 0 };
-	});
-
-	const extras = saldosPorConta.filter(
-		(item) => !contasPadrao.includes(item.conta),
-	);
-
-	return [...contasBase, ...extras];
-}
+	obterLeituraTreinadorCache,
+	gerarLeituraTreinador,
+	type CoachInsight,
+} from "~/models/coach-insight.server";
+import { computeDaysUntilRace, computeCurrentWeek } from "~/lib/provaUtils";
+import { parsePace, resolveWeeklyKm } from "~/lib/trainingPaceUtils";
+import { CorridaHero } from "~/components/dashboard-corrida/corrida-hero";
+import { CorridaKpiRow } from "~/components/dashboard-corrida/corrida-kpi-row";
+import { CorridaSessoesSemana } from "~/components/dashboard-corrida/corrida-sessoes-semana";
+import { CorridaVolumeChart } from "~/components/dashboard-corrida/corrida-volume-chart";
+import { CorridaPacesTable } from "~/components/dashboard-corrida/corrida-paces-table";
+import { CorridaCoachPanel } from "~/components/dashboard-corrida/corrida-coach-panel";
 
 export function meta({}: Route.MetaArgs) {
 	return [
-		{ title: "Home | Marcioscar" },
-		{ name: "description", content: "Dashboard financeiro do Marcioscar" },
+		{ title: "Corrida | Marcioscar" },
+		{ name: "description", content: "Painel de corrida do Marcioscar" },
 	];
 }
 
-export async function loader({
-	request,
-}: Route.LoaderArgs): Promise<LoaderData> {
-	const url = new URL(request.url);
-	const mesAnoAtual = getMesAnoAtual();
-	const filtroMes = parseMes(url.searchParams.get("mes"), mesAnoAtual.mes);
-	const filtroAno = parseAno(url.searchParams.get("ano"), mesAnoAtual.ano);
-	const prev = getPrevMesAno(filtroMes, filtroAno);
+const PLANS: Record<string, typeof halfMarathonPlan> = {
+	meia: halfMarathonPlan,
+	maratona: marathonPlan,
+};
 
-	const [
-		resumoBrassaco,
-		resumoDespesasPeriodo,
-		resumoDespesasMesAnterior,
-		saldosPorConta,
-		saldosPorContaMesAnterior,
-		saldosPorCategoria,
-		categoriasTrend,
-	] = await Promise.all([
-		obterResumoDashboardBrassaco(6),
-		obterResumoDespesasPorPeriodo(filtroAno, filtroMes),
-		obterResumoDespesasPorPeriodo(prev.ano, prev.mes),
-		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes),
-		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes),
-		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes),
-		obterCategoriasPorUltimosMeses(6),
+const DIAS_ORDEM: Session["day"][] = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+function hojeLabel(): Session["day"] {
+	return DIAS_ORDEM[(new Date().getUTCDay() + 6) % 7];
+}
+
+function melhorPaceRecente(corridas: CorridaResumo[]): number | null {
+	const candidatas = corridas.filter((c) => c.distanciaMetros >= 10_000);
+	const lista = candidatas.length > 0 ? candidatas : corridas;
+	if (lista.length === 0) return null;
+	const paces = lista.map((c) => c.tempoMovimentoSeg / (c.distanciaMetros / 1000));
+	return Math.min(...paces);
+}
+
+function fcMaximaReferencia(corridas: CorridaResumo[]): number | null {
+	const valores = corridas.map((c) => c.frequenciaMaxima ?? 0).filter((v) => v > 0);
+	if (valores.length === 0) return null;
+	return Math.max(...valores);
+}
+
+type PlanoSemanaAtual = {
+	numero: number;
+	totalSemanas: number;
+	fase: Phase;
+	sessions: Session[];
+	volumeFraction: number;
+} | null;
+
+type LoaderData = {
+	provaAtiva: Awaited<ReturnType<typeof listarProvas>>[number] | null;
+	planoSemanaAtual: PlanoSemanaAtual;
+	daysUntilRace: number | null;
+	distanciaKm: number;
+	tendenciaVolume: VolumeSemanaItem[];
+	resumoSemanaAtual: { kmSemana: number; sessoes: CorridaSemanaAtual[] };
+	ultimasCorridas: CorridaResumo[];
+	coachInsight: CoachInsight | null;
+};
+
+export async function loader(): Promise<LoaderData> {
+	const provas = await listarProvas();
+	const provaAtiva = provas.find((p) => p.ativa) ?? null;
+
+	const [tendenciaVolume, resumoSemanaAtual, ultimasCorridas] = await Promise.all([
+		obterTendenciaVolumeSemanal(8),
+		obterResumoSemanaAtual(),
+		listarUltimasCorridas(8),
 	]);
 
+	let planoSemanaAtual: PlanoSemanaAtual = null;
+	let daysUntilRace: number | null = null;
+	let distanciaKm = 21.1;
+	let coachInsight: CoachInsight | null = null;
+
+	if (provaAtiva) {
+		const plan = PLANS[provaAtiva.plano] ?? halfMarathonPlan;
+		distanciaKm = plan.distance === "42.2km" ? 42.2 : 21.1;
+		daysUntilRace = computeDaysUntilRace(new Date(provaAtiva.dataProva));
+		const numero = computeCurrentWeek(daysUntilRace, plan.totalWeeks);
+		const weekPlan = numero ? plan.weeks.find((w) => w.number === numero) : null;
+
+		if (numero && weekPlan) {
+			// O plano-base (Canova) tem até 5 sessões/semana, mas o atleta combinou só
+			// alguns dias reais (provaAtiva.diasTreino) — mostra só esses, não o plano cheio.
+			const diasReais = new Set(provaAtiva.diasTreino);
+			const sessionsDoAtleta = weekPlan.sessions.filter((s) => diasReais.has(s.day));
+
+			planoSemanaAtual = {
+				numero,
+				totalSemanas: plan.totalWeeks,
+				fase: weekPlan.phase,
+				sessions: sessionsDoAtleta.length > 0 ? sessionsDoAtleta : weekPlan.sessions,
+				volumeFraction: weekPlan.volumeFraction,
+			};
+		}
+
+		coachInsight = await obterLeituraTreinadorCache(provaAtiva.id);
+	}
+
 	return {
-		filtroMes,
-		filtroAno,
-		totalDespesasPeriodo: resumoDespesasPeriodo.totalDespesas,
-		totalValorDespesasPeriodo: resumoDespesasPeriodo.totalValorDespesas,
-		totalValorDespesasMesAnterior: resumoDespesasMesAnterior.totalValorDespesas,
-		saldoBrassaco: resumoBrassaco.saldoBrassaco,
-		totalDespesasBrassaco: resumoBrassaco.totalDespesasBrassaco,
-		totalPagoBrassaco: resumoBrassaco.totalPagoBrassaco,
-		saldosPorConta,
-		saldosPorContaMesAnterior,
-		saldosPorCategoria,
-		categoriasTrend,
+		provaAtiva,
+		planoSemanaAtual,
+		daysUntilRace,
+		distanciaKm,
+		tendenciaVolume,
+		resumoSemanaAtual,
+		ultimasCorridas,
+		coachInsight,
 	};
 }
 
-const NAV_BTN =
-	"inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-sm hover:bg-accent hover:text-accent-foreground transition-colors";
-const SELECT_CLASS =
-	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
+export async function action({ request }: Route.ActionArgs) {
+	const formData = await request.formData();
+	const intent = formData.get("_intent");
 
-const COR_ANTERIOR = "#94a3b8";
-const COR_ATUAL = "#3b82f6";
+	if (intent === "gerarLeituraTreinador") {
+		const provas = await listarProvas();
+		const provaAtiva = provas.find((p) => p.ativa) ?? null;
+		if (!provaAtiva) {
+			return { ok: false, message: "Nenhuma prova ativa cadastrada." };
+		}
 
-function calcPct(atual: number, anterior: number) {
-	if (anterior <= 0) return null;
-	return ((atual - anterior) / anterior) * 100;
+		try {
+			const insight = await gerarLeituraTreinador(provaAtiva);
+			return { ok: true, insight };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Falha ao gerar leitura.";
+			return { ok: false, message };
+		}
+	}
+
+	return { ok: false };
 }
 
-type MiniBarChartProps = {
-	atual: number;
-	anterior: number;
-	labelAnterior: string;
-	labelAtual: string;
-};
-
-function MiniBarChart({ atual, anterior, labelAnterior, labelAtual }: MiniBarChartProps) {
-	const data = [
-		{ label: labelAnterior, valor: anterior, cor: COR_ANTERIOR },
-		{ label: labelAtual, valor: atual, cor: COR_ATUAL },
-	];
-
-	return (
-		<ResponsiveContainer width='100%' height={64}>
-			<BarChart data={data} barSize={28} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
-				<XAxis
-					dataKey='label'
-					axisLine={false}
-					tickLine={false}
-					tick={{ fontSize: 9, fill: "#94a3b8" }}
-				/>
-				<Bar dataKey='valor' radius={[4, 4, 0, 0]} isAnimationActive={false} activeBar={false}>
-					{data.map((item, i) => (
-						<Cell key={i} fill={item.cor} />
-					))}
-				</Bar>
-				<Tooltip
-					cursor={{ fill: "transparent" }}
-					content={({ active, payload }) => {
-						if (!active || !payload?.length) return null;
-						const item = payload[0];
-						return (
-							<div className='rounded-md border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm'>
-								<p className='text-muted-foreground'>{item?.payload?.label}</p>
-								<p className='font-medium tabular-nums'>
-									{formatarMoeda(Number(item?.value ?? 0))}
-								</p>
-							</div>
-						);
-					}}
-				/>
-			</BarChart>
-		</ResponsiveContainer>
-	);
-}
-
-export default function Home() {
+export default function Home({ loaderData }: Route.ComponentProps) {
 	const {
-		filtroMes,
-		filtroAno,
-		totalDespesasPeriodo,
-		totalValorDespesasPeriodo,
-		totalValorDespesasMesAnterior,
-		saldosPorConta,
-		saldosPorContaMesAnterior,
-		saldosPorCategoria,
-		saldoBrassaco,
-		totalDespesasBrassaco,
-		totalPagoBrassaco,
-		categoriasTrend,
-	} = useLoaderData<typeof loader>();
+		provaAtiva,
+		planoSemanaAtual,
+		daysUntilRace,
+		distanciaKm,
+		tendenciaVolume,
+		resumoSemanaAtual,
+		ultimasCorridas,
+		coachInsight,
+	} = loaderData;
 
-	const submit = useSubmit();
-	const opcoesAno = useMemo(() => getOpcoesAno(getMesAnoAtual().ano), []);
-	const saldosPorContaExibicao = useMemo(
-		() => montarSaldosPorContaComPadrao(saldosPorConta),
-		[saldosPorConta],
-	);
-	const mapaContaMesAnterior = useMemo(
-		() => new Map(saldosPorContaMesAnterior.map((c) => [c.conta, c.totalValorDespesas])),
-		[saldosPorContaMesAnterior],
-	);
-
-	const prev = getPrevMesAno(filtroMes, filtroAno);
-	const next = getNextMesAno(filtroMes, filtroAno);
-	const labelAnterior = getNomeMesAbreviado(prev.mes);
-	const labelAtual = getNomeMesAbreviado(filtroMes);
+	const paceAlvoSeg = provaAtiva ? parsePace(provaAtiva.paceAlvo) : null;
+	const kmSemanaAlvo = provaAtiva
+		? planoSemanaAtual
+			? resolveWeeklyKm(planoSemanaAtual.volumeFraction, provaAtiva.kmSemanais)
+			: provaAtiva.kmSemanais
+		: 0;
 
 	return (
-		<main className='grid gap-4 md:gap-6'>
-			<div className='flex flex-wrap items-center justify-between gap-2'>
-				<h1 className='text-2xl font-bold'>Dashboard</h1>
-				<div className='flex items-center gap-2'>
-					<Link
-						to={`?mes=${prev.mes}&ano=${prev.ano}`}
-						className={NAV_BTN}
-						aria-label='Mês anterior'>
-						←
-					</Link>
-					<Form method='get' className='flex items-center gap-2'>
-						<select
-							name='mes'
-							value={String(filtroMes)}
-							onChange={(e) => submit(e.currentTarget.form)}
-							className={SELECT_CLASS}>
-							{Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
-								<option key={mes} value={mes}>
-									{getNomeMes(mes)}
-								</option>
-							))}
-						</select>
-						<select
-							name='ano'
-							value={String(filtroAno)}
-							onChange={(e) => submit(e.currentTarget.form)}
-							className={SELECT_CLASS}>
-							{opcoesAno.map((ano) => (
-								<option key={ano} value={ano}>
-									{ano}
-								</option>
-							))}
-						</select>
-					</Form>
-					<Link
-						to={`?mes=${next.mes}&ano=${next.ano}`}
-						className={NAV_BTN}
-						aria-label='Próximo mês'>
-						→
-					</Link>
-				</div>
+		<main className="grid gap-4 md:gap-6">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<h1 className="text-2xl font-bold">Corrida</h1>
 			</div>
 
-			{/* --- Card total + cards por conta --- */}
-			<section className='grid min-w-0 gap-4 lg:grid-cols-[1fr_2fr]'>
-				{/* Total de despesas */}
-				<Card className='min-w-0 overflow-hidden'>
-					<CardHeader>
-						<div className='flex items-start justify-between gap-3'>
-							<div className='grid gap-0.5'>
-								<CardDescription>Total de despesas</CardDescription>
-								<CardTitle className='text-3xl font-bold tabular-nums'>
-									{formatarMoeda(totalValorDespesasPeriodo)}
-								</CardTitle>
-							</div>
-							<div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40'>
-								<Receipt size={18} className='text-blue-600 dark:text-blue-400' />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent className='flex items-end justify-between gap-4'>
-						<div className='flex flex-col gap-1'>
-							<p className='text-muted-foreground text-xs'>
-								{totalDespesasPeriodo} despesas · {getNomeMes(filtroMes)} {filtroAno}
-							</p>
-							{(() => {
-								const pct = calcPct(totalValorDespesasPeriodo, totalValorDespesasMesAnterior);
-								if (pct === null) return null;
-								const subindo = pct > 0;
-								return (
-									<p className={`flex items-center gap-1 text-xs font-medium ${subindo ? "text-red-500" : "text-emerald-600"}`}>
-										{subindo ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-										{Math.abs(pct).toFixed(1)}% vs {labelAnterior}
-									</p>
-								);
-							})()}
-						</div>
-						<div className='w-28 shrink-0'>
-							<MiniBarChart
-								atual={totalValorDespesasPeriodo}
-								anterior={totalValorDespesasMesAnterior}
-								labelAnterior={labelAnterior}
-								labelAtual={labelAtual}
+			{provaAtiva && paceAlvoSeg !== null && daysUntilRace !== null ? (
+				<>
+					<CorridaHero
+						provaNome={provaAtiva.nome}
+						dataProva={new Date(provaAtiva.dataProva).toISOString()}
+						diasRestantes={daysUntilRace}
+						paceAlvo={provaAtiva.paceAlvo}
+						distanciaKm={distanciaKm}
+						faseAtual={planoSemanaAtual?.fase ?? null}
+						semanaAtual={planoSemanaAtual?.numero ?? null}
+						totalSemanas={planoSemanaAtual?.totalSemanas ?? 0}
+					/>
+
+					<CorridaKpiRow
+						kmSemana={resumoSemanaAtual.kmSemana}
+						kmSemanaAlvo={kmSemanaAlvo}
+						melhorPaceRecenteSeg={melhorPaceRecente(ultimasCorridas)}
+						paceAlvoSeg={paceAlvoSeg}
+						sessoesFeitas={resumoSemanaAtual.sessoes.length}
+						sessoesPlanejadas={planoSemanaAtual?.sessions.length ?? provaAtiva.diasTreino.length}
+					/>
+
+					{planoSemanaAtual && (
+						<section className="grid gap-2">
+							<h2 className="text-lg font-semibold">
+								Treinos da semana · semana {planoSemanaAtual.numero} de {planoSemanaAtual.totalSemanas}
+							</h2>
+							<CorridaSessoesSemana
+								sessions={planoSemanaAtual.sessions}
+								targetPace={provaAtiva.paceAlvo}
+								corridasSemana={resumoSemanaAtual.sessoes}
+								hojeLabel={hojeLabel()}
 							/>
-						</div>
-					</CardContent>
-				</Card>
-
-				{/* Cards por conta em grid 2x2 */}
-				<div className='grid grid-cols-2 gap-3'>
-				{saldosPorContaExibicao.map((saldoConta) => {
-					const { cor, Icone } = getContaConfig(saldoConta.conta);
-					const anterior = mapaContaMesAnterior.get(saldoConta.conta) ?? 0;
-					const pct = calcPct(saldoConta.totalValorDespesas, anterior);
-					const subindo = (pct ?? 0) > 0;
-					return (
-						<Card
-							key={saldoConta.conta}
-							className='min-w-0 overflow-hidden'
-							style={{ borderTop: `3px solid ${cor}` }}>
-							<CardHeader className='pb-2'>
-								<div className='flex items-center justify-between gap-2'>
-									<CardDescription className='text-xs font-medium'>
-										{saldoConta.conta}
-									</CardDescription>
-									<div
-										className='flex h-7 w-7 shrink-0 items-center justify-center rounded-full'
-										style={{ background: `${cor}20` }}>
-										<Icone size={13} style={{ color: cor }} />
-									</div>
-								</div>
-							</CardHeader>
-							<CardContent className='pt-0'>
-								<p className='text-xl font-bold tabular-nums'>
-									{formatarMoeda(saldoConta.totalValorDespesas)}
-								</p>
-								<div className='mt-1 flex items-center justify-between'>
-									<p className='text-muted-foreground text-xs'>
-										{saldoConta.totalDespesas} desp.
-									</p>
-									{pct !== null && (
-										<p className={`flex items-center gap-0.5 text-xs font-medium ${subindo ? "text-red-500" : "text-emerald-600"}`}>
-											{subindo ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-											{Math.abs(pct).toFixed(1)}%
-										</p>
-									)}
-								</div>
-							</CardContent>
-						</Card>
-					);
-				})}
+						</section>
+					)}
+				</>
+			) : (
+				<div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border px-6 py-8 text-center">
+					<HugeiconsIcon icon={Target01Icon} className="size-6 text-muted-foreground" />
+					<p className="text-sm text-muted-foreground">
+						Nenhuma prova ativa cadastrada. Cadastre uma em{" "}
+						<Link to="/treinamento" className="font-medium text-foreground hover:underline">
+							Treinamento
+						</Link>{" "}
+						para ver contagem regressiva, plano da semana e a leitura do treinador aqui.
+					</p>
 				</div>
-			</section>
+			)}
 
-			<section className='grid gap-4 md:grid-cols-2'>
-				<DespesasPieChart
-					title='Despesas por conta'
-					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
-					palette={PALETA_CONTA}
-					items={saldosPorContaExibicao.map((item) => ({
-						label: item.conta,
-						valor: item.totalValorDespesas,
-						quantidade: item.totalDespesas,
-					}))}
-				/>
-				<CategoriasBarChart
-					title='Despesas por categoria'
-					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
-					items={saldosPorCategoria.map((item) => ({
-						label: item.categoria,
-						valor: item.totalValorDespesas,
-						quantidade: item.totalDespesas,
-						despesas: item.despesas,
-					}))}
-				/>
-			</section>
+			<CorridaVolumeChart dados={tendenciaVolume} />
 
-			<CategoriasTrendChart dados={categoriasTrend} />
+			<CorridaPacesTable
+				corridas={ultimasCorridas}
+				paceAlvoSeg={paceAlvoSeg ?? parsePace("5:00")}
+				fcMaximaReferencia={fcMaximaReferencia(ultimasCorridas)}
+			/>
+
+			{provaAtiva && <CorridaCoachPanel insight={coachInsight} />}
 		</main>
 	);
 }
