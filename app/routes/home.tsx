@@ -4,7 +4,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Target01Icon } from "@hugeicons/core-free-icons";
 import { halfMarathonPlan } from "~/data/halfMarathonPlan";
 import { marathonPlan } from "~/data/marathonPlan";
-import type { Session, Phase } from "~/data/halfMarathonPlan";
+import type { Phase } from "~/data/halfMarathonPlan";
+import { planWeek, type DayOfWeek, type PlannedSession } from "~/lib/canovaPlanner";
+import { obterTreinoTreinador } from "~/models/treino-treinador.server";
 import { listarProvas } from "~/models/provas.server";
 import { listarUltimasCorridas, type CorridaResumo } from "~/models/corridas.server";
 import {
@@ -39,9 +41,9 @@ const PLANS: Record<string, typeof halfMarathonPlan> = {
 	maratona: marathonPlan,
 };
 
-const DIAS_ORDEM: Session["day"][] = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const DIAS_ORDEM: DayOfWeek[] = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
-function hojeLabel(): Session["day"] {
+function hojeLabel(): DayOfWeek {
 	return DIAS_ORDEM[(new Date().getUTCDay() + 6) % 7];
 }
 
@@ -63,7 +65,7 @@ type PlanoSemanaAtual = {
 	numero: number;
 	totalSemanas: number;
 	fase: Phase;
-	sessions: Session[];
+	sessions: PlannedSession[];
 	volumeFraction: number;
 } | null;
 
@@ -101,16 +103,25 @@ export async function loader(): Promise<LoaderData> {
 		const weekPlan = numero ? plan.weeks.find((w) => w.number === numero) : null;
 
 		if (numero && weekPlan) {
-			// O plano-base (Canova) tem até 5 sessões/semana, mas o atleta combinou só
-			// alguns dias reais (provaAtiva.diasTreino) — mostra só esses, não o plano cheio.
-			const diasReais = new Set(provaAtiva.diasTreino);
-			const sessionsDoAtleta = weekPlan.sessions.filter((s) => diasReais.has(s.day));
+			// O plano-base é um template Canova em dias fixos. Reescrevemos a semana
+			// exatamente nos dias que o atleta escolheu, preservando longão e trabalho
+			// específico e redistribuindo o volume entre as sessões que sobram.
+			// Treinos que o treinador prescreveu para esta semana ficam fixos;
+			// o Canova completa os dias restantes.
+			const doTreinador = await obterTreinoTreinador(provaAtiva.id, numero);
+			const sessionsDoAtleta = planWeek(
+				weekPlan,
+				provaAtiva.diasTreino as DayOfWeek[],
+				resolveWeeklyKm(weekPlan.volumeFraction, provaAtiva.kmSemanais),
+				provaAtiva.plano,
+				{ coachSessions: doTreinador, targetPace: provaAtiva.paceAlvo },
+			);
 
 			planoSemanaAtual = {
 				numero,
 				totalSemanas: plan.totalWeeks,
 				fase: weekPlan.phase,
-				sessions: sessionsDoAtleta.length > 0 ? sessionsDoAtleta : weekPlan.sessions,
+				sessions: sessionsDoAtleta,
 				volumeFraction: weekPlan.volumeFraction,
 			};
 		}

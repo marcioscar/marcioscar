@@ -2,7 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import { db } from '../../db.server'
 import { halfMarathonPlan } from '~/data/halfMarathonPlan'
 import { marathonPlan } from '~/data/marathonPlan'
+import { planWeek, ROLE_LABEL, type DayOfWeek } from '~/lib/canovaPlanner'
 import type { ProvaAlvo } from '~/models/provas.server'
+import { obterTreinoTreinador } from '~/models/treino-treinador.server'
 import {
 	computeDaysUntilRace,
 	computeCurrentWeek,
@@ -80,9 +82,17 @@ async function montarContexto(prova: ProvaAlvo): Promise<string> {
 		.map(s => `${s.label}: ${s.km}km${s.emAndamento ? ' (semana em andamento)' : ''}`)
 		.join(' | ')
 
+	// Semana reescrita nos dias que o atleta escolheu, não nos dias fixos do template,
+	// com os treinos prescritos pelo treinador fixados no dia deles.
+	const doTreinador = currentWeekNumber
+		? await obterTreinoTreinador(prova.id, currentWeekNumber)
+		: []
 	const sessoesPlanoStr = weekPlan
-		? weekPlan.sessions
-			.map(s => `${s.day}: ${s.type} — ${s.detail}`)
+		? planWeek(weekPlan, prova.diasTreino as DayOfWeek[], volumeAlvoSemana, prova.plano, {
+			coachSessions: doTreinador,
+			targetPace: prova.paceAlvo,
+		})
+			.map(s => `${s.day} [${ROLE_LABEL[s.role]}${s.origem === 'treinador' ? ', prescrito pelo treinador' : ''}]: ${s.type} — ${s.km}km — ${s.detail}`)
 			.join('\n')
 		: 'Sem semana de plano identificada para esta data (fora do calendário do plano).'
 

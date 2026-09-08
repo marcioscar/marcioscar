@@ -3,8 +3,18 @@ import { useLoaderData, useFetcher, useSubmit, Form } from 'react-router'
 import type { Route } from './+types/treinamento'
 import { halfMarathonPlan } from '~/data/halfMarathonPlan'
 import { marathonPlan } from '~/data/marathonPlan'
-import type { TrainingPlan, Week, Phase, Session } from '~/data/halfMarathonPlan'
+import type { TrainingPlan, Week, Phase } from '~/data/halfMarathonPlan'
 import { resolvePace, resolveWeeklyKm, phaseStyle } from '~/lib/trainingPaceUtils'
+import {
+	planWeek,
+	maxHardSessions,
+	type CoachSession,
+	DAYS_OF_WEEK,
+	ROLE_LABEL,
+	type DayOfWeek,
+	type SessionRole,
+	type PlannedSession,
+} from '~/lib/canovaPlanner'
 import {
 	computeDaysUntilRace,
 	computeCurrentWeek,
@@ -27,6 +37,12 @@ import {
 	type ProvaAlvo,
 } from '~/models/provas.server'
 import {
+	listarTreinosTreinador,
+	salvarTreinoTreinador,
+	removerTreinoTreinador,
+	sanitizarSessoes,
+} from '~/models/treino-treinador.server'
+import {
 	Target01Icon,
 	ArrowDown01Icon,
 	ArrowRight01Icon,
@@ -40,6 +56,8 @@ import {
 	Add01Icon,
 	Delete02Icon,
 	Edit01Icon,
+	WhistleIcon,
+	MagicWand01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
@@ -56,18 +74,19 @@ const PLANS: Record<string, TrainingPlan> = {
 }
 
 const ALL_PHASES: Array<Phase | 'all'> = ['all', 'Geral', 'Fundamental', 'Específica', 'Taper']
-const DAYS_OF_WEEK = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const
-type DayOfWeek = (typeof DAYS_OF_WEEK)[number]
-
 const DEFAULT_PACE: Record<string, string> = { meia: '5:00', maratona: '5:12' }
 const DEFAULT_KM: Record<string, number> = { meia: 60, maratona: 70 }
 const DEFAULT_DAYS: DayOfWeek[] = ['Seg', 'Ter', 'Qui', 'Sex', 'Sáb']
+/** Referência estável para semanas sem treino do treinador. */
+const SEM_TREINOS: CoachSession[] = []
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
 export async function loader() {
 	const provas = await listarProvas()
-	return { provas }
+	const ativa = provas.find(p => p.ativa)
+	const treinosTreinador = ativa ? await listarTreinosTreinador(ativa.id) : []
+	return { provas, treinosTreinador }
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -120,6 +139,32 @@ export async function action({ request }: Route.ActionArgs) {
 		return { ok: true }
 	}
 
+	if (intent === 'salvarTreinoTreinador') {
+		const provaId = form.get('provaId') as string
+		const semana = parseInt(form.get('semana') as string)
+		const textoOrigem = (form.get('textoOrigem') as string) || null
+		let sessoes: ReturnType<typeof sanitizarSessoes> = []
+		try {
+			sessoes = sanitizarSessoes(JSON.parse((form.get('sessoes') as string) || '[]'))
+		} catch {
+			return { ok: false, erro: 'Treinos inválidos.' }
+		}
+		if (sessoes.length === 0) {
+			await removerTreinoTreinador(provaId, semana)
+		} else {
+			await salvarTreinoTreinador(provaId, semana, sessoes, textoOrigem)
+		}
+		return { ok: true }
+	}
+
+	if (intent === 'removerTreinoTreinador') {
+		await removerTreinoTreinador(
+			form.get('provaId') as string,
+			parseInt(form.get('semana') as string),
+		)
+		return { ok: true }
+	}
+
 	if (intent === 'deletarProva') {
 		await deletarProva(form.get('id') as string)
 		return { ok: true }
@@ -131,7 +176,7 @@ export async function action({ request }: Route.ActionArgs) {
 // ── Route component ───────────────────────────────────────────────────────────
 
 export default function TreinamentoRoute() {
-	const { provas } = useLoaderData<typeof loader>()
+	const { provas, treinosTreinador } = useLoaderData<typeof loader>()
 	const fetcher = useFetcher()
 	const submit = useSubmit()
 
@@ -164,6 +209,15 @@ export default function TreinamentoRoute() {
 	}, [activeProva?.id])
 
 	const plan = PLANS[planKey]
+
+	const coachPorSemana = useMemo(() => {
+		const mapa = new Map<number, CoachSession[]>()
+		for (const t of treinosTreinador) mapa.set(t.semana, t.sessoes)
+		return mapa
+	}, [treinosTreinador])
+
+	// Quantos treinos fortes cabem na semana com os dias escolhidos (fase mais exigente do plano).
+	const hardPerWeek = maxHardSessions(trainingDays.size, 'Específica')
 	const effectivePace = targetPace.trim() || DEFAULT_PACE[planKey]
 	const effectiveKm = parseInt(weeklyKm) > 0 ? parseInt(weeklyKm) : DEFAULT_KM[planKey]
 
@@ -226,7 +280,7 @@ export default function TreinamentoRoute() {
 	}
 
 	function handleSalvarConfigs() {
-		if (!activeProva) return
+		if (!activeProva || trainingDays.size === 0) return
 		const formData = new FormData()
 		formData.append('_intent', 'atualizarConfigs')
 		formData.append('id', activeProva.id)
@@ -456,7 +510,7 @@ export default function TreinamentoRoute() {
 								Configurações · {activeProva.nome}
 							</p>
 							{settingsDirty && (
-								<Button size='sm' onClick={handleSalvarConfigs}>
+								<Button size='sm' onClick={handleSalvarConfigs} disabled={trainingDays.size === 0}>
 									Salvar
 								</Button>
 							)}
@@ -493,13 +547,14 @@ export default function TreinamentoRoute() {
 
 						<div>
 							<p className='text-xs font-medium text-muted-foreground mb-2'>
-								Dias de treino ({trainingDays.size} dias/semana)
+								Dias de treino ({trainingDays.size} {trainingDays.size === 1 ? 'dia' : 'dias'}/semana)
 							</p>
 							<div className='flex gap-1.5 flex-wrap'>
 								{DAYS_OF_WEEK.map(day => (
 									<button
 										key={day}
 										onClick={() => toggleDay(day)}
+										aria-pressed={trainingDays.has(day)}
 										className={cn(
 											'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
 											trainingDays.has(day)
@@ -511,6 +566,22 @@ export default function TreinamentoRoute() {
 									</button>
 								))}
 							</div>
+
+							{trainingDays.size === 0 ? (
+								<p className='mt-2 text-xs text-red-600 dark:text-red-400'>
+									Selecione pelo menos um dia de treino.
+								</p>
+							) : (
+								<p className='mt-2 text-xs text-muted-foreground'>
+									O plano é reescrito nos dias que você escolher:{' '}
+									<span className='font-medium text-foreground'>
+										{hardPerWeek} {hardPerWeek === 1 ? 'treino forte' : 'treinos fortes'}
+									</span>{' '}
+									(longão + trabalho específico) espaçados por dias fáceis, e o volume da semana
+									redistribuído entre as sessões.
+									{trainingDays.size < 3 && ' Com menos de 3 dias o volume semanal cai bastante.'}
+								</p>
+							)}
 						</div>
 					</CardContent>
 				</Card>
@@ -609,6 +680,9 @@ export default function TreinamentoRoute() {
 						<div key={week.number} ref={isCurrentWeek ? currentWeekRef : undefined}>
 							<WeekCard
 								week={week}
+								planKey={planKey}
+								provaId={activeProva?.id ?? null}
+								coachSessions={coachPorSemana.get(week.number) ?? SEM_TREINOS}
 								targetPace={effectivePace}
 								weeklyKm={effectiveKm}
 								trainingDays={trainingDays}
@@ -680,8 +754,19 @@ function ProvaCard({
 
 // ── WeekCard ──────────────────────────────────────────────────────────────────
 
+const ROLE_STYLE: Record<SessionRole, string> = {
+	prova:        'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400',
+	longao:       'border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400',
+	qualidade:    'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400',
+	fundamental:  'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+	regenerativo: 'border-border bg-muted/60 text-muted-foreground',
+}
+
 interface WeekCardProps {
 	week: Week
+	planKey: string
+	provaId: string | null
+	coachSessions: CoachSession[]
 	targetPace: string
 	weeklyKm: number
 	trainingDays: Set<DayOfWeek>
@@ -694,13 +779,23 @@ interface WeekCardProps {
 }
 
 function WeekCard({
-	week, targetPace, weeklyKm, trainingDays,
+	week, planKey, provaId, coachSessions, targetPace, weeklyKm, trainingDays,
 	isCompleted, isExpanded, isCurrentWeek, daysUntilRace,
 	onToggleExpand, onToggleComplete,
 }: WeekCardProps) {
-	const km = resolveWeeklyKm(week.volumeFraction, weeklyKm)
+	const metaKm = resolveWeeklyKm(week.volumeFraction, weeklyKm)
 	const style = phaseStyle(week.phase)
-	const sessionDays = week.sessions.map(s => s.day)
+
+	const sessions = useMemo(
+		() => planWeek(week, [...trainingDays], metaKm, planKey, { coachSessions, targetPace }),
+		[week, trainingDays, metaKm, planKey, coachSessions, targetPace],
+	)
+	const km = Math.round(sessions.reduce((a, s) => a + s.km, 0))
+	const hasRace = sessions.some(s => s.role === 'prova')
+	const canovaDays = sessions.filter(s => s.origem === 'canova' && s.role !== 'prova').length
+	// Na semana da prova o volume da prova entra por cima da meta de treino.
+	// Se o treinador prescreveu todos os dias, o volume é decisão dele, não uma limitação.
+	const shortOfTarget = !hasRace && km < metaKm - 1 && canovaDays > 0
 
 	return (
 		<div
@@ -744,6 +839,12 @@ function WeekCard({
 									Último longão
 								</span>
 							)}
+							{coachSessions.length > 0 && (
+								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400'>
+									<HugeiconsIcon icon={WhistleIcon} className='size-3' />
+									Treinador
+								</span>
+							)}
 							{week.isKeyWeek && !week.isWarning && (
 								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-foreground/20 bg-foreground/5 text-foreground'>
 									<HugeiconsIcon icon={Target01Icon} className='size-3' />
@@ -757,24 +858,21 @@ function WeekCard({
 						</span>
 
 						<div className='flex items-center gap-1 flex-wrap'>
-							{sessionDays.map((day, i) => {
-								const isUserDay = trainingDays.has(day as DayOfWeek)
-								const isRaceDay = week.sessions[i]?.type?.startsWith('PROVA')
-								return (
-									<span
-										key={i}
-										className={cn(
-											'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border',
-											isRaceDay ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400'
-											: isUserDay ? 'border-foreground/30 bg-foreground/10 text-foreground'
-											: 'border-border bg-transparent text-muted-foreground',
-										)}
-									>
-										{day}
-									</span>
-								)
-							})}
-							<span className='text-[10px] text-muted-foreground ml-1'>{sessionDays.length} sessões</span>
+							{sessions.map((session, i) => (
+								<span
+									key={i}
+									title={ROLE_LABEL[session.role]}
+									className={cn(
+										'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border',
+										ROLE_STYLE[session.role],
+									)}
+								>
+									{session.day}
+								</span>
+							))}
+							<span className='text-[10px] text-muted-foreground ml-1'>
+								{sessions.length} {sessions.length === 1 ? 'sessão' : 'sessões'}
+							</span>
 						</div>
 					</div>
 
@@ -793,22 +891,35 @@ function WeekCard({
 								<tr className='text-xs text-muted-foreground'>
 									<th className='text-left pb-2 pr-4 font-medium w-10'>Dia</th>
 									<th className='text-left pb-2 pr-4 font-medium'>Treino</th>
+									<th className='text-right pb-2 pr-4 font-medium whitespace-nowrap'>Km</th>
 									<th className='text-left pb-2 pr-4 font-medium whitespace-nowrap'>Pace</th>
 									<th className='text-left pb-2 font-medium'>Detalhe</th>
 								</tr>
 							</thead>
 							<tbody className='divide-y divide-border'>
-								{week.sessions.map((session, i) => (
-									<SessionRow
-										key={i}
-										session={session}
-										targetPace={targetPace}
-										isUserDay={trainingDays.has(session.day as DayOfWeek)}
-									/>
+								{sessions.map((session, i) => (
+									<SessionRow key={i} session={session} targetPace={targetPace} />
 								))}
 							</tbody>
 						</table>
 					</div>
+
+					{shortOfTarget && (
+						<div className='rounded-xl px-4 py-3 text-xs border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'>
+							Com {trainingDays.size} {trainingDays.size === 1 ? 'dia' : 'dias'} por semana só cabem{' '}
+							<span className='font-medium'>{km} km</span> desta semana sem estourar o limite por sessão
+							(a meta do plano é {metaKm} km). Canova prefere reduzir o volume a inchar uma única sessão —
+							adicione um dia de treino para chegar à meta.
+						</div>
+					)}
+
+					{provaId && (
+						<TreinoTreinadorEditor
+							provaId={provaId}
+							semana={week.number}
+							sessoes={coachSessions}
+						/>
+					)}
 
 					{week.tip && (
 						<div className={cn(
@@ -830,24 +941,312 @@ function WeekCard({
 	)
 }
 
-function SessionRow({ session, targetPace, isUserDay }: { session: Session; targetPace: string; isUserDay: boolean }) {
+function SessionRow({ session, targetPace }: { session: PlannedSession; targetPace: string }) {
 	const pace = resolvePace(targetPace, session.paceOffset)
-	const isRace = session.type.startsWith('PROVA')
+	const isRace = session.role === 'prova'
 	return (
-		<tr className={cn(isRace && 'font-medium', !isUserDay && !isRace && 'opacity-50')}>
+		<tr className={cn(isRace && 'font-medium')}>
 			<td className='py-2 pr-4'>
-				<span className={cn('text-xs font-medium rounded px-1 py-0.5',
-					isRace ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
-					: isUserDay ? 'text-foreground' : 'text-muted-foreground',
+				<span className={cn(
+					'text-xs font-medium rounded px-1 py-0.5 border inline-block',
+					ROLE_STYLE[session.role],
 				)}>
 					{session.day}
 				</span>
 			</td>
-			<td className='py-2 pr-4 text-foreground text-sm'>{session.type}</td>
+			<td className='py-2 pr-4 text-foreground text-sm'>
+				<span className='flex items-center gap-1.5'>
+					{session.type}
+					{session.origem === 'treinador' && (
+						<span className='inline-flex items-center rounded px-1 py-0.5 text-[9px] font-medium border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400'>
+							TREINADOR
+						</span>
+					)}
+				</span>
+				<span className='block text-[10px] text-muted-foreground'>{ROLE_LABEL[session.role]}</span>
+			</td>
+			<td className='py-2 pr-4 text-right whitespace-nowrap tabular-nums text-foreground/80 text-xs'>
+				{session.km > 0 ? `${session.km} km` : '—'}
+			</td>
 			<td className='py-2 pr-4 whitespace-nowrap'>
 				<span className='text-xs font-mono tabular-nums text-foreground/70'>{pace}</span>
 			</td>
 			<td className='py-2 text-muted-foreground text-xs'>{session.detail}</td>
 		</tr>
+	)
+}
+
+// ── TreinoTreinadorEditor ─────────────────────────────────────────────────────
+
+/** Linha em edição: km e pace ficam como texto para não brigar com o input. */
+type LinhaTreino = { dia: DayOfWeek; tipo: string; km: string; pace: string; detalhe: string }
+
+function paraLinha(s: CoachSession): LinhaTreino {
+	return {
+		dia: s.dia,
+		tipo: s.tipo,
+		km: s.km != null ? String(s.km) : '',
+		pace: s.pace ?? '',
+		detalhe: s.detalhe,
+	}
+}
+
+function paraSessao(l: LinhaTreino): CoachSession {
+	const km = parseFloat(l.km.replace(',', '.'))
+	return {
+		dia: l.dia,
+		tipo: l.tipo.trim() || 'Treino',
+		km: Number.isFinite(km) && km > 0 ? km : null,
+		pace: l.pace.trim() || null,
+		detalhe: l.detalhe.trim(),
+	}
+}
+
+function TreinoTreinadorEditor({
+	provaId, semana, sessoes,
+}: {
+	provaId: string
+	semana: number
+	sessoes: CoachSession[]
+}) {
+	const submit = useSubmit()
+	const [aberto, setAberto] = useState(false)
+	const [texto, setTexto] = useState('')
+	const [linhas, setLinhas] = useState<LinhaTreino[] | null>(null)
+	const [interpretando, setInterpretando] = useState(false)
+	const [erro, setErro] = useState<string | null>(null)
+
+	// Fecha o editor quando o treino salvo muda de conteúdo (volta do loader).
+	// Depende do valor, não da identidade do array — que muda a cada render.
+	const chaveSessoes = JSON.stringify(sessoes)
+	useEffect(() => {
+		setLinhas(null)
+		setAberto(false)
+		setErro(null)
+	}, [chaveSessoes])
+
+	async function interpretar() {
+		if (!texto.trim()) return
+		setInterpretando(true)
+		setErro(null)
+		try {
+			const resposta = await fetch('/api/interpretar-treino', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ texto }),
+			})
+			const dados = await resposta.json()
+			if (!resposta.ok) {
+				setErro(dados.error ?? 'Não consegui interpretar esse texto.')
+				return
+			}
+			setLinhas((dados.sessoes as CoachSession[]).map(paraLinha))
+		} catch {
+			setErro('Falha de rede ao interpretar o texto.')
+		} finally {
+			setInterpretando(false)
+		}
+	}
+
+	function atualizar(i: number, campo: keyof LinhaTreino, valor: string) {
+		setLinhas(prev => prev && prev.map((l, k) => (k === i ? { ...l, [campo]: valor } : l)))
+	}
+
+	function salvar() {
+		if (!linhas) return
+		submit(
+			{
+				_intent: 'salvarTreinoTreinador',
+				provaId,
+				semana: String(semana),
+				textoOrigem: texto,
+				sessoes: JSON.stringify(linhas.map(paraSessao)),
+			},
+			{ method: 'post' },
+		)
+	}
+
+	function remover() {
+		if (!confirm(`Remover o treino do treinador da semana ${semana}?`)) return
+		submit(
+			{ _intent: 'removerTreinoTreinador', provaId, semana: String(semana) },
+			{ method: 'post' },
+		)
+	}
+
+	// ── Já existe treino salvo e o editor está fechado ──
+	if (sessoes.length > 0 && !aberto) {
+		return (
+			<div className='rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
+				<p className='text-xs text-sky-700 dark:text-sky-300'>
+					<span className='font-medium'>
+						{sessoes.length} {sessoes.length === 1 ? 'treino' : 'treinos'} do treinador
+					</span>{' '}
+					nesta semana ({sessoes.map(s => s.dia).join(', ')}). O Canova completou o resto.
+				</p>
+				<div className='flex gap-2'>
+					<button
+						onClick={() => { setLinhas(sessoes.map(paraLinha)); setAberto(true) }}
+						className='inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground'
+					>
+						<HugeiconsIcon icon={Edit01Icon} className='size-3' />
+						Editar
+					</button>
+					<button
+						onClick={remover}
+						className='inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-red-600'
+					>
+						<HugeiconsIcon icon={Delete02Icon} className='size-3' />
+						Remover
+					</button>
+				</div>
+			</div>
+		)
+	}
+
+	// ── Editor fechado, sem treino salvo ──
+	if (!aberto) {
+		return (
+			<button
+				onClick={() => setAberto(true)}
+				className='self-start inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors'
+			>
+				<HugeiconsIcon icon={WhistleIcon} className='size-3' />
+				Lançar treino do treinador
+			</button>
+		)
+	}
+
+	// ── Editor aberto ──
+	return (
+		<div className='rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 flex flex-col gap-3'>
+			<div className='flex items-center justify-between'>
+				<p className='text-xs font-medium text-sky-700 dark:text-sky-300'>
+					Treino do treinador · semana {semana}
+				</p>
+				<button
+					onClick={() => { setAberto(false); setLinhas(null); setErro(null) }}
+					className='text-xs text-muted-foreground hover:text-foreground'
+				>
+					Cancelar
+				</button>
+			</div>
+
+			<div className='flex flex-col gap-2'>
+				<textarea
+					value={texto}
+					onChange={e => setTexto(e.target.value)}
+					rows={4}
+					placeholder={'Cole aqui o treino como o treinador mandou. Ex:\nTer - 10km com 3x2km em 4:40\nQui - 8km leve\nSáb - 18km longo em 5:30'}
+					className='w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-foreground/20'
+				/>
+				<Button
+					size='sm'
+					onClick={interpretar}
+					disabled={interpretando || !texto.trim()}
+					className='self-start'
+				>
+					<HugeiconsIcon icon={MagicWand01Icon} className='size-3.5' />
+					{interpretando ? 'Interpretando…' : 'Interpretar'}
+				</Button>
+			</div>
+
+			{erro && (
+				<p className='text-xs text-red-600 dark:text-red-400'>{erro}</p>
+			)}
+
+			{linhas && (
+				<div className='flex flex-col gap-2'>
+					<p className='text-xs text-muted-foreground'>
+						Confira e ajuste antes de salvar — o que ficar aqui é fixado no plano e o Canova
+						preenche só os dias que sobrarem.
+					</p>
+					<div className='overflow-x-auto'>
+						<table className='w-full text-sm'>
+							<thead>
+								<tr className='text-[10px] uppercase tracking-wide text-muted-foreground'>
+									<th className='text-left pb-1 pr-2 font-medium'>Dia</th>
+									<th className='text-left pb-1 pr-2 font-medium'>Tipo</th>
+									<th className='text-left pb-1 pr-2 font-medium w-16'>Km</th>
+									<th className='text-left pb-1 pr-2 font-medium w-20'>Pace</th>
+									<th className='text-left pb-1 pr-2 font-medium'>Detalhe</th>
+									<th className='pb-1 w-8' />
+								</tr>
+							</thead>
+							<tbody>
+								{linhas.map((linha, i) => (
+									<tr key={i}>
+										<td className='py-1 pr-2'>
+											<select
+												value={linha.dia}
+												onChange={e => atualizar(i, 'dia', e.target.value)}
+												className='rounded border border-border bg-background px-1.5 py-1 text-xs'
+											>
+												{DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d}</option>)}
+											</select>
+										</td>
+										<td className='py-1 pr-2'>
+											<Input
+												value={linha.tipo}
+												onChange={e => atualizar(i, 'tipo', e.target.value)}
+												className='h-8 text-xs'
+											/>
+										</td>
+										<td className='py-1 pr-2'>
+											<Input
+												value={linha.km}
+												onChange={e => atualizar(i, 'km', e.target.value)}
+												placeholder='—'
+												className='h-8 text-xs'
+											/>
+										</td>
+										<td className='py-1 pr-2'>
+											<Input
+												value={linha.pace}
+												onChange={e => atualizar(i, 'pace', e.target.value)}
+												placeholder='4:40'
+												className='h-8 text-xs'
+											/>
+										</td>
+										<td className='py-1 pr-2'>
+											<Input
+												value={linha.detalhe}
+												onChange={e => atualizar(i, 'detalhe', e.target.value)}
+												className='h-8 text-xs'
+											/>
+										</td>
+										<td className='py-1 text-center'>
+											<button
+												onClick={() => setLinhas(prev => prev && prev.filter((_, k) => k !== i))}
+												aria-label={`Remover treino de ${linha.dia}`}
+												className='text-muted-foreground hover:text-red-600'
+											>
+												<HugeiconsIcon icon={Delete02Icon} className='size-3.5' />
+											</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+
+					<div className='flex items-center gap-2'>
+						<button
+							onClick={() => setLinhas(prev => [
+								...(prev ?? []),
+								{ dia: 'Seg', tipo: '', km: '', pace: '', detalhe: '' },
+							])}
+							className='inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground'
+						>
+							<HugeiconsIcon icon={Add01Icon} className='size-3' />
+							Adicionar treino
+						</button>
+						<Button size='sm' onClick={salvar} disabled={linhas.length === 0}>
+							Salvar no plano
+						</Button>
+					</div>
+				</div>
+			)}
+		</div>
 	)
 }

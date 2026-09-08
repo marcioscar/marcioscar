@@ -3,6 +3,7 @@ import { Tick01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { resolvePace } from "~/lib/trainingPaceUtils";
 import type { Session } from "~/data/halfMarathonPlan";
+import { ROLE_LABEL, type PlannedSession } from "~/lib/canovaPlanner";
 import type { CorridaSemanaAtual } from "~/models/corrida-dashboard.server";
 
 const DIAS_ORDEM: Session["day"][] = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -21,7 +22,7 @@ function formatarDistPace(corrida: CorridaSemanaAtual): string {
 }
 
 type Props = {
-	sessions: Session[];
+	sessions: PlannedSession[];
 	targetPace: string;
 	corridasSemana: CorridaSemanaAtual[];
 	hojeLabel: Session["day"];
@@ -63,7 +64,10 @@ export function CorridaSessoesSemana({ sessions, targetPace, corridasSemana, hoj
 								PRÓXIMA
 							</span>
 						)}
-						<p className="text-xs text-muted-foreground">{session.day}</p>
+						<p className="flex items-center justify-between text-xs text-muted-foreground">
+							<span>{session.day}</span>
+							<span className="tabular-nums">{ROLE_LABEL[session.role]}</span>
+						</p>
 						<p className={cn("flex items-center gap-1 text-sm font-semibold", feito && "line-through")}>
 							{session.type}
 							{feito && <HugeiconsIcon icon={Tick01Icon} className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />}
@@ -71,7 +75,7 @@ export function CorridaSessoesSemana({ sessions, targetPace, corridasSemana, hoj
 						<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
 							{feito
 								? corridasDoDia.map((c) => formatarDistPace(c)).join(" + ")
-								: `${session.detail} (${pace})`}
+								: `${session.km > 0 ? `${session.km} km · ` : ""}${session.detail} (${pace})`}
 						</p>
 					</div>
 				);

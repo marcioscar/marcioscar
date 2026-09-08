@@ -90,6 +90,21 @@ model CoachInsight {
     @@unique([provaId, semana])
 }
 
+model TreinoTreinador {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    provaId   String   @db.ObjectId
+    /// Número da semana do plano (1..totalWeeks)
+    semana    Int
+    /// Sessões prescritas pelo treinador: [{ dia, tipo, km, pace, detalhe }]
+    sessoes   Json
+    /// Texto cru colado pelo atleta, guardado para reinterpretação
+    textoOrigem String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([provaId, semana])
+}
+
 model biblioteca {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String
