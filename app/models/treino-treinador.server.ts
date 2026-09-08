@@ -113,6 +113,11 @@ const PROMPT = `Você extrai treinos de corrida de um texto escrito por um trein
 Leia o texto e devolva um treino por dia da semana mencionado. Regras:
 - "dia": use exatamente uma destas abreviações: Seg, Ter, Qua, Qui, Sex, Sáb, Dom.
 - "tipo": nome curto do treino (ex: "Intervalado", "Rodagem", "Longo", "Tempo run", "Regenerativo").
+  Nomeie pelo que o treinador escreveu, não pela sua opinião sobre a intensidade.
+  Rodagem em Z2 é "Rodagem", não "Regenerativo" — reserve "Regenerativo" para Z1,
+  trote ou quando o treinador usar essa palavra.
+- Preserve as zonas (Z1..Z5) no detalhe quando o treinador as mencionar: elas
+  definem a intensidade da sessão no plano.
 - "km": distância total em quilômetros, como número. Use null se o treinador não disser a distância.
   Se vier em minutos e não em km, deixe null e registre a duração no detalhe.
 - "pace": o pace principal do treino no formato "m:ss" por km. Use null se não houver.

@@ -63,21 +63,44 @@ function fastestOffsetSeconds(paceOffset: string): number | null {
  * Classifica um treino do treinador pelo texto e pelo pace, para que o
  * preenchimento Canova saiba o que já está coberto na semana.
  */
+/**
+ * Maior zona de treino citada no texto ("Z2", "zona 3", "Z2 + Z4" → 4).
+ * A zona é o sinal mais confiável quando o treinador escreve em pace absoluto,
+ * porque o pace sozinho depende de quão ambicioso é o pace alvo da prova.
+ */
+function maiorZona(texto: string): number | null {
+	const zonas = [...texto.matchAll(/\b(?:z|zona|zone)\s*([1-5])\b/gi)].map(m =>
+		parseInt(m[1], 10),
+	)
+	return zonas.length ? Math.max(...zonas) : null
+}
+
 export function classifyCoachSession(coach: CoachSession, targetPace: string): SessionRole {
 	const texto = `${coach.tipo} ${coach.detalhe}`
 
 	if (/prova|competi[çc][ãa]o/i.test(texto)) return 'prova'
 	if (/long[ãa]o|longo|long run/i.test(texto)) return 'longao'
-	if (/tempo|intervalad|fartlek|colina|subida|tiro|s[ée]rie|ritmo|limiar|threshold|progress|espec[íi]fic|vo2|repeti[çc]/i.test(texto))
+
+	// Zona explícita manda: Z1 é regeneração, Z2 é base aeróbica (fundamental),
+	// Z3 pra cima já é trabalho de qualidade. Vem antes das palavras-chave porque
+	// "8km Z2 leve" é base, não regeneração, por mais que diga "leve".
+	const zona = maiorZona(texto)
+	if (zona !== null) {
+		if (zona >= 3) return 'qualidade'
+		return zona === 2 ? 'fundamental' : 'regenerativo'
+	}
+
+	if (/tempo|intervalad|fartlek|colina|subida|tiro|s[ée]rie|limiar|threshold|progress|espec[íi]fic|vo2|repeti[çc]/i.test(texto))
 		return 'qualidade'
 	if (/regener|recupera|trotinho|descanso|caminhada|muito leve/i.test(texto)) return 'regenerativo'
 
-	// Sem pistas no texto: decide pelo pace em relação ao pace alvo.
+	// Último recurso: pace absoluto contra o pace alvo. As faixas são largas de
+	// propósito — o ritmo fácil de um amador fica bem acima do pace de prova.
 	if (coach.pace) {
 		try {
 			const delta = parsePace(coach.pace) - parsePace(targetPace)
-			if (delta <= 30) return 'qualidade'
-			if (delta >= 70) return 'regenerativo'
+			if (delta <= 25) return 'qualidade'
+			if (delta >= 100) return 'regenerativo'
 		} catch {
 			// pace ilegível — cai no padrão
 		}
