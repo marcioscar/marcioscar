@@ -1,14 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-	Bar,
-	BarChart,
-	Cell,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-} from "recharts";
+import { Bar, BarChart, Cell, XAxis } from "recharts";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
 	DropletIcon,
@@ -42,6 +35,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
+import {
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+	type ChartConfig,
+} from "~/components/ui/chart";
 import type { DespesaResumida } from "~/models/dashboard.server";
 
 const CATEGORIA_ICONES: Record<string, IconSvgElement> = {
@@ -105,6 +104,10 @@ type Props = {
 
 const LIMITE = 8;
 const TODAS_CONTAS = "__todas__";
+
+const barChartConfig = {
+	valor: { label: "Total" },
+} satisfies ChartConfig;
 
 export function CategoriasBarChart({ title, description, items }: Props) {
 	const [aberta, setAberta] = useState<string | null>(null);
@@ -204,8 +207,11 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 				) : (
 					<>
 						{/* Bar chart */}
-						<ResponsiveContainer width='100%' height={180}>
+						<ChartContainer
+							config={barChartConfig}
+							className='aspect-auto h-45 w-full'>
 							<BarChart
+								accessibilityLayer
 								data={ordenados}
 								barSize={28}
 								margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
@@ -213,7 +219,7 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 									dataKey='label'
 									axisLine={false}
 									tickLine={false}
-									tick={{ fontSize: 9, fill: "#94a3b8" }}
+									tick={{ fontSize: 9 }}
 									interval={0}
 									tickFormatter={(v: string) =>
 										v.length > 6 ? v.slice(0, 5) + "…" : v
@@ -228,30 +234,34 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 										<Cell key={i} fill={PALETA[i % PALETA.length]} />
 									))}
 								</Bar>
-								<Tooltip
-									cursor={{ fill: "transparent" }}
-									content={({ active, payload }) => {
-										if (!active || !payload?.length) return null;
-										const item = payload[0];
-										const pct =
-											total > 0
-												? ((Number(item?.value ?? 0) / total) * 100).toFixed(1)
-												: "0";
-										return (
-											<div className='rounded-lg border border-border bg-background p-2.5 text-xs shadow-md'>
-												<p className='font-semibold text-foreground'>
-													{item?.payload?.label}
-												</p>
-												<p className='tabular-nums text-foreground'>
-													{formatarMoeda(Number(item?.value ?? 0))}
-												</p>
-												<p className='text-muted-foreground'>{pct}% do total</p>
-											</div>
-										);
-									}}
+								<ChartTooltip
+									cursor={false}
+									content={
+										<ChartTooltipContent
+											labelFormatter={(_, payload) =>
+												payload?.[0]?.payload?.label ?? ""
+											}
+											formatter={(value) => {
+												const pct =
+													total > 0
+														? ((Number(value) / total) * 100).toFixed(1)
+														: "0";
+												return (
+													<div className='flex min-w-[140px] items-center justify-between gap-3'>
+														<span className='font-medium tabular-nums'>
+															{formatarMoeda(Number(value))}
+														</span>
+														<span className='text-muted-foreground'>
+															{pct}% do total
+														</span>
+													</div>
+												);
+											}}
+										/>
+									}
 								/>
 							</BarChart>
-						</ResponsiveContainer>
+						</ChartContainer>
 
 						{/* Total */}
 						<div className='flex items-baseline justify-between border-b border-border pb-3'>

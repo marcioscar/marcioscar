@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { Bar, BarChart, Cell } from "recharts";
 import {
 	Card,
 	CardContent,
@@ -9,6 +9,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
+import {
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+	type ChartConfig,
+} from "~/components/ui/chart";
 import type { CategoriasMesItem } from "~/models/dashboard.server";
 
 const PALETA = [
@@ -21,6 +27,10 @@ const PALETA = [
 	"#22c55e",
 	"#94a3b8",
 ] as const;
+
+const trendChartConfig = {
+	valor: { label: "Total" },
+} satisfies ChartConfig;
 
 function formatarMoeda(valor: number): string {
 	return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -79,8 +89,11 @@ export function CategoriasTrendChart({ dados }: Props) {
 								</span>
 
 								<div className='min-w-0 flex-1'>
-									<ResponsiveContainer width='100%' height={44}>
+									<ChartContainer
+										config={trendChartConfig}
+										className='aspect-auto h-11 w-full'>
 										<BarChart
+											accessibilityLayer
 											data={valores}
 											barSize={14}
 											margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
@@ -100,25 +113,24 @@ export function CategoriasTrendChart({ dados }: Props) {
 													/>
 												))}
 											</Bar>
-											<Tooltip
-												cursor={{ fill: "transparent" }}
-												content={({ active, payload }) => {
-													if (!active || !payload?.length) return null;
-													const d = payload[0];
-													return (
-														<div className='rounded-md border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm'>
-															<p className='text-muted-foreground'>
-																{d?.payload?.mes}
-															</p>
-															<p className='font-medium tabular-nums'>
-																{formatarMoeda(Number(d?.value ?? 0))}
-															</p>
-														</div>
-													);
-												}}
+											<ChartTooltip
+												cursor={false}
+												content={
+													<ChartTooltipContent
+														hideIndicator
+														labelFormatter={(_, payload) =>
+															`${cat} · ${payload?.[0]?.payload?.mes ?? ""}`
+														}
+														formatter={(value) => (
+															<span className='font-medium tabular-nums'>
+																{formatarMoeda(Number(value))}
+															</span>
+														)}
+													/>
+												}
 											/>
 										</BarChart>
-									</ResponsiveContainer>
+									</ChartContainer>
 								</div>
 
 								<div className='w-24 shrink-0 text-right sm:w-32'>

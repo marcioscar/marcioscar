@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Form, Link, useLoaderData, useSubmit } from "react-router";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { Bar, BarChart, Cell, XAxis } from "recharts";
 import { CreditCard, Landmark, Receipt, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import type { Route } from "./+types/financeiro";
 import {
@@ -10,6 +10,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
+import {
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+	type ChartConfig,
+} from "~/components/ui/chart";
 import {
 	obterResumoDashboardBrassaco,
 	obterResumoDespesasPorCategoriaNoPeriodo,
@@ -222,8 +228,12 @@ const NAV_BTN =
 const SELECT_CLASS =
 	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
 
-const COR_ANTERIOR = "#94a3b8";
-const COR_ATUAL = "#3b82f6";
+const COR_ANTERIOR = "var(--chart-1)";
+const COR_ATUAL = "var(--chart-4)";
+
+const miniChartConfig = {
+	valor: { label: "Total" },
+} satisfies ChartConfig;
 
 function calcPct(atual: number, anterior: number) {
 	if (anterior <= 0) return null;
@@ -244,36 +254,39 @@ function MiniBarChart({ atual, anterior, labelAnterior, labelAtual }: MiniBarCha
 	];
 
 	return (
-		<ResponsiveContainer width='100%' height={64}>
-			<BarChart data={data} barSize={28} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
+		<ChartContainer config={miniChartConfig} className='aspect-auto h-16 w-full'>
+			<BarChart
+				accessibilityLayer
+				data={data}
+				barSize={28}
+				margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
 				<XAxis
 					dataKey='label'
 					axisLine={false}
 					tickLine={false}
-					tick={{ fontSize: 9, fill: "#94a3b8" }}
+					tick={{ fontSize: 9 }}
 				/>
 				<Bar dataKey='valor' radius={[4, 4, 0, 0]} isAnimationActive={false} activeBar={false}>
 					{data.map((item, i) => (
 						<Cell key={i} fill={item.cor} />
 					))}
 				</Bar>
-				<Tooltip
-					cursor={{ fill: "transparent" }}
-					content={({ active, payload }) => {
-						if (!active || !payload?.length) return null;
-						const item = payload[0];
-						return (
-							<div className='rounded-md border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm'>
-								<p className='text-muted-foreground'>{item?.payload?.label}</p>
-								<p className='font-medium tabular-nums'>
-									{formatarMoeda(Number(item?.value ?? 0))}
-								</p>
-							</div>
-						);
-					}}
+				<ChartTooltip
+					cursor={false}
+					content={
+						<ChartTooltipContent
+							hideIndicator
+							labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? ""}
+							formatter={(value) => (
+								<span className='font-medium tabular-nums'>
+									{formatarMoeda(Number(value))}
+								</span>
+							)}
+						/>
+					}
 				/>
 			</BarChart>
-		</ResponsiveContainer>
+		</ChartContainer>
 	);
 }
 
