@@ -164,7 +164,7 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 
 	if (items.length === 0) {
 		return (
-			<Card className='bg-linear-to-br from-card via-card to-muted/40 shadow-sm'>
+			<Card className='bg-linear-to-br from-card via-card to-muted/40'>
 				<CardHeader>
 					<CardTitle>{title}</CardTitle>
 					<CardDescription>{description}</CardDescription>
@@ -179,7 +179,7 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 	}
 
 	return (
-		<Card className='bg-linear-to-br from-card via-card to-muted/40 shadow-sm'>
+		<Card className='bg-linear-to-br from-card via-card to-muted/40'>
 			<CardHeader>
 				<div className='flex flex-wrap items-start justify-between gap-2'>
 					<div className='grid gap-1'>

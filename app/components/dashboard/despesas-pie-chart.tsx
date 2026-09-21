@@ -107,7 +107,7 @@ export function DespesasPieChart({
 	const chartConfig = criarChartConfig(itensPizza, palette);
 
 	return (
-		<Card className='bg-linear-to-br from-card via-card to-muted/40 shadow-sm'>
+		<Card className='bg-linear-to-br from-card via-card to-muted/40'>
 			<CardHeader>
 				<CardTitle>{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>

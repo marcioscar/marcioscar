@@ -56,7 +56,7 @@ export function CategoriasTrendChart({ dados }: Props) {
 	if (categorias.length === 0) return null;
 
 	return (
-		<Card className='bg-linear-to-br from-card via-card to-muted/40 shadow-sm'>
+		<Card className='bg-linear-to-br from-card via-card to-muted/40'>
 			<CardHeader>
 				<CardTitle>Evolução por categoria</CardTitle>
 				<CardDescription>Comparativo com mês anterior · últimos 6 meses</CardDescription>
