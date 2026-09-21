@@ -17,6 +17,7 @@ import {
 } from "./components/ui/sidebar";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { MarcaIcone } from "~/components/marca";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -30,19 +31,8 @@ export const links: Route.LinksFunction = () => [
 		rel: "stylesheet",
 		href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
 	},
-	{
-		rel: "icon",
-		href: "/icon-asfalto-1024.png",
-		type: "image/png",
-		media: "(prefers-color-scheme: dark)",
-	},
-	{
-		rel: "icon",
-		href: "/icon-claro-1024.png",
-		type: "image/png",
-		media: "(prefers-color-scheme: light)",
-	},
-	{ rel: "apple-touch-icon", href: "/icon-asfalto-1024.png" },
+	{ rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+	{ rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -82,11 +72,7 @@ export default function App() {
 			<SidebarInset>
 				<header className='flex h-14 items-center gap-2 border-b px-4'>
 					<SidebarTrigger />
-					<img
-						src='/icon-asfalto-1024.png'
-						alt='Icone Marcioscar'
-						className='size-8 rounded-lg object-cover'
-					/>
+					<MarcaIcone className='size-8' />
 					<span className='text-sm font-medium'>Marcioscar</span>
 				</header>
 				<div className='flex min-h-0 min-w-0 flex-1 flex-col p-4'>

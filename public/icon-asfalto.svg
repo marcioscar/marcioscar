@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Marcioscar">
+  <title>Marcioscar</title>
+  <rect width="120" height="120" rx="28" fill="#12161C"/>
+  <polygon points="42,10 54,10 62,34 50,38" fill="#79904e"/>
+  <polygon points="78,10 66,10 58,34 70,38" fill="#F4F1EA"/>
+  <circle cx="60" cy="70" r="32" fill="#F4F1EA"/>
+  <circle cx="60" cy="70" r="26" fill="none" stroke="#79904e" stroke-width="3" stroke-dasharray="2 4"/>
+  <path transform="translate(47.53 74)" d="M10.14 0L7.92 0L7.92-3.17L0.95-3.17L0.95-4.91L7.52-14.70L10.14-14.70L10.14-5.19L12.05-5.19L12.05-3.17L10.14-3.17L10.14 0M8.04-12.20L3.42-5.19L8.04-5.19L8.04-12.20M24 0L14.07 0L14.07-1.76Q16.23-3.49 17.86-4.94Q19.49-6.38 20.41-7.73Q21.34-9.07 21.34-10.46Q21.34-11.61 20.69-12.27Q20.03-12.94 18.92-12.94Q17.64-12.94 16.95-12.13Q16.25-11.32 16.25-10.21L14.09-10.21Q14.11-11.76 14.74-12.81Q15.37-13.86 16.45-14.41Q17.54-14.95 18.92-14.95Q21.17-14.95 22.39-13.74Q23.60-12.54 23.60-10.52Q23.60-9.24 23.05-8.05Q22.49-6.87 21.59-5.80Q20.69-4.73 19.58-3.76Q18.48-2.79 17.37-1.91L24-1.91" fill="#12161C"/>
+  <polyline points="46,86 54,82 60,85 67,79 75,76" fill="none" stroke="#79904e" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

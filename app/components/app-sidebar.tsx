@@ -22,6 +22,7 @@ import {
 	SidebarMenuItem,
 	SidebarRail,
 } from "~/components/ui/sidebar";
+import { MarcaHorizontal, MarcaIcone } from "~/components/marca";
 
 type NavItem = {
 	title: string;
@@ -31,26 +32,26 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-	{ title: "Início", href: "/", icon: Home01Icon, color: "orange" },
-	{ title: "Corridas", href: "/corridas", icon: WorkoutRunIcon, color: "blue" },
+	{ title: "Início", href: "/", icon: Home01Icon, color: "var(--paleta-2)" },
+	{ title: "Corridas", href: "/corridas", icon: WorkoutRunIcon, color: "var(--paleta-4)" },
 	{
 		title: "Treinamento",
 		href: "/treinamento",
 		icon: Target01Icon,
-		color: "red",
+		color: "var(--paleta-5)",
 	},
 	{
 		title: "Financeiro",
 		href: "/financeiro",
 		icon: MoneyBag01Icon,
-		color: "yellow",
+		color: "var(--paleta-3)",
 	},
-	{ title: "Contas", href: "/contas", icon: BitcoinWalletIcon, color: "green" },
+	{ title: "Contas", href: "/contas", icon: BitcoinWalletIcon, color: "var(--paleta-1)" },
 	{
 		title: "Biblioteca",
 		href: "/biblioteca",
 		icon: Books02Icon,
-		color: "purple",
+		color: "var(--paleta-6)",
 	},
 ];
 
@@ -68,16 +69,8 @@ export function AppSidebar() {
 		<Sidebar collapsible='icon'>
 			<SidebarHeader>
 				<div className='flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center'>
-					<img
-						src='/logo_hor.svg'
-						alt='Logo Marcioscar'
-						className='h-10 w-full object-contain object-left group-data-[collapsible=icon]:hidden'
-					/>
-					<img
-						src='/icon-asfalto-1024.png'
-						alt='Icone Marcioscar'
-						className='hidden size-8 rounded-lg object-cover group-data-[collapsible=icon]:block'
-					/>
+					<MarcaHorizontal className='h-9 w-auto group-data-[collapsible=icon]:hidden' />
+					<MarcaIcone className='hidden size-8 group-data-[collapsible=icon]:block' />
 				</div>
 			</SidebarHeader>
 
