@@ -21,10 +21,10 @@ type Props = {
 type ZonaExibida = { label: string; corClasse: string; daAnalise: boolean };
 
 const COR_POR_AVALIACAO: Record<AnaliseResult["avaliacao"], string> = {
-	excelente: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-	bom: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-	regular: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-	ruim: "bg-red-500/10 text-red-600 dark:text-red-400",
+	excelente: "bg-sucesso/10 text-sucesso",
+	bom: "bg-paleta-4/10 text-paleta-4",
+	regular: "bg-alerta/10 text-alerta",
+	ruim: "bg-perigo/10 text-perigo",
 };
 
 /**

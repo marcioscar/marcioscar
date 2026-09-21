@@ -257,18 +257,18 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 				{fase === "upload" && (
 					<form onSubmit={handleSubmitUpload} className='grid gap-4'>
 						{temPendentes && (
-							<div className='rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950'>
-								<p className='font-medium text-amber-800 dark:text-amber-200'>
+							<div className='rounded-md border border-alerta/30 bg-alerta/10 p-3 text-sm'>
+								<p className='font-medium text-alerta'>
 									Análise em andamento
 								</p>
-								<p className='mt-0.5 text-amber-700 dark:text-amber-300'>
+								<p className='mt-0.5 text-alerta'>
 									Você tem transações pendentes de uma análise anterior. Abra o dialog para retomá-la, ou descarte e importe um novo PDF.
 								</p>
 								<Button
 									type='button'
 									variant='outline'
 									size='sm'
-									className='mt-2 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300'
+									className='mt-2 border-alerta/40 text-alerta hover:bg-alerta/15'
 									onClick={handleDescartarPendentes}>
 									Descartar e importar novo PDF
 								</Button>
@@ -349,7 +349,7 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 							</div>
 							<div className='h-1.5 w-full rounded-full bg-muted'>
 								<div
-									className='h-1.5 rounded-full bg-emerald-500 transition-all'
+									className='h-1.5 rounded-full bg-sucesso transition-all'
 									style={{ width: `${progresso}%` }}
 								/>
 							</div>
@@ -455,7 +455,7 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 							</Button>
 							<Button
 								type='button'
-								className='flex-1 bg-emerald-600 hover:bg-emerald-700'
+								className='flex-1 bg-sucesso hover:bg-sucesso/85'
 								onClick={handleConfirmar}
 								disabled={isSalvando}>
 								{isSalvando ? "Salvando…" : "Confirmar"}

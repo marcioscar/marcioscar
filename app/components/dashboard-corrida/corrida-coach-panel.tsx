@@ -25,7 +25,7 @@ export function CorridaCoachPanel({ insight }: Props) {
 				<div className="flex items-start justify-between gap-2">
 					<div>
 						<CardTitle className="flex items-center gap-1.5">
-							<HugeiconsIcon icon={AiMagicIcon} className="size-4 text-blue-500" />
+							<HugeiconsIcon icon={AiMagicIcon} className="size-4 text-paleta-4" />
 							Leitura do treinador
 						</CardTitle>
 						<CardDescription>
@@ -65,7 +65,7 @@ export function CorridaCoachPanel({ insight }: Props) {
 									className={`rounded-xl border-l-2 bg-muted/30 px-3.5 py-2.5 ${item.flag ? "border-l-amber-500" : "border-l-blue-500"}`}
 								>
 									<p
-										className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide ${item.flag ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"}`}
+										className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide ${item.flag ? "text-alerta" : "text-paleta-4"}`}
 									>
 										{item.flag && <HugeiconsIcon icon={Alert01Icon} className="size-3" />}
 										{item.framework}
@@ -83,7 +83,7 @@ export function CorridaCoachPanel({ insight }: Props) {
 										className="border-t border-border py-2.5 pl-5 text-sm text-muted-foreground first:border-t-0"
 										style={{ position: "relative" }}
 									>
-										<span className="absolute left-0 font-bold text-blue-500">→</span>
+										<span className="absolute left-0 font-bold text-paleta-4">→</span>
 										{dica}
 									</li>
 								))}

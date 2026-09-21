@@ -20,8 +20,8 @@ import {
 } from "~/components/ui/chart";
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
-const COR_PACE_MARATONA = "#022859";
-const COR_TEMPO_MARATONA = "#F2CA50";
+const COR_PACE_MARATONA = "var(--paleta-4)";
+const COR_TEMPO_MARATONA = "var(--paleta-3)";
 
 const chartConfig = {
 	tempoTerminoSeg: {

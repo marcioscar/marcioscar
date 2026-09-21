@@ -44,11 +44,11 @@ type GraficoPeriodoDado = {
 const chartConfig = {
 	distanciaKm: {
 		label: "Distância (km)",
-		color: "#3b82f6",
+		color: "var(--paleta-4)",
 	},
 	paceMedioSegPorKm: {
 		label: "Pace médio",
-		color: "#f97316",
+		color: "var(--paleta-2)",
 	},
 } satisfies ChartConfig;
 

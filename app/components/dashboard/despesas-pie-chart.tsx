@@ -14,6 +14,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
+import { PALETA_GRAFICOS } from "~/lib/chart-palette";
 
 type ItemPizza = {
 	label: string;
@@ -32,13 +33,9 @@ type ItemPizzaInterno = ItemPizza & {
 	key: string;
 };
 
-const DEFAULT_PALETTE = [
-	"var(--chart-1)",
-	"var(--chart-2)",
-	"var(--chart-3)",
-	"var(--chart-4)",
-	"var(--chart-5)",
-] as const;
+// --chart-1..5 do tema é uma rampa monocromática de oliva, que não separa
+// categorias; a paleta dos gráficos é da mesma família, mas categórica.
+const DEFAULT_PALETTE = PALETA_GRAFICOS;
 
 function formatarMoeda(valor: number): string {
 	return valor.toLocaleString("pt-BR", {

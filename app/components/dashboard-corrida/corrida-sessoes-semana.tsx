@@ -56,11 +56,11 @@ export function CorridaSessoesSemana({ sessions, targetPace, corridasSemana, hoj
 						className={cn(
 							"relative rounded-xl border px-3.5 py-3",
 							feito ? "border-border bg-muted/30 opacity-70" : "border-border bg-card",
-							isProxima && "border-blue-500/50 ring-1 ring-blue-500/20",
+							isProxima && "border-paleta-4/50 ring-1 ring-paleta-4/20",
 						)}
 					>
 						{isProxima && (
-							<span className="absolute -top-2 right-3 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-bold text-white">
+							<span className="absolute -top-2 right-3 rounded-full bg-paleta-4 px-2 py-0.5 text-[10px] font-bold text-white">
 								PRÓXIMA
 							</span>
 						)}
@@ -70,7 +70,7 @@ export function CorridaSessoesSemana({ sessions, targetPace, corridasSemana, hoj
 						</p>
 						<p className={cn("flex items-center gap-1 text-sm font-semibold", feito && "line-through")}>
 							{session.type}
-							{feito && <HugeiconsIcon icon={Tick01Icon} className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />}
+							{feito && <HugeiconsIcon icon={Tick01Icon} className="size-3.5 shrink-0 text-sucesso" strokeWidth={3} />}
 						</p>
 						<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
 							{feito

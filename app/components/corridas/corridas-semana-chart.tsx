@@ -31,19 +31,19 @@ const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const chartConfig = {
 	estaSemanaDist: {
 		label: "Esta semana",
-		color: "#3b82f6",
+		color: "var(--paleta-4)",
 	},
 	semanaPassadaDist: {
 		label: "Semana passada",
-		color: "#94a3b8",
+		color: "var(--muted-foreground)",
 	},
 	estaSemanaCum: {
 		label: "Acum. esta semana",
-		color: "#3b82f6",
+		color: "var(--paleta-4)",
 	},
 	semanaPassadaCum: {
 		label: "Acum. semana passada",
-		color: "#94a3b8",
+		color: "var(--muted-foreground)",
 	},
 } satisfies ChartConfig;
 
@@ -141,7 +141,7 @@ export function CorridasSemanaChart({ corridas }: Props) {
 					<div className='flex gap-4 text-sm'>
 						<div className='text-right'>
 							<p className='text-muted-foreground text-xs'>Esta semana</p>
-							<p className='font-mono font-semibold text-blue-500'>
+							<p className='font-mono font-semibold text-paleta-4'>
 								{totalEsta.toFixed(1)} km
 							</p>
 						</div>
@@ -154,7 +154,7 @@ export function CorridasSemanaChart({ corridas }: Props) {
 						<div className='text-right'>
 							<p className='text-muted-foreground text-xs'>Diferença</p>
 							<p
-								className={`font-mono font-semibold ${delta >= 0 ? "text-green-500" : "text-red-500"}`}>
+								className={`font-mono font-semibold ${delta >= 0 ? "text-sucesso" : "text-perigo"}`}>
 								{deltaStr}
 							</p>
 						</div>
@@ -183,7 +183,7 @@ export function CorridasSemanaChart({ corridas }: Props) {
 										textAnchor='middle'
 										fontSize={12}
 										fontWeight={isHoje ? 700 : 400}
-										fill={isHoje ? "#3b82f6" : "currentColor"}>
+										fill={isHoje ? "var(--paleta-4)" : "currentColor"}>
 										{isHoje ? "Hoje" : payload.value}
 									</text>
 								);
@@ -233,12 +233,12 @@ export function CorridasSemanaChart({ corridas }: Props) {
 										{
 											value: "estaSemanaDist",
 											type: "square",
-											color: "#3b82f6",
+											color: "var(--color-estaSemanaDist)",
 										},
 										{
 											value: "semanaPassadaDist",
 											type: "square",
-											color: "#94a3b8",
+											color: "var(--color-semanaPassadaDist)",
 										},
 									]}
 								/>
@@ -247,7 +247,7 @@ export function CorridasSemanaChart({ corridas }: Props) {
 						<Bar
 							yAxisId='dist'
 							dataKey='semanaPassadaDist'
-							fill='#94a3b8'
+							fill='var(--color-semanaPassadaDist)'
 							radius={[3, 3, 0, 0]}
 							maxBarSize={28}
 							opacity={0.6}
@@ -262,7 +262,7 @@ export function CorridasSemanaChart({ corridas }: Props) {
 						<Line
 							yAxisId='cum'
 							dataKey='semanaPassadaCum'
-							stroke='#94a3b8'
+							stroke='var(--color-semanaPassadaCum)'
 							strokeWidth={2}
 							strokeDasharray='4 2'
 							dot={false}
@@ -273,7 +273,7 @@ export function CorridasSemanaChart({ corridas }: Props) {
 							dataKey='estaSemanaCum'
 							stroke='var(--color-estaSemanaCum)'
 							strokeWidth={2}
-							dot={{ r: 3, fill: "#3b82f6" }}
+							dot={{ r: 3, fill: "var(--color-estaSemanaCum)" }}
 							activeDot={{ r: 5 }}
 							connectNulls={false}
 						/>

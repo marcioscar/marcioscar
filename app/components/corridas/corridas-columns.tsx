@@ -97,10 +97,10 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 			const analise = row.original.analise
 			if (!analise) return null
 			const BADGE: Record<string, string> = {
-				excelente: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-				bom:       'bg-blue-500/10 text-blue-700 dark:text-blue-400',
-				regular:   'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-				ruim:      'bg-red-500/10 text-red-700 dark:text-red-400',
+				excelente: 'bg-sucesso/10 text-sucesso',
+				bom:       'bg-paleta-4/10 text-paleta-4',
+				regular:   'bg-alerta/10 text-alerta',
+				ruim:      'bg-perigo/10 text-perigo',
 			}
 			const cls = BADGE[analise.avaliacao] ?? BADGE.regular
 			return (

@@ -41,6 +41,7 @@ import {
 	ChartTooltipContent,
 	type ChartConfig,
 } from "~/components/ui/chart";
+import { getCorGrafico } from "~/lib/chart-palette";
 import type { DespesaResumida } from "~/models/dashboard.server";
 
 const CATEGORIA_ICONES: Record<string, IconSvgElement> = {
@@ -68,17 +69,6 @@ const CATEGORIA_ICONES: Record<string, IconSvgElement> = {
 	Vinho: DrinkIcon,
 	"Óculos": GlassesIcon,
 };
-
-const PALETA = [
-	"#f97316",
-	"#3b82f6",
-	"#a855f7",
-	"#14b8a6",
-	"#ef4444",
-	"#eab308",
-	"#22c55e",
-	"#94a3b8",
-] as const;
 
 function formatarMoeda(valor: number): string {
 	return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -231,7 +221,7 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 									isAnimationActive={false}
 									activeBar={false}>
 									{ordenados.map((_, i) => (
-										<Cell key={i} fill={PALETA[i % PALETA.length]} />
+										<Cell key={i} fill={getCorGrafico(i)} />
 									))}
 								</Bar>
 								<ChartTooltip
@@ -284,7 +274,7 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 							{ordenados.map((item, i) => {
 								const pct = total > 0 ? ((item.valor / total) * 100).toFixed(1) : "0";
 								const estaAberta = aberta === item.label;
-								const cor = PALETA[i % PALETA.length];
+								const cor = getCorGrafico(i);
 
 								return (
 									<div key={item.label} className='border-b border-border last:border-0'>

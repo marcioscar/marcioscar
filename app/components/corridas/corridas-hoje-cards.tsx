@@ -42,15 +42,15 @@ function getInicioSemana(): Date {
 }
 
 const TIPO_BG: Record<string, string> = {
-	estimulo:       'bg-lime-500/10',
-	principal:      'bg-lime-500/10',
+	estimulo:       'bg-sucesso/10',
+	principal:      'bg-sucesso/10',
 	aquecimento:    'bg-muted/40',
 	desaquecimento: 'bg-muted/40',
 	recuperacao:    '',
 }
 const TIPO_TEXT: Record<string, string> = {
-	estimulo:       'font-semibold text-lime-700 dark:text-lime-500',
-	principal:      'font-semibold text-lime-700 dark:text-lime-500',
+	estimulo:       'font-semibold text-sucesso',
+	principal:      'font-semibold text-sucesso',
 	aquecimento:    'text-muted-foreground',
 	desaquecimento: 'text-muted-foreground',
 	recuperacao:    'text-muted-foreground',
@@ -87,10 +87,10 @@ function LapsSemana({ laps, anotacoes }: { laps: LapData[]; anotacoes?: LapAnota
 						const paceReal = mpsParaPaceStr(lap.average_speed);
 						const labelCls = tipo
 							? (TIPO_TEXT[tipo] ?? 'text-muted-foreground')
-							: isWork ? 'font-semibold text-lime-700 dark:text-lime-500' : 'text-muted-foreground';
+							: isWork ? 'font-semibold text-sucesso' : 'text-muted-foreground';
 						const rowBg = tipo
 							? (TIPO_BG[tipo] ?? '')
-							: isWork ? 'bg-lime-500/10' : '';
+							: isWork ? 'bg-sucesso/10' : '';
 
 						return (
 							<tr key={lap.lap_index ?? i} className={`${rowBg} hover:bg-muted/20 transition-colors`}>

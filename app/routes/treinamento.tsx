@@ -303,9 +303,9 @@ export default function TreinamentoRoute() {
 
 	const countdownColor =
 		daysUntilRace === null ? ''
-		: daysUntilRace <= 7 ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
-		: daysUntilRace <= 21 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-		: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+		: daysUntilRace <= 7 ? 'border-perigo/30 bg-perigo/10 text-perigo'
+		: daysUntilRace <= 21 ? 'border-alerta/30 bg-alerta/10 text-alerta'
+		: 'border-sucesso/30 bg-sucesso/10 text-sucesso'
 
 	return (
 		<div className='flex flex-col gap-6 p-4 md:p-6'>
@@ -568,7 +568,7 @@ export default function TreinamentoRoute() {
 							</div>
 
 							{trainingDays.size === 0 ? (
-								<p className='mt-2 text-xs text-red-600 dark:text-red-400'>
+								<p className='mt-2 text-xs text-perigo'>
 									Selecione pelo menos um dia de treino.
 								</p>
 							) : (
@@ -719,7 +719,7 @@ function ProvaCard({
 			className={cn(
 				'group relative rounded-2xl border px-4 py-3 cursor-pointer transition-colors min-w-[160px]',
 				isActive && !isEditing && 'border-foreground bg-foreground/5 ring-1 ring-foreground/20',
-				isEditing && 'border-blue-500/60 bg-blue-500/5 ring-1 ring-blue-500/20',
+				isEditing && 'border-paleta-4/60 bg-paleta-4/5 ring-1 ring-paleta-4/20',
 				!isActive && !isEditing && 'border-border bg-card hover:border-foreground/40',
 			)}
 			onClick={onSelect}
@@ -755,10 +755,10 @@ function ProvaCard({
 // ── WeekCard ──────────────────────────────────────────────────────────────────
 
 const ROLE_STYLE: Record<SessionRole, string> = {
-	prova:        'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400',
-	longao:       'border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400',
-	qualidade:    'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400',
-	fundamental:  'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+	prova:        'border-paleta-2/40 bg-paleta-2/10 text-paleta-2',
+	longao:       'border-paleta-6/40 bg-paleta-6/10 text-paleta-6',
+	qualidade:    'border-perigo/40 bg-perigo/10 text-perigo',
+	fundamental:  'border-sucesso/40 bg-sucesso/10 text-sucesso',
 	regenerativo: 'border-border bg-muted/60 text-muted-foreground',
 }
 
@@ -801,9 +801,9 @@ function WeekCard({
 		<div
 			className={cn(
 				'rounded-2xl border transition-colors',
-				isCurrentWeek && !isCompleted && 'border-blue-500/60 ring-1 ring-blue-500/20 bg-blue-500/5',
+				isCurrentWeek && !isCompleted && 'border-paleta-4/60 ring-1 ring-paleta-4/20 bg-paleta-4/5',
 				isCompleted ? 'border-foreground/20 bg-muted/30' : !isCurrentWeek && 'border-border bg-card',
-				week.isWarning && !isCompleted && !isCurrentWeek && 'border-orange-500/40',
+				week.isWarning && !isCompleted && !isCurrentWeek && 'border-paleta-2/40',
 			)}
 		>
 			<div className='flex items-center gap-3 px-4 py-3'>
@@ -828,19 +828,19 @@ function WeekCard({
 								{week.phase}
 							</span>
 							{isCurrentWeek && !isCompleted && (
-								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'>
-									<span className='size-1.5 rounded-full bg-blue-500 animate-pulse inline-block' />
+								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-paleta-4/30 bg-paleta-4/10 text-paleta-4'>
+									<span className='size-1.5 rounded-full bg-paleta-4 animate-pulse inline-block' />
 									{daysUntilRace !== null ? `Você está aqui · ${daysUntilRace}d` : 'Você está aqui'}
 								</span>
 							)}
 							{week.isWarning && (
-								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400'>
+								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-paleta-2/30 bg-paleta-2/10 text-paleta-2'>
 									<HugeiconsIcon icon={Alert01Icon} className='size-3' />
 									Último longão
 								</span>
 							)}
 							{coachSessions.length > 0 && (
-								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400'>
+								<span className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border border-paleta-7/30 bg-paleta-7/10 text-paleta-7'>
 									<HugeiconsIcon icon={WhistleIcon} className='size-3' />
 									Treinador
 								</span>
@@ -905,7 +905,7 @@ function WeekCard({
 					</div>
 
 					{shortOfTarget && (
-						<div className='rounded-xl px-4 py-3 text-xs border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'>
+						<div className='rounded-xl px-4 py-3 text-xs border border-alerta/20 bg-alerta/10 text-alerta'>
 							Com {trainingDays.size} {trainingDays.size === 1 ? 'dia' : 'dias'} por semana só cabem{' '}
 							<span className='font-medium'>{km} km</span> desta semana sem estourar o limite por sessão
 							(a meta do plano é {metaKm} km). Canova prefere reduzir o volume a inchar uma única sessão —
@@ -925,7 +925,7 @@ function WeekCard({
 						<div className={cn(
 							'rounded-xl px-4 py-3 text-sm border',
 							week.isWarning
-								? 'bg-orange-500/10 border-orange-500/20 text-orange-700 dark:text-orange-300'
+								? 'bg-paleta-2/10 border-paleta-2/20 text-paleta-2'
 								: 'bg-muted/50 border-border text-muted-foreground',
 						)}>
 							{week.tip}
@@ -958,7 +958,7 @@ function SessionRow({ session, targetPace }: { session: PlannedSession; targetPa
 				<span className='flex items-center gap-1.5'>
 					{session.type}
 					{session.origem === 'treinador' && (
-						<span className='inline-flex items-center rounded px-1 py-0.5 text-[9px] font-medium border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400'>
+						<span className='inline-flex items-center rounded px-1 py-0.5 text-[9px] font-medium border border-paleta-7/30 bg-paleta-7/10 text-paleta-7'>
 							TREINADOR
 						</span>
 					)}
@@ -1077,8 +1077,8 @@ function TreinoTreinadorEditor({
 	// ── Já existe treino salvo e o editor está fechado ──
 	if (sessoes.length > 0 && !aberto) {
 		return (
-			<div className='rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
-				<p className='text-xs text-sky-700 dark:text-sky-300'>
+			<div className='rounded-xl border border-paleta-7/20 bg-paleta-7/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
+				<p className='text-xs text-paleta-7'>
 					<span className='font-medium'>
 						{sessoes.length} {sessoes.length === 1 ? 'treino' : 'treinos'} do treinador
 					</span>{' '}
@@ -1094,7 +1094,7 @@ function TreinoTreinadorEditor({
 					</button>
 					<button
 						onClick={remover}
-						className='inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-red-600'
+						className='inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:text-perigo'
 					>
 						<HugeiconsIcon icon={Delete02Icon} className='size-3' />
 						Remover
@@ -1119,9 +1119,9 @@ function TreinoTreinadorEditor({
 
 	// ── Editor aberto ──
 	return (
-		<div className='rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 flex flex-col gap-3'>
+		<div className='rounded-xl border border-paleta-7/20 bg-paleta-7/5 px-4 py-3 flex flex-col gap-3'>
 			<div className='flex items-center justify-between'>
-				<p className='text-xs font-medium text-sky-700 dark:text-sky-300'>
+				<p className='text-xs font-medium text-paleta-7'>
 					Treino do treinador · semana {semana}
 				</p>
 				<button
@@ -1152,7 +1152,7 @@ function TreinoTreinadorEditor({
 			</div>
 
 			{erro && (
-				<p className='text-xs text-red-600 dark:text-red-400'>{erro}</p>
+				<p className='text-xs text-perigo'>{erro}</p>
 			)}
 
 			{linhas && (
@@ -1219,7 +1219,7 @@ function TreinoTreinadorEditor({
 											<button
 												onClick={() => setLinhas(prev => prev && prev.filter((_, k) => k !== i))}
 												aria-label={`Remover treino de ${linha.dia}`}
-												className='text-muted-foreground hover:text-red-600'
+												className='text-muted-foreground hover:text-perigo'
 											>
 												<HugeiconsIcon icon={Delete02Icon} className='size-3.5' />
 											</button>

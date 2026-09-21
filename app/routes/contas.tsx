@@ -53,13 +53,13 @@ type ActionData = {
 };
 
 const BOTAO_EDITAR_CLASS =
-	"border-orange-200 bg-orange-500/10 text-orange-700 hover:bg-orange-500/20 dark:border-orange-500/30 dark:text-orange-300";
+	"border-paleta-2/30 bg-paleta-2/10 text-paleta-2 hover:bg-paleta-2/20";
 const BOTAO_PAGAR_BRASSACO_CLASS =
-	"border-blue-200 bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:border-blue-500/30 dark:text-blue-300";
+	"border-paleta-4/30 bg-paleta-4/10 text-paleta-4 hover:bg-paleta-4/20";
 const BOTAO_NOVA_DESPESA_CLASS =
-	"border-emerald-200 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:border-emerald-500/30 dark:text-emerald-300";
+	"border-paleta-1/30 bg-paleta-1/10 text-paleta-1 hover:bg-paleta-1/20";
 const BOTAO_IMPORTAR_CLASS =
-	"border-purple-200 bg-purple-500/10 text-purple-700 hover:bg-purple-500/20 dark:border-purple-500/30 dark:text-purple-300";
+	"border-paleta-6/30 bg-paleta-6/10 text-paleta-6 hover:bg-paleta-6/20";
 
 function parseValor(raw: FormDataEntryValue | null): number {
 	const parsed = Number(raw);

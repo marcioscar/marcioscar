@@ -61,8 +61,8 @@ export function CorridaKpiRow({
 				notaClasse={
 					melhorPaceRecenteSeg !== null
 						? melhorPaceRecenteSeg <= paceAlvoSeg
-							? "text-emerald-600 dark:text-emerald-400"
-							: "text-amber-600 dark:text-amber-400"
+							? "text-sucesso"
+							: "text-alerta"
 						: undefined
 				}
 			/>

@@ -34,9 +34,9 @@ export function CorridaHero({
 }: Props) {
 	const corDestaque =
 		diasRestantes <= 7
-			? "border-red-500/40 bg-red-500/5"
+			? "border-perigo/40 bg-perigo/5"
 			: diasRestantes <= 21
-				? "border-amber-500/40 bg-amber-500/5"
+				? "border-alerta/40 bg-alerta/5"
 				: "border-foreground/15 bg-foreground/[0.03]";
 
 	return (

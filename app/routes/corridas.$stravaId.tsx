@@ -64,10 +64,10 @@ export async function loader({ params }: Route.LoaderArgs) {
 }
 
 const AVALIACAO_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-	excelente: { bg: "bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", label: "Excelente" },
-	bom: { bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", label: "Bom" },
-	regular: { bg: "bg-amber-500/10", text: "text-amber-700 dark:text-amber-400", label: "Regular" },
-	ruim: { bg: "bg-red-500/10", text: "text-red-700 dark:text-red-400", label: "Ruim" },
+	excelente: { bg: "bg-sucesso/10", text: "text-sucesso", label: "Excelente" },
+	bom: { bg: "bg-paleta-4/10", text: "text-paleta-4", label: "Bom" },
+	regular: { bg: "bg-alerta/10", text: "text-alerta", label: "Regular" },
+	ruim: { bg: "bg-perigo/10", text: "text-perigo", label: "Ruim" },
 };
 
 function formatarDistancia(m: number) {
@@ -224,18 +224,18 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 				const anotacoes = analise?.lapsAnotados;
 				const temAnotacao = anotacoes && anotacoes.length > 0;
 				const TIPO_STYLE: Record<string, { row: string; label: string }> = {
-					estimulo: { row: "font-semibold", label: "bg-blue-500/10 text-blue-700 dark:text-blue-400" },
-					aquecimento: { row: "text-muted-foreground", label: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
-					desaquecimento: { row: "text-muted-foreground", label: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
+					estimulo: { row: "font-semibold", label: "bg-paleta-4/10 text-paleta-4" },
+					aquecimento: { row: "text-muted-foreground", label: "bg-alerta/10 text-alerta" },
+					desaquecimento: { row: "text-muted-foreground", label: "bg-alerta/10 text-alerta" },
 					recuperacao: { row: "text-muted-foreground", label: "bg-muted/60 text-muted-foreground" },
-					principal: { row: "font-semibold", label: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
+					principal: { row: "font-semibold", label: "bg-sucesso/10 text-sucesso" },
 				};
 				return (
 					<div className="flex flex-col gap-2">
 						<div className="flex items-center justify-between">
 							<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Voltas registradas</p>
 							{(temAnotacao || isIntervals) && (
-								<span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400">
+								<span className="rounded-full bg-paleta-6/10 px-2 py-0.5 text-[10px] font-semibold text-paleta-6">
 									{temAnotacao ? "Anotado pelo plano" : "Tiros / Intervalos"}
 								</span>
 							)}
@@ -273,11 +273,11 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 											const metaSeg = parts[0] * 60 + parts[1];
 											const realSeg = 1000 / lap.average_speed;
 											const diff = Math.round(realSeg - metaSeg);
-											if (Math.abs(diff) < 3) return <span className="text-emerald-600 dark:text-emerald-400">✓</span>;
+											if (Math.abs(diff) < 3) return <span className="text-sucesso">✓</span>;
 											return diff > 0 ? (
-												<span className="text-amber-600 dark:text-amber-400">+{diff}s</span>
+												<span className="text-alerta">+{diff}s</span>
 											) : (
-												<span className="text-emerald-600 dark:text-emerald-400">{diff}s</span>
+												<span className="text-sucesso">{diff}s</span>
 											);
 										})();
 
@@ -344,9 +344,9 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 									const elevStr = s.elevation_difference >= 0 ? `+${s.elevation_difference.toFixed(0)}m` : `${s.elevation_difference.toFixed(0)}m`;
 									const elevColor =
 										s.elevation_difference > 10
-											? "text-orange-600 dark:text-orange-400"
+											? "text-paleta-2"
 											: s.elevation_difference < -10
-												? "text-emerald-600 dark:text-emerald-400"
+												? "text-sucesso"
 												: "text-muted-foreground";
 									return (
 										<tr key={s.split} className="hover:bg-muted/20 transition-colors">
@@ -395,7 +395,7 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 				)}
 
 				{error && !loading && (
-					<div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+					<div className="rounded-xl border border-perigo/20 bg-perigo/10 px-4 py-3 text-sm text-perigo">
 						{error}
 					</div>
 				)}
@@ -421,7 +421,7 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 						{analise.pontosPositivos.length > 0 && (
 							<ul className="flex flex-col gap-2">
 								{analise.pontosPositivos.map((p, i) => (
-									<li key={i} className="flex gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+									<li key={i} className="flex gap-2 text-sm text-sucesso">
 										<span className="mt-0.5 shrink-0">✓</span>
 										<span>{p}</span>
 									</li>
@@ -432,7 +432,7 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 						{analise.pontosAtencao.length > 0 && (
 							<ul className="flex flex-col gap-2">
 								{analise.pontosAtencao.map((p, i) => (
-									<li key={i} className="flex gap-2 text-sm text-amber-700 dark:text-amber-400">
+									<li key={i} className="flex gap-2 text-sm text-alerta">
 										<span className="mt-0.5 shrink-0">⚠</span>
 										<span>{p}</span>
 									</li>
@@ -446,8 +446,8 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 						</div>
 
 						{analise.comparacaoTreinus && (
-							<div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 px-4 py-3">
-								<p className="text-xs font-medium text-violet-700 dark:text-violet-400 uppercase tracking-wide mb-1">Planejado vs Executado</p>
+							<div className="rounded-2xl border border-paleta-6/20 bg-paleta-6/5 px-4 py-3">
+								<p className="text-xs font-medium text-paleta-6 uppercase tracking-wide mb-1">Planejado vs Executado</p>
 								<p className="text-sm leading-relaxed">{analise.comparacaoTreinus}</p>
 							</div>
 						)}

@@ -21,7 +21,7 @@ type Props = {
 };
 
 const chartConfig = {
-	km: { label: "Volume", color: "var(--chart-4)" },
+	km: { label: "Volume", color: "var(--paleta-1)" },
 } satisfies ChartConfig;
 
 export function CorridaVolumeChart({ dados }: Props) {

@@ -15,18 +15,8 @@ import {
 	ChartTooltipContent,
 	type ChartConfig,
 } from "~/components/ui/chart";
+import { getCorGrafico } from "~/lib/chart-palette";
 import type { CategoriasMesItem } from "~/models/dashboard.server";
-
-const PALETA = [
-	"#f97316",
-	"#3b82f6",
-	"#a855f7",
-	"#14b8a6",
-	"#ef4444",
-	"#eab308",
-	"#22c55e",
-	"#94a3b8",
-] as const;
 
 const trendChartConfig = {
 	valor: { label: "Total" },
@@ -57,7 +47,7 @@ export function CategoriasTrendChart({ dados }: Props) {
 				}));
 				const atual = valores[valores.length - 1]?.valor ?? 0;
 				const anterior = valores[valores.length - 2]?.valor ?? 0;
-				return { cat, valores, atual, anterior, cor: PALETA[idx % PALETA.length] };
+				return { cat, valores, atual, anterior, cor: getCorGrafico(idx) };
 			})
 			.filter((r) => r.atual > 0 || r.anterior > 0)
 			.sort((a, b) => b.atual - a.atual);
@@ -105,10 +95,9 @@ export function CategoriasTrendChart({ dados }: Props) {
 												{valores.map((_, i) => (
 													<Cell
 														key={i}
-														fill={
-															i === valores.length - 1
-																? cor
-																: `${cor}55`
+														fill={cor}
+														opacity={
+															i === valores.length - 1 ? 1 : 0.35
 														}
 													/>
 												))}
@@ -139,7 +128,7 @@ export function CategoriasTrendChart({ dados }: Props) {
 									</p>
 									{pct !== null ? (
 										<p
-											className={`text-xs font-medium ${subindo ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+											className={`text-xs font-medium ${subindo ? "text-perigo" : "text-sucesso"}`}>
 											{subindo ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
 										</p>
 									) : (

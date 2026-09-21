@@ -300,10 +300,10 @@ export default function Corridas() {
 			<div className='flex items-start justify-between gap-2'>
 				<div className='flex flex-wrap items-center gap-2'>
 					<h1 className='text-2xl font-bold'>Corridas</h1>
-					<Badge className='text-primary bg-green-600/20' variant='outline'>
+					<Badge className='text-sucesso bg-sucesso/15' variant='outline'>
 						Total: {totalCorridas ?? 0}
 					</Badge>
-					<Badge className='text-primary bg-blue-600/20' variant='outline'>
+					<Badge className='text-primary bg-paleta-4/20' variant='outline'>
 						Exibindo: {totalCorridasFiltradas ?? 0}
 					</Badge>
 				</div>

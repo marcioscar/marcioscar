@@ -26,6 +26,7 @@ import {
 	type CategoriaComDespesas,
 } from "~/models/dashboard.server";
 import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
+import { PALETA_GRAFICOS } from "~/lib/chart-palette";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
 import { CategoriasBarChart } from "~/components/dashboard/categorias-bar-chart";
 import { CategoriasTrendChart } from "~/components/dashboard/categorias-trend-chart";
@@ -62,33 +63,23 @@ type LoaderData = {
 type ContaConfig = { cor: string; Icone: LucideIcon };
 
 const CONTA_CONFIG: Record<string, ContaConfig> = {
-	Corrente: { cor: "#0ea5e9", Icone: Landmark },
-	"Cartão Itau": { cor: "#f97316", Icone: CreditCard },
-	Nubank: { cor: "#a855f7", Icone: CreditCard },
-	"Cartão Camila": { cor: "#14b8a6", Icone: CreditCard },
+	Corrente: { cor: "var(--paleta-4)", Icone: Landmark },
+	"Cartão Itau": { cor: "var(--paleta-2)", Icone: CreditCard },
+	Nubank: { cor: "var(--paleta-6)", Icone: CreditCard },
+	"Cartão Camila": { cor: "var(--paleta-7)", Icone: CreditCard },
 };
 
 function getContaConfig(conta: string): ContaConfig {
-	return CONTA_CONFIG[conta] ?? { cor: "#6b7280", Icone: CreditCard };
+	return CONTA_CONFIG[conta] ?? { cor: "var(--paleta-8)", Icone: CreditCard };
 }
 
+// mesma ordem do CONTA_CONFIG, para a pizza bater com os cards
 const PALETA_CONTA = [
-	"#0ea5e9",
-	"#f97316",
-	"#a855f7",
-	"#14b8a6",
-	"#22c55e",
-	"#06b6d4",
-] as const;
-
-const PALETA_CATEGORIA = [
-	"#f97316",
-	"#ef4444",
-	"#eab308",
-	"#a855f7",
-	"#ec4899",
-	"#84cc16",
-	"#f59e0b",
+	"var(--paleta-4)",
+	"var(--paleta-2)",
+	"var(--paleta-6)",
+	"var(--paleta-7)",
+	...PALETA_GRAFICOS,
 ] as const;
 
 function formatarMoeda(valor: number): string {
@@ -228,8 +219,8 @@ const NAV_BTN =
 const SELECT_CLASS =
 	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
 
-const COR_ANTERIOR = "var(--chart-1)";
-const COR_ATUAL = "var(--chart-4)";
+const COR_ANTERIOR = "var(--paleta-8)";
+const COR_ATUAL = "var(--paleta-1)";
 
 const miniChartConfig = {
 	valor: { label: "Total" },
@@ -378,8 +369,8 @@ export default function Financeiro() {
 									{formatarMoeda(totalValorDespesasPeriodo)}
 								</CardTitle>
 							</div>
-							<div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40'>
-								<Receipt size={18} className='text-blue-600 dark:text-blue-400' />
+							<div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paleta-4/15'>
+								<Receipt size={18} className='text-paleta-4' />
 							</div>
 						</div>
 					</CardHeader>
@@ -393,7 +384,7 @@ export default function Financeiro() {
 								if (pct === null) return null;
 								const subindo = pct > 0;
 								return (
-									<p className={`flex items-center gap-1 text-xs font-medium ${subindo ? "text-red-500" : "text-emerald-600"}`}>
+									<p className={`flex items-center gap-1 text-xs font-medium ${subindo ? "text-perigo" : "text-sucesso"}`}>
 										{subindo ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
 										{Math.abs(pct).toFixed(1)}% vs {labelAnterior}
 									</p>
@@ -430,7 +421,9 @@ export default function Financeiro() {
 									</CardDescription>
 									<div
 										className='flex h-7 w-7 shrink-0 items-center justify-center rounded-full'
-										style={{ background: `${cor}20` }}>
+										style={{
+											background: `color-mix(in oklch, ${cor} 14%, transparent)`,
+										}}>
 										<Icone size={13} style={{ color: cor }} />
 									</div>
 								</div>
@@ -444,7 +437,7 @@ export default function Financeiro() {
 										{saldoConta.totalDespesas} desp.
 									</p>
 									{pct !== null && (
-										<p className={`flex items-center gap-0.5 text-xs font-medium ${subindo ? "text-red-500" : "text-emerald-600"}`}>
+										<p className={`flex items-center gap-0.5 text-xs font-medium ${subindo ? "text-perigo" : "text-sucesso"}`}>
 											{subindo ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
 											{Math.abs(pct).toFixed(1)}%
 										</p>
