@@ -10,8 +10,8 @@ type BibliotecaEstatisticasProps = {
 	stats: EstatisticasBiblioteca;
 };
 
-const COR_LIVROS = "#a855f7";
-const COR_PAGINAS = "#6366f1";
+const COR_LIVROS = "var(--paleta-6)";
+const COR_PAGINAS = "var(--paleta-4)";
 
 type StatCardProps = {
 	label: string;
@@ -33,7 +33,9 @@ function StatCard({ label, value, caption, icon: Icone, cor }: StatCardProps) {
 					</CardDescription>
 					<div
 						className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-						style={{ background: `${cor}20` }}>
+						style={{
+							background: `color-mix(in oklch, ${cor} 14%, transparent)`,
+						}}>
 						<Icone size={13} style={{ color: cor }} />
 					</div>
 				</div>

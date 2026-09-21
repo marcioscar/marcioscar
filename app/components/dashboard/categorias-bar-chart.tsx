@@ -284,13 +284,16 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 											onClick={() => setAberta(estaAberta ? null : item.label)}
 											className='flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-muted/40 rounded-sm px-1'>
 											<span
-												className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white'
-												style={{ backgroundColor: cor }}>
+												className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full'
+												style={{
+													background: `color-mix(in oklch, ${cor} 16%, transparent)`,
+													color: cor,
+												}}>
 												{CATEGORIA_ICONES[item.label] ? (
 													<HugeiconsIcon
 														icon={CATEGORIA_ICONES[item.label]}
 														size={16}
-														color='white'
+														color={cor}
 														strokeWidth={1.5}
 													/>
 												) : (

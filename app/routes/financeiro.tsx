@@ -30,13 +30,6 @@ import { PALETA_GRAFICOS } from "~/lib/chart-palette";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
 import { CategoriasBarChart } from "~/components/dashboard/categorias-bar-chart";
 import { CategoriasTrendChart } from "~/components/dashboard/categorias-trend-chart";
-import {
-	statCardCaptionClass,
-	statCardLabelClass,
-	statCardMetricLgClass,
-	statCardSurfaceClass,
-	statCardTitleClass,
-} from "~/lib/stat-card-gradient";
 
 type LoaderData = {
 	filtroMes: number;
