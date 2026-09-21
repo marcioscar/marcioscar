@@ -104,19 +104,70 @@ type Props = {
 };
 
 const LIMITE = 8;
+const TODAS_CONTAS = "__todas__";
 
 export function CategoriasBarChart({ title, description, items }: Props) {
 	const [aberta, setAberta] = useState<string | null>(null);
+	const [conta, setConta] = useState<string>(TODAS_CONTAS);
+
+	const contas = useMemo(() => {
+		const encontradas = new Set<string>();
+		for (const item of items) {
+			for (const d of item.despesas) {
+				if (d.conta) encontradas.add(d.conta);
+			}
+		}
+		return Array.from(encontradas).sort((a, b) =>
+			a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+		);
+	}, [items]);
+
+	// ao trocar de mês a conta selecionada pode não existir mais
+	const contaAtiva = contas.includes(conta) ? conta : TODAS_CONTAS;
+
+	const filtrados = useMemo(() => {
+		if (contaAtiva === TODAS_CONTAS) return items;
+		return items
+			.map((item) => {
+				const despesas = item.despesas.filter((d) => d.conta === contaAtiva);
+				return {
+					...item,
+					despesas,
+					quantidade: despesas.length,
+					valor: despesas.reduce((s, d) => s + d.valor, 0),
+				};
+			})
+			.filter((item) => item.despesas.length > 0);
+	}, [items, contaAtiva]);
 
 	const ordenados = useMemo(
-		() => [...items].sort((a, b) => b.valor - a.valor).slice(0, LIMITE),
-		[items],
+		() => [...filtrados].sort((a, b) => b.valor - a.valor).slice(0, LIMITE),
+		[filtrados],
 	);
 
 	const total = useMemo(
-		() => items.reduce((s, i) => s + i.valor, 0),
-		[items],
+		() => filtrados.reduce((s, i) => s + i.valor, 0),
+		[filtrados],
 	);
+
+	const seletorConta =
+		contas.length > 1 ? (
+			<select
+				value={contaAtiva}
+				onChange={(e) => {
+					setConta(e.target.value);
+					setAberta(null);
+				}}
+				aria-label='Filtrar por conta'
+				className='border-input bg-background rounded-md border px-2 py-1 text-xs'>
+				<option value={TODAS_CONTAS}>Todas as contas</option>
+				{contas.map((c) => (
+					<option key={c} value={c}>
+						{c}
+					</option>
+				))}
+			</select>
+		) : null;
 
 	if (items.length === 0) {
 		return (
@@ -137,152 +188,165 @@ export function CategoriasBarChart({ title, description, items }: Props) {
 	return (
 		<Card className='bg-linear-to-br from-card via-card to-muted/40 shadow-sm'>
 			<CardHeader>
-				<CardTitle>{title}</CardTitle>
-				<CardDescription>{description}</CardDescription>
+				<div className='flex flex-wrap items-start justify-between gap-2'>
+					<div className='grid gap-1'>
+						<CardTitle>{title}</CardTitle>
+						<CardDescription>{description}</CardDescription>
+					</div>
+					{seletorConta}
+				</div>
 			</CardHeader>
 			<CardContent className='flex flex-col gap-4'>
-				{/* Bar chart */}
-				<ResponsiveContainer width='100%' height={180}>
-					<BarChart
-						data={ordenados}
-						barSize={28}
-						margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-						<XAxis
-							dataKey='label'
-							axisLine={false}
-							tickLine={false}
-							tick={{ fontSize: 9, fill: "#94a3b8" }}
-							interval={0}
-							tickFormatter={(v: string) =>
-								v.length > 6 ? v.slice(0, 5) + "…" : v
-							}
-						/>
-						<Bar
-							dataKey='valor'
-							radius={[6, 6, 0, 0]}
-							isAnimationActive={false}
-							activeBar={false}>
-							{ordenados.map((_, i) => (
-								<Cell key={i} fill={PALETA[i % PALETA.length]} />
-							))}
-						</Bar>
-						<Tooltip
-							cursor={{ fill: "transparent" }}
-							content={({ active, payload }) => {
-								if (!active || !payload?.length) return null;
-								const item = payload[0];
-								const pct =
-									total > 0
-										? ((Number(item?.value ?? 0) / total) * 100).toFixed(1)
-										: "0";
+				{filtrados.length === 0 ? (
+					<p className='text-sm text-muted-foreground'>
+						Nenhuma despesa nessa conta para o período selecionado.
+					</p>
+				) : (
+					<>
+						{/* Bar chart */}
+						<ResponsiveContainer width='100%' height={180}>
+							<BarChart
+								data={ordenados}
+								barSize={28}
+								margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+								<XAxis
+									dataKey='label'
+									axisLine={false}
+									tickLine={false}
+									tick={{ fontSize: 9, fill: "#94a3b8" }}
+									interval={0}
+									tickFormatter={(v: string) =>
+										v.length > 6 ? v.slice(0, 5) + "…" : v
+									}
+								/>
+								<Bar
+									dataKey='valor'
+									radius={[6, 6, 0, 0]}
+									isAnimationActive={false}
+									activeBar={false}>
+									{ordenados.map((_, i) => (
+										<Cell key={i} fill={PALETA[i % PALETA.length]} />
+									))}
+								</Bar>
+								<Tooltip
+									cursor={{ fill: "transparent" }}
+									content={({ active, payload }) => {
+										if (!active || !payload?.length) return null;
+										const item = payload[0];
+										const pct =
+											total > 0
+												? ((Number(item?.value ?? 0) / total) * 100).toFixed(1)
+												: "0";
+										return (
+											<div className='rounded-lg border border-border bg-background p-2.5 text-xs shadow-md'>
+												<p className='font-semibold text-foreground'>
+													{item?.payload?.label}
+												</p>
+												<p className='tabular-nums text-foreground'>
+													{formatarMoeda(Number(item?.value ?? 0))}
+												</p>
+												<p className='text-muted-foreground'>{pct}% do total</p>
+											</div>
+										);
+									}}
+								/>
+							</BarChart>
+						</ResponsiveContainer>
+
+						{/* Total */}
+						<div className='flex items-baseline justify-between border-b border-border pb-3'>
+							<div>
+								<p className='text-sm font-semibold'>Todos os gastos</p>
+								<p className='text-xs text-muted-foreground'>
+									{filtrados.reduce((s, i) => s + i.quantidade, 0)} lançamentos
+								</p>
+							</div>
+							<div className='text-right'>
+								<p className='text-sm font-semibold tabular-nums'>
+									{formatarMoeda(total)}
+								</p>
+								<p className='text-xs text-muted-foreground'>100%</p>
+							</div>
+						</div>
+
+						{/* Category list with collapse */}
+						<div className='flex flex-col'>
+							{ordenados.map((item, i) => {
+								const pct = total > 0 ? ((item.valor / total) * 100).toFixed(1) : "0";
+								const estaAberta = aberta === item.label;
+								const cor = PALETA[i % PALETA.length];
+
 								return (
-									<div className='rounded-lg border border-border bg-background p-2.5 text-xs shadow-md'>
-										<p className='font-semibold text-foreground'>
-											{item?.payload?.label}
-										</p>
-										<p className='tabular-nums text-foreground'>
-											{formatarMoeda(Number(item?.value ?? 0))}
-										</p>
-										<p className='text-muted-foreground'>{pct}% do total</p>
-									</div>
-								);
-							}}
-						/>
-					</BarChart>
-				</ResponsiveContainer>
-
-				{/* Total */}
-				<div className='flex items-baseline justify-between border-b border-border pb-3'>
-					<div>
-						<p className='text-sm font-semibold'>Todos os gastos</p>
-						<p className='text-xs text-muted-foreground'>
-							{items.reduce((s, i) => s + i.quantidade, 0)} lançamentos
-						</p>
-					</div>
-					<div className='text-right'>
-						<p className='text-sm font-semibold tabular-nums'>
-							{formatarMoeda(total)}
-						</p>
-						<p className='text-xs text-muted-foreground'>100%</p>
-					</div>
-				</div>
-
-				{/* Category list with collapse */}
-				<div className='flex flex-col'>
-					{ordenados.map((item, i) => {
-						const pct = total > 0 ? ((item.valor / total) * 100).toFixed(1) : "0";
-						const estaAberta = aberta === item.label;
-						const cor = PALETA[i % PALETA.length];
-
-						return (
-							<div key={item.label} className='border-b border-border last:border-0'>
-								{/* Category row — clickable */}
-								<button
-									type='button'
-									onClick={() => setAberta(estaAberta ? null : item.label)}
-									className='flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-muted/40 rounded-sm px-1'>
-									<span
-										className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white'
-										style={{ backgroundColor: cor }}>
-										{CATEGORIA_ICONES[item.label] ? (
-											<HugeiconsIcon
-												icon={CATEGORIA_ICONES[item.label]}
-												size={16}
-												color='white'
-												strokeWidth={1.5}
-											/>
-										) : (
-											<span className='text-xs font-bold'>
-												{item.label.slice(0, 1).toUpperCase()}
+									<div key={item.label} className='border-b border-border last:border-0'>
+										{/* Category row — clickable */}
+										<button
+											type='button'
+											onClick={() => setAberta(estaAberta ? null : item.label)}
+											className='flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-muted/40 rounded-sm px-1'>
+											<span
+												className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white'
+												style={{ backgroundColor: cor }}>
+												{CATEGORIA_ICONES[item.label] ? (
+													<HugeiconsIcon
+														icon={CATEGORIA_ICONES[item.label]}
+														size={16}
+														color='white'
+														strokeWidth={1.5}
+													/>
+												) : (
+													<span className='text-xs font-bold'>
+														{item.label.slice(0, 1).toUpperCase()}
+													</span>
+												)}
 											</span>
-										)}
-									</span>
-									<div className='flex min-w-0 flex-1 flex-col'>
-										<span className='truncate text-sm font-medium'>
-											{item.label}
-										</span>
-										<span className='text-xs text-muted-foreground'>
-											{item.quantidade} lançamento(s)
-										</span>
-									</div>
-									<div className='shrink-0 text-right'>
-										<p className='text-sm font-semibold tabular-nums'>
-											{formatarMoeda(item.valor)}
-										</p>
-										<p className='text-xs text-muted-foreground'>{pct}%</p>
-									</div>
-									<span className='text-muted-foreground text-xs ml-1'>
-										{estaAberta ? "▲" : "▼"}
-									</span>
-								</button>
-
-								{/* Expanded expenses */}
-								{estaAberta && (
-									<div className='mb-2 ml-11 flex flex-col gap-1'>
-										{item.despesas.map((d) => (
-											<div
-												key={d.id}
-												className='flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs'>
-												<span className='text-muted-foreground shrink-0'>
-													{formatarData(d.data)}
+											<div className='flex min-w-0 flex-1 flex-col'>
+												<span className='truncate text-sm font-medium'>
+													{item.label}
 												</span>
-												<span className='flex-1 truncate font-medium'>
-													{d.nome}
-												</span>
-												<span className='shrink-0 text-muted-foreground'>
-													{d.conta}
-												</span>
-												<span className='shrink-0 font-semibold tabular-nums'>
-													{formatarMoeda(d.valor)}
+												<span className='text-xs text-muted-foreground'>
+													{item.quantidade} lançamento(s)
 												</span>
 											</div>
-										))}
+											<div className='shrink-0 text-right'>
+												<p className='text-sm font-semibold tabular-nums'>
+													{formatarMoeda(item.valor)}
+												</p>
+												<p className='text-xs text-muted-foreground'>{pct}%</p>
+											</div>
+											<span className='text-muted-foreground text-xs ml-1'>
+												{estaAberta ? "▲" : "▼"}
+											</span>
+										</button>
+
+										{/* Expanded expenses */}
+										{estaAberta && (
+											<div className='mb-2 ml-11 flex flex-col gap-1'>
+												{item.despesas.map((d) => (
+													<div
+														key={d.id}
+														className='flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs'>
+														<span className='text-muted-foreground shrink-0'>
+															{formatarData(d.data)}
+														</span>
+														<span className='flex-1 truncate font-medium'>
+															{d.nome}
+														</span>
+														<span className='shrink-0 text-muted-foreground'>
+															{d.conta}
+														</span>
+														<span className='shrink-0 font-semibold tabular-nums'>
+															{formatarMoeda(d.valor)}
+														</span>
+													</div>
+												))}
+											</div>
+										)}
 									</div>
-								)}
-							</div>
-						);
-					})}
-				</div>
+								);
+							})}
+						</div>
+					</>
+				)}
 			</CardContent>
 		</Card>
 	);
