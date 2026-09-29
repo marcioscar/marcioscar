@@ -14,7 +14,7 @@ import {
 	DialogTitle,
 } from "~/components/ui/dialog";
 import { SearchableComboboxField } from "./searchable-combobox-field";
-import { CATEGORIAS_DESPESA, CONTAS_DESPESA } from "./despesa-options";
+import { CONTAS_DESPESA } from "./despesa-options";
 
 export type DespesaEditavel = {
 	id: string;
@@ -35,6 +35,7 @@ type DespesaEditDialogProps = {
 	isSubmitting: boolean;
 	submittingIntent?: string;
 	despesa: DespesaEditavel | null;
+	categorias: string[];
 };
 
 function formatarDataParaInput(dataIso: string): string {
@@ -47,6 +48,7 @@ export function DespesaEditDialog({
 	isSubmitting,
 	submittingIntent,
 	despesa,
+	categorias,
 }: DespesaEditDialogProps) {
 	const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
 	const [contaSelecionada, setContaSelecionada] = useState("");
@@ -90,7 +92,7 @@ export function DespesaEditDialog({
 							label='Categoria'
 							name='categoria'
 							placeholder='Selecione uma categoria'
-							options={CATEGORIAS_DESPESA}
+							options={categorias}
 							value={categoriaSelecionada}
 							onValueChange={setCategoriaSelecionada}
 							required

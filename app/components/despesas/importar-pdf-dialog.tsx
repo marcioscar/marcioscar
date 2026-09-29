@@ -15,7 +15,7 @@ import {
 	DialogTrigger,
 } from "~/components/ui/dialog";
 import { SearchableComboboxField } from "./searchable-combobox-field";
-import { CATEGORIAS_DESPESA, CONTAS_DESPESA } from "./despesa-options";
+import { CONTAS_DESPESA } from "./despesa-options";
 import type { TransacaoImportada } from "~/models/importar-pdf.server";
 
 type Fase = "upload" | "revisao" | "concluido";
@@ -56,6 +56,7 @@ function limparEstado() {
 }
 
 type ImportarPdfDialogProps = {
+	categorias: string[];
 	triggerClassName?: string;
 };
 
@@ -72,7 +73,7 @@ type CriarActionData = {
 	operacao: string;
 };
 
-export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) {
+export function ImportarPdfDialog({ categorias, triggerClassName }: ImportarPdfDialogProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [fase, setFase] = useState<Fase>("upload");
 	const [contaSelecionada, setContaSelecionada] = useState("Nubank");
@@ -404,7 +405,7 @@ export function ImportarPdfDialog({ triggerClassName }: ImportarPdfDialogProps) 
 									label='Categoria'
 									name='_categoria'
 									placeholder='Selecione categoria'
-									options={CATEGORIAS_DESPESA}
+									options={categorias}
 									value={categoriaAtual}
 									onValueChange={setCategoriaAtual}
 								/>

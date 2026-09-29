@@ -16,12 +16,13 @@ import {
 	DialogTrigger,
 } from "~/components/ui/dialog";
 import { SearchableComboboxField } from "./searchable-combobox-field";
-import { CATEGORIAS_DESPESA, CONTAS_DESPESA } from "./despesa-options";
+import { CONTAS_DESPESA } from "./despesa-options";
 
 type DespesaFormDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	isSubmitting: boolean;
+	categorias: string[];
 	triggerClassName?: string;
 };
 
@@ -29,6 +30,7 @@ export function DespesaFormDialog({
 	open,
 	onOpenChange,
 	isSubmitting,
+	categorias,
 	triggerClassName,
 }: DespesaFormDialogProps) {
 	const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
@@ -63,7 +65,7 @@ export function DespesaFormDialog({
 							label='Categoria'
 							name='categoria'
 							placeholder='Selecione uma categoria'
-							options={CATEGORIAS_DESPESA}
+							options={categorias}
 							value={categoriaSelecionada}
 							onValueChange={setCategoriaSelecionada}
 							required

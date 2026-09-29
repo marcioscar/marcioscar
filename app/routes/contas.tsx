@@ -21,6 +21,10 @@ import {
 } from "~/models/pagamentos-brassaco.server";
 import { uploadReciboAndGetUrl } from "~/models/pocketbase.server";
 import {
+	criarCategoriaDespesa,
+	listarCategoriasDespesa,
+} from "~/models/categorias-despesa.server";
+import {
 	extrairTransacoesDePdf,
 	type TransacaoImportada,
 } from "~/models/importar-pdf.server";
@@ -33,9 +37,11 @@ import {
 } from "~/components/despesas/despesa-edit-dialog";
 import { PagamentoBrassacoDialog } from "~/components/despesas/pagamento-brassaco-dialog";
 import { ImportarPdfDialog } from "~/components/despesas/importar-pdf-dialog";
+import { CategoriaFormDialog } from "~/components/despesas/categoria-form-dialog";
 
 type LoaderData = {
 	despesas: Awaited<ReturnType<typeof listarDespesas>>;
+	categorias: string[];
 	totalDespesas: number;
 	totalValor: number;
 	totalPagoBrassaco: number;
@@ -48,7 +54,13 @@ type LoaderData = {
 type ActionData = {
 	ok: boolean;
 	message: string;
-	operacao: "criar" | "editar" | "excluir" | "pagar-brassaco" | "importar-pdf";
+	operacao:
+		| "criar"
+		| "editar"
+		| "excluir"
+		| "pagar-brassaco"
+		| "importar-pdf"
+		| "criar-categoria";
 	transacoes?: TransacaoImportada[];
 };
 
@@ -58,6 +70,8 @@ const BOTAO_PAGAR_BRASSACO_CLASS =
 	"border-paleta-4/30 bg-paleta-4/10 text-paleta-4 hover:bg-paleta-4/20";
 const BOTAO_NOVA_DESPESA_CLASS =
 	"border-paleta-1/30 bg-paleta-1/10 text-paleta-1 hover:bg-paleta-1/20";
+const BOTAO_NOVA_CATEGORIA_CLASS =
+	"border-paleta-7/30 bg-paleta-7/10 text-paleta-7 hover:bg-paleta-7/20";
 const BOTAO_IMPORTAR_CLASS =
 	"border-paleta-6/30 bg-paleta-6/10 text-paleta-6 hover:bg-paleta-6/20";
 
@@ -185,6 +199,10 @@ function getTituloErroOperacao(operacao: ActionData["operacao"]): string {
 		return "Falha ao importar PDF";
 	}
 
+	if (operacao === "criar-categoria") {
+		return "Falha ao cadastrar categoria";
+	}
+
 	return "Falha ao cadastrar despesa";
 }
 
@@ -210,14 +228,16 @@ export async function loader({
 		parseDateFromSearchParam(filtroDataFimRaw, "fim") ?? intervaloMesAtual.fim;
 	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
 
-	const [despesas, resumoSaldoBrassaco] = await Promise.all([
+	const [despesas, resumoSaldoBrassaco, categorias] = await Promise.all([
 		listarDespesas(intervaloData),
 		obterResumoSaldoBrassaco(),
+		listarCategoriasDespesa(),
 	]);
 	const totalValor = despesas.reduce((acc, item) => acc + item.valor, 0);
 
 	return {
 		despesas,
+		categorias,
 		totalDespesas: despesas.length,
 		totalValor,
 		totalPagoBrassaco: resumoSaldoBrassaco.totalPagoBrassaco,
@@ -255,6 +275,17 @@ export async function action({
 			};
 		}
 
+		if (intent === "criar-categoria") {
+			const nome = await criarCategoriaDespesa(
+				parseString(formData.get("nomeCategoria")),
+			);
+			return {
+				ok: true,
+				message: `Categoria "${nome}" cadastrada com sucesso.`,
+				operacao: "criar-categoria",
+			};
+		}
+
 		if (intent === "importar-pdf") {
 			const pdfFile = formData.get("pdfFile");
 			if (!(pdfFile instanceof File) || pdfFile.size === 0) {
@@ -264,7 +295,14 @@ export async function action({
 			const conta = parseString(formData.get("contaPadrao")) || "Nubank";
 			const dataInicio = parseString(formData.get("dataInicio")) || undefined;
 			const apenasDebitos = formData.get("apenasDebitos") === "on";
-			const transacoes = await extrairTransacoesDePdf(Buffer.from(bytes), conta, dataInicio, apenasDebitos);
+			const categorias = await listarCategoriasDespesa();
+			const transacoes = await extrairTransacoesDePdf(
+				Buffer.from(bytes),
+				conta,
+				categorias,
+				dataInicio,
+				apenasDebitos,
+			);
 			return {
 				ok: true,
 				message: `${transacoes.length} transações extraídas do PDF.`,
@@ -348,6 +386,7 @@ export async function action({
 export default function Contas() {
 	const {
 		despesas,
+		categorias,
 		totalDespesas,
 		totalValor,
 		totalPagoBrassaco,
@@ -362,9 +401,12 @@ export default function Contas() {
 	const submittingIntent = parseString(
 		navigation.formData?.get("intent") ?? null,
 	);
+	const isSubmittingCategoria =
+		isSubmitting && submittingIntent === "criar-categoria";
 	const isSubmittingPagamentoBrassaco =
 		isSubmitting && submittingIntent === "pagar-brassaco";
 	const [dialogNovoOpen, setDialogNovoOpen] = useState(false);
+	const [dialogCategoriaOpen, setDialogCategoriaOpen] = useState(false);
 	const [dialogEdicaoOpen, setDialogEdicaoOpen] = useState(false);
 	const [dialogPagamentoBrassacoOpen, setDialogPagamentoBrassacoOpen] =
 		useState(false);
@@ -384,6 +426,7 @@ export default function Contas() {
 			setDialogNovoOpen(false);
 			setDialogEdicaoOpen(false);
 			setDialogPagamentoBrassacoOpen(false);
+			setDialogCategoriaOpen(false);
 			return;
 		}
 
@@ -436,11 +479,22 @@ export default function Contas() {
 						defaultDataPagamento={formatarDataInput(new Date())}
 						triggerClassName={BOTAO_PAGAR_BRASSACO_CLASS}
 					/>
-					<ImportarPdfDialog triggerClassName={BOTAO_IMPORTAR_CLASS} />
+					<CategoriaFormDialog
+						open={dialogCategoriaOpen}
+						onOpenChange={setDialogCategoriaOpen}
+						isSubmitting={isSubmittingCategoria}
+						categorias={categorias}
+						triggerClassName={BOTAO_NOVA_CATEGORIA_CLASS}
+					/>
+					<ImportarPdfDialog
+						categorias={categorias}
+						triggerClassName={BOTAO_IMPORTAR_CLASS}
+					/>
 					<DespesaFormDialog
 						open={dialogNovoOpen}
 						onOpenChange={setDialogNovoOpen}
 						isSubmitting={isSubmitting}
+						categorias={categorias}
 						triggerClassName={BOTAO_NOVA_DESPESA_CLASS}
 					/>
 				</div>
@@ -490,6 +544,7 @@ export default function Contas() {
 				isSubmitting={isSubmitting}
 				submittingIntent={submittingIntent}
 				despesa={despesaSelecionada}
+				categorias={categorias}
 			/>
 		</main>
 	);

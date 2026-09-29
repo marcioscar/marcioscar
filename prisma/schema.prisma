@@ -51,6 +51,13 @@ model despesas {
     @@index([categoria])
 }
 
+/// Categorias de despesa cadastradas pela tela; somam-se às padrão de despesa-options.ts
+model categoriasDespesa {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    nome      String
+    createdAt DateTime @default(now())
+}
+
 model pagamentosBrassaco {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     valor     Float

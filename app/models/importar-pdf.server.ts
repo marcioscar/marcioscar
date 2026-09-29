@@ -1,5 +1,4 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { CATEGORIAS_DESPESA } from "~/components/despesas/despesa-options";
 
 export type TransacaoImportada = {
 	nome: string;
@@ -13,7 +12,12 @@ export type TransacaoImportada = {
 
 const client = new Anthropic();
 
-function buildPrompt(conta: string, dataInicio?: string, apenasDebitos?: boolean): string {
+function buildPrompt(
+	conta: string,
+	categorias: string[],
+	dataInicio?: string,
+	apenasDebitos?: boolean,
+): string {
 	const regrasExtrato = apenasDebitos
 		? `- Este é um extrato bancário com entradas e saídas. Extraia SOMENTE as saídas (débitos, compras, pagamentos, transferências enviadas). Ignore completamente depósitos, salários, transferências recebidas, rendimentos e qualquer entrada de dinheiro.`
 		: `- Ignore pagamentos recebidos e créditos (entradas de dinheiro)`;
@@ -27,7 +31,7 @@ function buildPrompt(conta: string, dataInicio?: string, apenasDebitos?: boolean
 Retorne APENAS um JSON array válido (sem markdown, sem texto adicional) com objetos neste formato exato:
 [{"nome":"descrição curta","categoria":"categoria","valor":99.90,"data":"YYYY-MM-DD","conta":"${conta}","brassaco":false,"obs":""}]
 
-Categorias disponíveis (use exatamente uma delas): ${CATEGORIAS_DESPESA.join(", ")}
+Categorias disponíveis (use exatamente uma delas): ${categorias.join(", ")}
 
 Regras:
 ${regrasExtrato}
@@ -42,6 +46,7 @@ ${regrasExtrato}
 export async function extrairTransacoesDePdf(
 	pdfBuffer: Buffer,
 	contaPadrao: string,
+	categorias: string[],
 	dataInicio?: string,
 	apenasDebitos?: boolean,
 ): Promise<TransacaoImportada[]> {
@@ -62,7 +67,7 @@ export async function extrairTransacoesDePdf(
 					},
 					{
 						type: "text",
-						text: buildPrompt(contaPadrao, dataInicio, apenasDebitos),
+						text: buildPrompt(contaPadrao, categorias, dataInicio, apenasDebitos),
 					},
 				],
 			},
