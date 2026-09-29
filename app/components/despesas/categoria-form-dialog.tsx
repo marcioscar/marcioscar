@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Form, useFetcher } from "react-router";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -24,11 +24,13 @@ type CategoriaFormDialogProps = {
 	triggerClassName?: string;
 };
 
-type ExcluirActionData = {
+type CategoriaActionData = {
 	ok: boolean;
 	message: string;
 	operacao: string;
 };
+
+type AcaoCategoria = { tipo: "excluir" | "editar"; categoria: string };
 
 export function CategoriaFormDialog({
 	open,
@@ -37,39 +39,61 @@ export function CategoriaFormDialog({
 	categorias,
 	triggerClassName,
 }: CategoriaFormDialogProps) {
-	const excluirFetcher = useFetcher<ExcluirActionData>();
-	const [categoriaConfirmando, setCategoriaConfirmando] = useState<
-		string | null
-	>(null);
-	const categoriaExcluindo =
-		excluirFetcher.state !== "idle"
-			? String(excluirFetcher.formData?.get("nomeCategoria") ?? "")
+	const fetcher = useFetcher<CategoriaActionData>();
+	const [acao, setAcao] = useState<AcaoCategoria | null>(null);
+	const [novoNome, setNovoNome] = useState("");
+	const [atualizarDespesas, setAtualizarDespesas] = useState(true);
+	const categoriaProcessando =
+		fetcher.state !== "idle"
+			? String(fetcher.formData?.get("nomeCategoria") ?? "")
 			: null;
 
 	useEffect(() => {
 		if (!open) {
-			setCategoriaConfirmando(null);
+			setAcao(null);
 		}
 	}, [open]);
 
 	useEffect(() => {
-		const data = excluirFetcher.data;
-		if (!data || excluirFetcher.state !== "idle") {
+		const data = fetcher.data;
+		if (!data || fetcher.state !== "idle") {
 			return;
 		}
 
-		setCategoriaConfirmando(null);
 		if (data.ok) {
+			setAcao(null);
 			toast.success(data.message);
 			return;
 		}
 
-		toast.error("Falha ao apagar categoria", { description: data.message });
-	}, [excluirFetcher.data, excluirFetcher.state]);
+		const titulo =
+			data.operacao === "editar-categoria"
+				? "Falha ao editar categoria"
+				: "Falha ao apagar categoria";
+		toast.error(titulo, { description: data.message });
+	}, [fetcher.data, fetcher.state]);
+
+	function iniciarEdicao(categoria: string) {
+		setNovoNome(categoria);
+		setAtualizarDespesas(true);
+		setAcao({ tipo: "editar", categoria });
+	}
 
 	function excluirCategoria(nome: string) {
-		excluirFetcher.submit(
+		fetcher.submit(
 			{ intent: "excluir-categoria", nomeCategoria: nome },
+			{ method: "post" },
+		);
+	}
+
+	function renomearCategoria(nome: string) {
+		fetcher.submit(
+			{
+				intent: "editar-categoria",
+				nomeCategoria: nome,
+				novoNomeCategoria: novoNome,
+				...(atualizarDespesas ? { atualizarDespesas: "on" } : {}),
+			},
 			{ method: "post" },
 		);
 	}
@@ -112,42 +136,105 @@ export function CategoriaFormDialog({
 					</p>
 					<ul className='max-h-72 divide-y overflow-y-auto rounded-md border'>
 						{categorias.map((categoria) => {
-							const confirmando = categoriaConfirmando === categoria;
-							const excluindo = categoriaExcluindo === categoria;
+							const processando = categoriaProcessando === categoria;
+
+							if (acao?.categoria === categoria && acao.tipo === "editar") {
+								return (
+									<li key={categoria} className='grid gap-2 px-3 py-2 text-sm'>
+										<form
+											className='flex items-center gap-1'
+											onSubmit={(e) => {
+												e.preventDefault();
+												renomearCategoria(categoria);
+											}}>
+											<Input
+												type='text'
+												value={novoNome}
+												onChange={(e) => setNovoNome(e.target.value)}
+												required
+												maxLength={40}
+												autoComplete='off'
+												autoFocus
+												aria-label={`Novo nome para ${categoria}`}
+												className='h-8'
+											/>
+											<Button
+												type='button'
+												size='xs'
+												variant='ghost'
+												disabled={processando}
+												onClick={() => setAcao(null)}>
+												Cancelar
+											</Button>
+											<Button
+												type='submit'
+												size='xs'
+												variant='outline'
+												disabled={processando || !novoNome.trim()}>
+												{processando ? "Salvando..." : "Salvar"}
+											</Button>
+										</form>
+										<label className='text-muted-foreground flex items-center gap-2 text-xs'>
+											<input
+												type='checkbox'
+												className='size-3.5'
+												checked={atualizarDespesas}
+												onChange={(e) => setAtualizarDespesas(e.target.checked)}
+											/>
+											Renomear tambem nas despesas que usam essa categoria
+										</label>
+									</li>
+								);
+							}
+
+							const confirmandoExclusao =
+								acao?.categoria === categoria && acao.tipo === "excluir";
+
 							return (
 								<li
 									key={categoria}
 									className='flex items-center justify-between gap-2 px-3 py-1.5 text-sm'>
 									<span className='truncate'>{categoria}</span>
-									{confirmando ? (
+									{confirmandoExclusao ? (
 										<div className='flex shrink-0 items-center gap-1'>
 											<Button
 												type='button'
 												size='xs'
 												variant='ghost'
-												disabled={excluindo}
-												onClick={() => setCategoriaConfirmando(null)}>
+												disabled={processando}
+												onClick={() => setAcao(null)}>
 												Cancelar
 											</Button>
 											<Button
 												type='button'
 												size='xs'
 												variant='destructive'
-												disabled={excluindo}
+												disabled={processando}
 												onClick={() => excluirCategoria(categoria)}>
-												{excluindo ? "Apagando..." : "Apagar"}
+												{processando ? "Apagando..." : "Apagar"}
 											</Button>
 										</div>
 									) : (
-										<Button
-											type='button'
-											size='icon-sm'
-											variant='ghost'
-											aria-label={`Apagar categoria ${categoria}`}
-											disabled={categoriaExcluindo !== null}
-											onClick={() => setCategoriaConfirmando(categoria)}>
-											<Trash2 size={14} className='text-muted-foreground' />
-										</Button>
+										<div className='flex shrink-0 items-center'>
+											<Button
+												type='button'
+												size='icon-sm'
+												variant='ghost'
+												aria-label={`Editar categoria ${categoria}`}
+												disabled={categoriaProcessando !== null}
+												onClick={() => iniciarEdicao(categoria)}>
+												<Pencil size={14} className='text-muted-foreground' />
+											</Button>
+											<Button
+												type='button'
+												size='icon-sm'
+												variant='ghost'
+												aria-label={`Apagar categoria ${categoria}`}
+												disabled={categoriaProcessando !== null}
+												onClick={() => setAcao({ tipo: "excluir", categoria })}>
+												<Trash2 size={14} className='text-muted-foreground' />
+											</Button>
+										</div>
 									)}
 								</li>
 							);

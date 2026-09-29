@@ -24,6 +24,7 @@ import {
 	criarCategoriaDespesa,
 	excluirCategoriaDespesa,
 	listarCategoriasDespesa,
+	renomearCategoriaDespesa,
 } from "~/models/categorias-despesa.server";
 import {
 	extrairTransacoesDePdf,
@@ -62,7 +63,8 @@ type ActionData = {
 		| "pagar-brassaco"
 		| "importar-pdf"
 		| "criar-categoria"
-		| "excluir-categoria";
+		| "excluir-categoria"
+		| "editar-categoria";
 	transacoes?: TransacaoImportada[];
 };
 
@@ -209,6 +211,10 @@ function getTituloErroOperacao(operacao: ActionData["operacao"]): string {
 		return "Falha ao apagar categoria";
 	}
 
+	if (operacao === "editar-categoria") {
+		return "Falha ao editar categoria";
+	}
+
 	return "Falha ao cadastrar despesa";
 }
 
@@ -289,6 +295,23 @@ export async function action({
 				ok: true,
 				message: `Categoria "${nome}" cadastrada com sucesso.`,
 				operacao: "criar-categoria",
+			};
+		}
+
+		if (intent === "editar-categoria") {
+			const { nome, despesasAtualizadas } = await renomearCategoriaDespesa({
+				nomeAtual: parseString(formData.get("nomeCategoria")),
+				nomeNovo: parseString(formData.get("novoNomeCategoria")),
+				atualizarDespesas: parseBooleanCheckbox(formData.get("atualizarDespesas")),
+			});
+			const sufixo =
+				despesasAtualizadas > 0
+					? ` ${despesasAtualizadas} despesa(s) atualizada(s).`
+					: "";
+			return {
+				ok: true,
+				message: `Categoria renomeada para "${nome}".${sufixo}`,
+				operacao: "editar-categoria",
 			};
 		}
 

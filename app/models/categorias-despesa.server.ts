@@ -42,7 +42,7 @@ export async function listarCategoriasDespesa(): Promise<string[]> {
 	);
 }
 
-export async function criarCategoriaDespesa(nomeRaw: string): Promise<string> {
+function normalizarNomeCategoria(nomeRaw: string): string {
 	const nome = nomeRaw.trim().replace(/\s+/g, " ");
 	if (!nome) {
 		throw new Error("Informe o nome da categoria.");
@@ -50,6 +50,11 @@ export async function criarCategoriaDespesa(nomeRaw: string): Promise<string> {
 	if (nome.length > 40) {
 		throw new Error("O nome da categoria deve ter no maximo 40 caracteres.");
 	}
+	return nome;
+}
+
+export async function criarCategoriaDespesa(nomeRaw: string): Promise<string> {
+	const nome = normalizarNomeCategoria(nomeRaw);
 
 	const existentes = await listarCategoriasDespesa();
 	const chave = chaveCategoria(nome);
@@ -87,4 +92,56 @@ export async function excluirCategoriaDespesa(nomeRaw: string): Promise<string> 
 
 	await db.categoriasDespesa.deleteMany({ where: { id: { in: ids } } });
 	return nome;
+}
+
+export async function renomearCategoriaDespesa(input: {
+	nomeAtual: string;
+	nomeNovo: string;
+	atualizarDespesas: boolean;
+}): Promise<{ nome: string; despesasAtualizadas: number }> {
+	const nomeAtual = input.nomeAtual.trim();
+	const nome = normalizarNomeCategoria(input.nomeNovo);
+	const chaveAtual = chaveCategoria(nomeAtual);
+	const chaveNova = chaveCategoria(nome);
+
+	const cadastradas = await db.categoriasDespesa.findMany({
+		select: { id: true, nome: true },
+	});
+	const ids = cadastradas
+		.filter((c) => chaveCategoria(c.nome) === chaveAtual)
+		.map((c) => c.id);
+	if (ids.length === 0) {
+		throw new Error(`A categoria "${nomeAtual}" nao foi encontrada.`);
+	}
+
+	// A mesma categoria pode trocar só maiúsculas/acentos; outra com a mesma chave não
+	const duplicada = cadastradas.find(
+		(c) => chaveNova !== chaveAtual && chaveCategoria(c.nome) === chaveNova,
+	);
+	if (duplicada) {
+		throw new Error(`A categoria "${duplicada.nome.trim()}" ja existe.`);
+	}
+
+	await db.categoriasDespesa.updateMany({
+		where: { id: { in: ids } },
+		data: { nome },
+	});
+
+	if (!input.atualizarDespesas) {
+		return { nome, despesasAtualizadas: 0 };
+	}
+
+	const usadas = await db.despesas.groupBy({ by: ["categoria"] });
+	const variantes = usadas
+		.map((u) => u.categoria)
+		.filter((c) => chaveCategoria(c) === chaveAtual && c !== nome);
+	if (variantes.length === 0) {
+		return { nome, despesasAtualizadas: 0 };
+	}
+
+	const resultado = await db.despesas.updateMany({
+		where: { categoria: { in: variantes } },
+		data: { categoria: nome },
+	});
+	return { nome, despesasAtualizadas: resultado.count };
 }
