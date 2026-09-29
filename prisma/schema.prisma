@@ -51,7 +51,7 @@ model despesas {
     @@index([categoria])
 }
 
-/// Categorias de despesa cadastradas pela tela; somam-se às padrão de despesa-options.ts
+/// Categorias de despesa; semeada com as padrão de despesa-options.ts na primeira leitura
 model categoriasDespesa {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String

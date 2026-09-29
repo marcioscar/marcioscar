@@ -9,13 +9,28 @@ function chaveCategoria(nome: string): string {
 		.toLowerCase();
 }
 
+// Na primeira leitura a coleção vem vazia: grava as categorias padrão do código
+// para que todas possam ser apagadas pela tela.
+async function garantirCategoriasIniciais(): Promise<void> {
+	const total = await db.categoriasDespesa.count();
+	if (total > 0) {
+		return;
+	}
+
+	await db.categoriasDespesa.createMany({
+		data: CATEGORIAS_DESPESA.map((nome) => ({ nome })),
+	});
+}
+
 export async function listarCategoriasDespesa(): Promise<string[]> {
+	await garantirCategoriasIniciais();
+
 	const cadastradas = await db.categoriasDespesa.findMany({
 		select: { nome: true },
 	});
 
 	const mapa = new Map<string, string>();
-	for (const nome of [...CATEGORIAS_DESPESA, ...cadastradas.map((c) => c.nome)]) {
+	for (const { nome } of cadastradas) {
 		const chave = chaveCategoria(nome);
 		if (chave && !mapa.has(chave)) {
 			mapa.set(chave, nome.trim());
@@ -44,5 +59,32 @@ export async function criarCategoriaDespesa(nomeRaw: string): Promise<string> {
 	}
 
 	await db.categoriasDespesa.create({ data: { nome } });
+	return nome;
+}
+
+export async function excluirCategoriaDespesa(nomeRaw: string): Promise<string> {
+	const nome = nomeRaw.trim();
+	if (!nome) {
+		throw new Error("Categoria invalida para exclusao.");
+	}
+
+	const chave = chaveCategoria(nome);
+	const cadastradas = await db.categoriasDespesa.findMany({
+		select: { id: true, nome: true },
+	});
+	const ids = cadastradas
+		.filter((c) => chaveCategoria(c.nome) === chave)
+		.map((c) => c.id);
+
+	if (ids.length === 0) {
+		throw new Error(`A categoria "${nome}" nao foi encontrada.`);
+	}
+
+	const total = await db.categoriasDespesa.count();
+	if (total - ids.length === 0) {
+		throw new Error("Mantenha pelo menos uma categoria cadastrada.");
+	}
+
+	await db.categoriasDespesa.deleteMany({ where: { id: { in: ids } } });
 	return nome;
 }

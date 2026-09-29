@@ -22,6 +22,7 @@ import {
 import { uploadReciboAndGetUrl } from "~/models/pocketbase.server";
 import {
 	criarCategoriaDespesa,
+	excluirCategoriaDespesa,
 	listarCategoriasDespesa,
 } from "~/models/categorias-despesa.server";
 import {
@@ -60,7 +61,8 @@ type ActionData = {
 		| "excluir"
 		| "pagar-brassaco"
 		| "importar-pdf"
-		| "criar-categoria";
+		| "criar-categoria"
+		| "excluir-categoria";
 	transacoes?: TransacaoImportada[];
 };
 
@@ -203,6 +205,10 @@ function getTituloErroOperacao(operacao: ActionData["operacao"]): string {
 		return "Falha ao cadastrar categoria";
 	}
 
+	if (operacao === "excluir-categoria") {
+		return "Falha ao apagar categoria";
+	}
+
 	return "Falha ao cadastrar despesa";
 }
 
@@ -283,6 +289,17 @@ export async function action({
 				ok: true,
 				message: `Categoria "${nome}" cadastrada com sucesso.`,
 				operacao: "criar-categoria",
+			};
+		}
+
+		if (intent === "excluir-categoria") {
+			const nome = await excluirCategoriaDespesa(
+				parseString(formData.get("nomeCategoria")),
+			);
+			return {
+				ok: true,
+				message: `Categoria "${nome}" apagada.`,
+				operacao: "excluir-categoria",
 			};
 		}
 
