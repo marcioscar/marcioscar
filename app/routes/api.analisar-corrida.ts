@@ -172,6 +172,37 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem \`\`\`), com exata
 }`
 }
 
+type EtapaAnalise = 'strava' | 'claude' | 'resposta' | 'banco'
+
+function descreverErroAnalise(etapa: EtapaAnalise, err: unknown): string {
+	const detalhe = err instanceof Error ? err.message : String(err)
+
+	if (etapa === 'strava') {
+		return `Erro ao buscar a atividade no Strava: ${detalhe}`
+	}
+
+	if (etapa === 'claude') {
+		if (err instanceof Anthropic.APIError) {
+			if (err.status === 529) return 'O Claude está sobrecarregado no momento (erro 529). Tente novamente em alguns minutos.'
+			if (err.status === 429) return 'Limite de uso da API do Claude atingido (erro 429). Tente novamente em alguns minutos.'
+			if (err.status === 401) return 'ANTHROPIC_API_KEY inválida ou revogada (erro 401).'
+			if (err.status === 403) return 'A ANTHROPIC_API_KEY não tem permissão para esse modelo (erro 403).'
+			if (err.status && err.status >= 500) return `Instabilidade na API do Claude (erro ${err.status}). Tente novamente em alguns minutos.`
+			if (/credit balance/i.test(detalhe)) return 'Sem créditos na conta da API do Claude.'
+			if (err instanceof Anthropic.APIConnectionError) return 'Não foi possível conectar à API do Claude (rede ou timeout).'
+			return `Erro da API do Claude${err.status ? ` (${err.status})` : ''}: ${detalhe}`
+		}
+		if (/api[_ ]?key/i.test(detalhe)) return 'ANTHROPIC_API_KEY não está configurada no servidor.'
+		return `Erro ao chamar o Claude: ${detalhe}`
+	}
+
+	if (etapa === 'resposta') {
+		return 'O Claude respondeu fora do formato JSON esperado. Tente analisar de novo.'
+	}
+
+	return `Análise gerada, mas falhou ao salvar no banco: ${detalhe}`
+}
+
 export async function action({ request }: { request: Request }) {
 	if (request.method !== 'POST') {
 		return Response.json({ error: 'Method not allowed' }, { status: 405 })
@@ -184,6 +215,7 @@ export async function action({ request }: { request: Request }) {
 		return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
 	}
 
+	let etapa: EtapaAnalise = 'strava'
 	try {
 		// 1. Fetch detailed activity from Strava (splits + laps)
 		const detailed = await buscarAtividadeDetalhada(input.stravaId)
@@ -195,16 +227,19 @@ export async function action({ request }: { request: Request }) {
 			+ (input.treinusPlano ? buildPromptComparacao(input.treinusPlano) : '')
 
 		// 3. Call Claude
+		etapa = 'claude'
 		const message = await client.messages.create({
 			model: 'claude-sonnet-4-6',
 			max_tokens: 2048,
 			messages: [{ role: 'user', content: promptText }],
 		})
 
+		etapa = 'resposta'
 		const text = message.content.find(b => b.type === 'text')?.text ?? ''
 		const analise: AnaliseResult = JSON.parse(text)
 
 		// 4. Persist splits, laps and analysis
+		etapa = 'banco'
 		await db.corrida.update({
 			where: { stravaId: input.stravaId },
 			data: { splits, laps, analise, analisadaEm: new Date() },
@@ -213,7 +248,7 @@ export async function action({ request }: { request: Request }) {
 		const response: AnalyzeApiResponse = { analise, splits, laps }
 		return Response.json(response)
 	} catch (err) {
-		console.error('Erro na análise Claude:', err)
-		return Response.json({ error: 'Falha na análise' }, { status: 500 })
+		console.error(`Erro na análise Claude (etapa ${etapa}):`, err)
+		return Response.json({ error: descreverErroAnalise(etapa, err) }, { status: 500 })
 	}
 }

@@ -145,13 +145,17 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(input),
 			});
-			if (!res.ok) throw new Error("Falha na análise");
+			if (!res.ok) {
+				const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
+				throw new Error(corpo?.error ?? `Falha na análise (HTTP ${res.status}).`);
+			}
 			const result = (await res.json()) as AnalyzeApiResponse;
 			setAnalise(result.analise);
 			setSplits(result.splits);
 			setLaps(result.laps);
-		} catch {
-			setError("Não foi possível analisar. Verifique se ANTHROPIC_API_KEY está configurado.");
+		} catch (err) {
+			const motivo = err instanceof Error ? err.message : "Erro desconhecido.";
+			setError(`Não foi possível analisar. ${motivo}`);
 		} finally {
 			setLoading(false);
 		}
