@@ -103,6 +103,11 @@ function getIntervaloMesAno(ano: number, mes: number): { inicio: Date; fim: Date
 	};
 }
 
+// Filtro opcional de quem fez a despesa; sem pessoa = todas
+function getFiltroPessoa(pessoa?: string): { pessoa?: string } {
+	return pessoa ? { pessoa } : {};
+}
+
 function getChaveConta(conta: string): string {
 	return conta.trim();
 }
@@ -232,6 +237,7 @@ export async function obterResumoDashboardBrassaco(
 export async function obterResumoDespesasPorPeriodo(
 	ano: number,
 	mes: number,
+	pessoa?: string,
 ): Promise<ResumoDespesasPeriodo> {
 	const intervalo = getIntervaloMesAno(ano, mes);
 	const filtroPeriodo = {
@@ -239,6 +245,7 @@ export async function obterResumoDespesasPorPeriodo(
 			gte: intervalo.inicio,
 			lte: intervalo.fim,
 		},
+		...getFiltroPessoa(pessoa),
 	};
 
 	const [totalDespesas, agregadoTotalDespesas, totalDespesasBrassaco, agregadoBrassaco] =
@@ -280,6 +287,7 @@ export async function obterResumoDespesasPorPeriodo(
 export async function obterResumoDespesasPorContaNoPeriodo(
 	ano: number,
 	mes: number,
+	pessoa?: string,
 ): Promise<ResumoContaPeriodo[]> {
 	const intervalo = getIntervaloMesAno(ano, mes);
 	const despesas = await db.despesas.findMany({
@@ -288,6 +296,7 @@ export async function obterResumoDespesasPorContaNoPeriodo(
 				gte: intervalo.inicio,
 				lte: intervalo.fim,
 			},
+			...getFiltroPessoa(pessoa),
 		},
 		select: {
 			conta: true,
@@ -317,6 +326,7 @@ export type CategoriaComDespesas = {
 export async function obterResumoDespesasPorCategoriaNoPeriodo(
 	ano: number,
 	mes: number,
+	pessoa?: string,
 ): Promise<CategoriaComDespesas[]> {
 	const intervalo = getIntervaloMesAno(ano, mes);
 	const despesas = await db.despesas.findMany({
@@ -325,6 +335,7 @@ export async function obterResumoDespesasPorCategoriaNoPeriodo(
 				gte: intervalo.inicio,
 				lte: intervalo.fim,
 			},
+			...getFiltroPessoa(pessoa),
 		},
 		select: {
 			id: true,
@@ -362,12 +373,13 @@ export type CategoriasMesItem = { mes: string; [categoria: string]: number | str
 
 export async function obterCategoriasPorUltimosMeses(
 	meses = 6,
+	pessoa?: string,
 ): Promise<CategoriasMesItem[]> {
 	const mesesNormalizados = Math.max(1, meses);
 	const inicio = getInicioJanelaMensal(mesesNormalizados);
 
 	const despesas = await db.despesas.findMany({
-		where: { data: { gte: inicio } },
+		where: { data: { gte: inicio }, ...getFiltroPessoa(pessoa) },
 		select: { data: true, valor: true, categoria: true },
 	});
 
@@ -397,4 +409,44 @@ export async function obterCategoriasPorUltimosMeses(
 		}
 		return item;
 	});
+}
+
+export type ResumoPessoaPeriodo = {
+	pessoa: string;
+	totalDespesas: number;
+	totalValorDespesas: number;
+};
+
+export async function obterResumoDespesasPorPessoaNoPeriodo(
+	ano: number,
+	mes: number,
+): Promise<ResumoPessoaPeriodo[]> {
+	const intervalo = getIntervaloMesAno(ano, mes);
+	const despesas = await db.despesas.findMany({
+		where: {
+			data: {
+				gte: intervalo.inicio,
+				lte: intervalo.fim,
+			},
+		},
+		select: {
+			pessoa: true,
+			valor: true,
+		},
+	});
+
+	const mapa = new Map<string, ResumoPessoaPeriodo>();
+	for (const d of despesas) {
+		const pessoa = d.pessoa?.trim() || "Sem pessoa";
+		const item = mapa.get(pessoa) ?? {
+			pessoa,
+			totalDespesas: 0,
+			totalValorDespesas: 0,
+		};
+		item.totalDespesas += 1;
+		item.totalValorDespesas += d.valor;
+		mapa.set(pessoa, item);
+	}
+
+	return Array.from(mapa.values());
 }

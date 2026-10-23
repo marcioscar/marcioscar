@@ -22,10 +22,18 @@ import {
 	obterResumoDespesasPorContaNoPeriodo,
 	obterResumoDespesasPorPeriodo,
 	obterCategoriasPorUltimosMeses,
+	obterResumoDespesasPorPessoaNoPeriodo,
 	type CategoriasMesItem,
 	type CategoriaComDespesas,
+	type ResumoPessoaPeriodo,
 } from "~/models/dashboard.server";
-import { CONTAS_DESPESA } from "~/components/despesas/despesa-options";
+import {
+	COR_PESSOA,
+	CONTAS_DESPESA,
+	PESSOAS_DESPESA,
+	isPessoaDespesa,
+	type PessoaDespesa,
+} from "~/components/despesas/despesa-options";
 import { PALETA_GRAFICOS } from "~/lib/chart-palette";
 import { DespesasPieChart } from "~/components/dashboard/despesas-pie-chart";
 import { CategoriasBarChart } from "~/components/dashboard/categorias-bar-chart";
@@ -34,6 +42,8 @@ import { CategoriasTrendChart } from "~/components/dashboard/categorias-trend-ch
 type LoaderData = {
 	filtroMes: number;
 	filtroAno: number;
+	filtroPessoa: PessoaDespesa | null;
+	saldosPorPessoa: ResumoPessoaPeriodo[];
 	totalDespesasPeriodo: number;
 	totalValorDespesasPeriodo: number;
 	totalValorDespesasMesAnterior: number;
@@ -106,6 +116,31 @@ function parseAno(valor: string | null, fallback: number): number {
 	return parsed;
 }
 
+function parsePessoa(valor: string | null): PessoaDespesa | null {
+	return valor && isPessoaDespesa(valor) ? valor : null;
+}
+
+function montarQuery(mes: number, ano: number, pessoa: string | null): string {
+	const params = new URLSearchParams({ mes: String(mes), ano: String(ano) });
+	if (pessoa) params.set("pessoa", pessoa);
+	return `?${params.toString()}`;
+}
+
+const COR_SEM_PESSOA = "var(--paleta-8)";
+
+// Ordem fixa (Marcio, Janaina, Arthur, Camila, Sem pessoa) para as cores baterem
+function montarItensPorPessoa(saldos: ResumoPessoaPeriodo[]) {
+	const mapa = new Map(saldos.map((s) => [s.pessoa, s] as const));
+	return [...PESSOAS_DESPESA, "Sem pessoa"]
+		.map((pessoa) => ({
+			pessoa,
+			cor: isPessoaDespesa(pessoa) ? COR_PESSOA[pessoa] : COR_SEM_PESSOA,
+			valor: mapa.get(pessoa)?.totalValorDespesas ?? 0,
+			quantidade: mapa.get(pessoa)?.totalDespesas ?? 0,
+		}))
+		.filter((item) => item.quantidade > 0);
+}
+
 function getOpcoesAno(anoBase: number): number[] {
 	return [anoBase - 3, anoBase - 2, anoBase - 1, anoBase, anoBase + 1];
 }
@@ -171,6 +206,8 @@ export async function loader({
 	const mesAnoAtual = getMesAnoAtual();
 	const filtroMes = parseMes(url.searchParams.get("mes"), mesAnoAtual.mes);
 	const filtroAno = parseAno(url.searchParams.get("ano"), mesAnoAtual.ano);
+	const filtroPessoa = parsePessoa(url.searchParams.get("pessoa"));
+	const pessoa = filtroPessoa ?? undefined;
 	const prev = getPrevMesAno(filtroMes, filtroAno);
 
 	const [
@@ -181,19 +218,23 @@ export async function loader({
 		saldosPorContaMesAnterior,
 		saldosPorCategoria,
 		categoriasTrend,
+		saldosPorPessoa,
 	] = await Promise.all([
 		obterResumoDashboardBrassaco(6),
-		obterResumoDespesasPorPeriodo(filtroAno, filtroMes),
-		obterResumoDespesasPorPeriodo(prev.ano, prev.mes),
-		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes),
-		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes),
-		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes),
-		obterCategoriasPorUltimosMeses(6),
+		obterResumoDespesasPorPeriodo(filtroAno, filtroMes, pessoa),
+		obterResumoDespesasPorPeriodo(prev.ano, prev.mes, pessoa),
+		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes, pessoa),
+		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes, pessoa),
+		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes, pessoa),
+		obterCategoriasPorUltimosMeses(6, pessoa),
+		obterResumoDespesasPorPessoaNoPeriodo(filtroAno, filtroMes),
 	]);
 
 	return {
 		filtroMes,
 		filtroAno,
+		filtroPessoa,
+		saldosPorPessoa,
 		totalDespesasPeriodo: resumoDespesasPeriodo.totalDespesas,
 		totalValorDespesasPeriodo: resumoDespesasPeriodo.totalValorDespesas,
 		totalValorDespesasMesAnterior: resumoDespesasMesAnterior.totalValorDespesas,
@@ -278,6 +319,8 @@ export default function Financeiro() {
 	const {
 		filtroMes,
 		filtroAno,
+		filtroPessoa,
+		saldosPorPessoa,
 		totalDespesasPeriodo,
 		totalValorDespesasPeriodo,
 		totalValorDespesasMesAnterior,
@@ -305,6 +348,8 @@ export default function Financeiro() {
 	const next = getNextMesAno(filtroMes, filtroAno);
 	const labelAnterior = getNomeMesAbreviado(prev.mes);
 	const labelAtual = getNomeMesAbreviado(filtroMes);
+	const itensPorPessoa = montarItensPorPessoa(saldosPorPessoa);
+	const sufixoPessoa = filtroPessoa ? ` · ${filtroPessoa}` : "";
 
 	return (
 		<main className='grid gap-4 md:gap-6'>
@@ -312,12 +357,15 @@ export default function Financeiro() {
 				<h1 className='text-2xl font-bold'>Financeiro</h1>
 				<div className='flex items-center gap-2'>
 					<Link
-						to={`?mes=${prev.mes}&ano=${prev.ano}`}
+						to={montarQuery(prev.mes, prev.ano, filtroPessoa)}
 						className={NAV_BTN}
 						aria-label='Mês anterior'>
 						←
 					</Link>
 					<Form method='get' className='flex items-center gap-2'>
+						{filtroPessoa && (
+							<input type='hidden' name='pessoa' value={filtroPessoa} />
+						)}
 						<select
 							name='mes'
 							value={String(filtroMes)}
@@ -342,13 +390,39 @@ export default function Financeiro() {
 						</select>
 					</Form>
 					<Link
-						to={`?mes=${next.mes}&ano=${next.ano}`}
+						to={montarQuery(next.mes, next.ano, filtroPessoa)}
 						className={NAV_BTN}
 						aria-label='Próximo mês'>
 						→
 					</Link>
 				</div>
 			</div>
+
+			<nav aria-label='Filtrar por pessoa' className='flex flex-wrap items-center gap-1.5'>
+				{[null, ...PESSOAS_DESPESA].map((pessoa) => {
+					const ativa = filtroPessoa === pessoa;
+					const cor = pessoa ? COR_PESSOA[pessoa] : "var(--foreground)";
+					return (
+						<Link
+							key={pessoa ?? "todos"}
+							to={montarQuery(filtroMes, filtroAno, pessoa)}
+							aria-current={ativa ? "page" : undefined}
+							className='inline-flex h-8 items-center rounded-full border px-3 text-sm transition-colors hover:bg-accent'
+							style={
+								ativa
+									? {
+											color: cor,
+											borderColor: cor,
+											background: `color-mix(in oklch, ${cor} 12%, transparent)`,
+											fontWeight: 500,
+										}
+									: undefined
+							}>
+							{pessoa ?? "Todos"}
+						</Link>
+					);
+				})}
+			</nav>
 
 			{/* --- Card total + cards por conta --- */}
 			<section className='grid min-w-0 gap-4 lg:grid-cols-[1fr_2fr]'>
@@ -357,7 +431,9 @@ export default function Financeiro() {
 					<CardHeader>
 						<div className='flex items-start justify-between gap-3'>
 							<div className='grid gap-0.5'>
-								<CardDescription>Total de despesas</CardDescription>
+								<CardDescription>
+									Total de despesas{sufixoPessoa}
+								</CardDescription>
 								<CardTitle className='text-3xl font-bold tabular-nums'>
 									{formatarMoeda(totalValorDespesasPeriodo)}
 								</CardTitle>
@@ -446,7 +522,7 @@ export default function Financeiro() {
 			<section className='grid gap-4 md:grid-cols-2'>
 				<DespesasPieChart
 					title='Despesas por conta'
-					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
+					description={`${getNomeMes(filtroMes)} / ${filtroAno}${sufixoPessoa}`}
 					palette={PALETA_CONTA}
 					items={saldosPorContaExibicao.map((item) => ({
 						label: item.conta,
@@ -456,7 +532,7 @@ export default function Financeiro() {
 				/>
 				<CategoriasBarChart
 					title='Despesas por categoria'
-					description={`${getNomeMes(filtroMes)} / ${filtroAno}`}
+					description={`${getNomeMes(filtroMes)} / ${filtroAno}${sufixoPessoa}`}
 					items={saldosPorCategoria.map((item) => ({
 						label: item.categoria,
 						valor: item.totalValorDespesas,
@@ -466,7 +542,19 @@ export default function Financeiro() {
 				/>
 			</section>
 
-			<CategoriasTrendChart dados={categoriasTrend} />
+			<section className='grid gap-4 md:grid-cols-2'>
+				<DespesasPieChart
+					title='Despesas por pessoa'
+					description={`${getNomeMes(filtroMes)} / ${filtroAno} · todas as pessoas`}
+					palette={itensPorPessoa.map((item) => item.cor)}
+					items={itensPorPessoa.map((item) => ({
+						label: item.pessoa,
+						valor: item.valor,
+						quantidade: item.quantidade,
+					}))}
+				/>
+				<CategoriasTrendChart dados={categoriasTrend} />
+			</section>
 		</main>
 	);
 }
