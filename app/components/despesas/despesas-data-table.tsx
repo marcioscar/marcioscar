@@ -84,7 +84,12 @@ export function DespesasDataTable({
 
 			const nome = String(row.original.nome ?? "").toLowerCase();
 			const categoria = String(row.original.categoria ?? "").toLowerCase();
-			return nome.includes(termo) || categoria.includes(termo);
+			const pessoa = String(row.original.pessoa ?? "").toLowerCase();
+			return (
+				nome.includes(termo) ||
+				categoria.includes(termo) ||
+				pessoa.includes(termo)
+			);
 		},
 		state: {
 			sorting,
@@ -103,7 +108,7 @@ export function DespesasDataTable({
 				<Input
 					value={filtroNome}
 					onChange={(event) => setFiltroNome(event.target.value)}
-					placeholder='Procurar por nome ou categoria...'
+					placeholder='Procurar por nome, categoria ou pessoa...'
 					className='w-full sm:max-w-sm'
 				/>
 				<p className='text-sm text-muted-foreground'>

@@ -39,3 +39,18 @@ function ordenarAlfabetico(valores: readonly string[]): string[] {
 
 export const CATEGORIAS_DESPESA = ordenarAlfabetico(LISTA_CATEGORIAS);
 export const CONTAS_DESPESA = [...LISTA_CONTAS];
+
+export const PESSOAS_DESPESA = ["Marcio", "Janaina", "Arthur", "Camila"] as const;
+export type PessoaDespesa = (typeof PESSOAS_DESPESA)[number];
+export const PESSOA_PADRAO: PessoaDespesa = "Marcio";
+
+export const COR_PESSOA: Record<PessoaDespesa, string> = {
+	Marcio: "var(--paleta-4)",
+	Janaina: "var(--paleta-6)",
+	Arthur: "var(--paleta-2)",
+	Camila: "var(--paleta-7)",
+};
+
+export function isPessoaDespesa(valor: string): valor is PessoaDespesa {
+	return (PESSOAS_DESPESA as readonly string[]).includes(valor);
+}

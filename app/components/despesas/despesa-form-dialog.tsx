@@ -16,7 +16,8 @@ import {
 	DialogTrigger,
 } from "~/components/ui/dialog";
 import { SearchableComboboxField } from "./searchable-combobox-field";
-import { CONTAS_DESPESA } from "./despesa-options";
+import { CONTAS_DESPESA, PESSOA_PADRAO } from "./despesa-options";
+import { PessoaSelector } from "./pessoa-despesa";
 
 type DespesaFormDialogProps = {
 	open: boolean;
@@ -35,11 +36,13 @@ export function DespesaFormDialog({
 }: DespesaFormDialogProps) {
 	const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
 	const [contaSelecionada, setContaSelecionada] = useState("");
+	const [pessoaSelecionada, setPessoaSelecionada] = useState<string>(PESSOA_PADRAO);
 
 	useEffect(() => {
 		if (!open) {
 			setCategoriaSelecionada("");
 			setContaSelecionada("");
+			setPessoaSelecionada(PESSOA_PADRAO);
 		}
 	}, [open]);
 
@@ -56,6 +59,15 @@ export function DespesaFormDialog({
 					</DialogHeader>
 
 					<div className='grid gap-3 md:grid-cols-2'>
+						<div className='md:col-span-2'>
+							<PessoaSelector
+								name='pessoa'
+								value={pessoaSelecionada}
+								onValueChange={setPessoaSelecionada}
+								disabled={isSubmitting}
+							/>
+						</div>
+
 						<label className='grid gap-1 text-sm'>
 							Nome
 							<Input type='text' name='nome' required />

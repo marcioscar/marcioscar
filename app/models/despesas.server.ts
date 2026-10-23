@@ -1,5 +1,6 @@
 import { db } from "../../db.server";
 import type { Prisma } from "@prisma/client";
+import { isPessoaDespesa } from "~/components/despesas/despesa-options";
 
 export type DespesaResumo = {
 	id: string;
@@ -11,6 +12,7 @@ export type DespesaResumo = {
 	comprovante: string;
 	conta: string;
 	fatura: string | null;
+	pessoa: string | null;
 	obs: string;
 	createdAt: Date;
 };
@@ -24,6 +26,7 @@ type CriarDespesaInput = {
 	comprovante: string;
 	conta: string;
 	fatura?: string;
+	pessoa?: string;
 	obs?: string;
 };
 
@@ -37,6 +40,7 @@ type AtualizarDespesaInput = {
 	comprovante: string;
 	conta: string;
 	fatura?: string;
+	pessoa?: string;
 	obs?: string;
 };
 
@@ -55,6 +59,17 @@ function normalizarTextoObrigatorio(valor: string, campo: string): string {
 
 function normalizarTextoOpcional(valor?: string): string {
 	return valor?.trim() ?? "";
+}
+
+function normalizarPessoa(valor?: string): string | null {
+	const pessoa = normalizarTextoOpcional(valor);
+	if (!pessoa) {
+		return null;
+	}
+	if (!isPessoaDespesa(pessoa)) {
+		throw new Error(`Pessoa invalida: ${pessoa}.`);
+	}
+	return pessoa;
 }
 
 function parseObjectId(value: unknown): string {
@@ -174,6 +189,7 @@ function mapRawDespesaToResumo(raw: unknown): DespesaResumo {
 		comprovante: parseString(obj.comprovante),
 		conta: parseString(obj.conta),
 		fatura: parseStringOrNull(obj.fatura),
+		pessoa: parseString(obj.pessoa) || null,
 		obs: parseString(obj.obs),
 		createdAt: parseDate(obj.createdAt),
 	};
@@ -228,6 +244,7 @@ export async function criarDespesa(input: CriarDespesaInput): Promise<void> {
 	const comprovante = normalizarTextoOpcional(input.comprovante);
 	const fatura = normalizarTextoOpcional(input.fatura);
 	const obs = normalizarTextoOpcional(input.obs);
+	const pessoa = normalizarPessoa(input.pessoa);
 
 	await db.despesas.create({
 		data: {
@@ -239,6 +256,7 @@ export async function criarDespesa(input: CriarDespesaInput): Promise<void> {
 			comprovante,
 			conta,
 			fatura: fatura || null,
+			pessoa,
 			obs,
 		},
 	});
@@ -251,6 +269,7 @@ export async function atualizarDespesa(input: AtualizarDespesaInput): Promise<vo
 	const comprovante = normalizarTextoOpcional(input.comprovante);
 	const fatura = normalizarTextoOpcional(input.fatura);
 	const obs = normalizarTextoOpcional(input.obs);
+	const pessoa = normalizarPessoa(input.pessoa);
 
 	const resultado = await db.despesas.updateMany({
 		where: { id: input.id },
@@ -263,6 +282,7 @@ export async function atualizarDespesa(input: AtualizarDespesaInput): Promise<vo
 			comprovante,
 			conta,
 			fatura: fatura || null,
+			pessoa,
 			obs,
 		},
 	});

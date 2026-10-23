@@ -2,6 +2,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "~/components/ui/button";
+import { PessoaBadge } from "./pessoa-despesa";
 
 export type DespesaDataTableRow = {
 	id: string;
@@ -10,6 +11,7 @@ export type DespesaDataTableRow = {
 	categoria: string;
 	conta: string;
 	fatura: string | null;
+	pessoa: string | null;
 	valor: number;
 	brassaco: boolean;
 	comprovante: string;
@@ -70,6 +72,14 @@ export const despesasColumns: ColumnDef<DespesaDataTableRow>[] = [
 			sortableHeader("Nome", column.getIsSorted(), () =>
 				column.toggleSorting(column.getIsSorted() === "asc"),
 			),
+	},
+	{
+		accessorKey: "pessoa",
+		header: ({ column }) =>
+			sortableHeader("Quem", column.getIsSorted(), () =>
+				column.toggleSorting(column.getIsSorted() === "asc"),
+			),
+		cell: ({ row }) => <PessoaBadge pessoa={row.original.pessoa} />,
 	},
 	{
 		accessorKey: "categoria",

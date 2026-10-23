@@ -15,7 +15,8 @@ import {
 	DialogTrigger,
 } from "~/components/ui/dialog";
 import { SearchableComboboxField } from "./searchable-combobox-field";
-import { CONTAS_DESPESA } from "./despesa-options";
+import { CONTAS_DESPESA, PESSOA_PADRAO } from "./despesa-options";
+import { PessoaSelector } from "./pessoa-despesa";
 import type { TransacaoImportada } from "~/models/importar-pdf.server";
 
 type Fase = "upload" | "revisao" | "concluido";
@@ -86,6 +87,8 @@ export function ImportarPdfDialog({ categorias, triggerClassName }: ImportarPdfD
 	const [editAtual, setEditAtual] = useState<Partial<TransacaoImportada>>({});
 	const [categoriaAtual, setCategoriaAtual] = useState("");
 	const [contaAtual, setContaAtual] = useState("");
+	// Fica igual entre transações: um extrato costuma ser todo da mesma pessoa
+	const [pessoaAtual, setPessoaAtual] = useState<string>(PESSOA_PADRAO);
 	const [temPendentes, setTemPendentes] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -185,6 +188,7 @@ export function ImportarPdfDialog({ categorias, triggerClassName }: ImportarPdfD
 		form.append("valor", String(editAtual.valor ?? t.valor));
 		form.append("data", editAtual.data ?? t.data);
 		form.append("conta", contaAtual || t.conta);
+		form.append("pessoa", pessoaAtual);
 		if (editAtual.brassaco ?? t.brassaco) form.append("brassaco", "on");
 		form.append("obs", editAtual.obs ?? t.obs);
 		form.append("fatura", "");
@@ -409,6 +413,8 @@ export function ImportarPdfDialog({ categorias, triggerClassName }: ImportarPdfD
 									value={categoriaAtual}
 									onValueChange={setCategoriaAtual}
 								/>
+
+								<PessoaSelector value={pessoaAtual} onValueChange={setPessoaAtual} />
 
 								<SearchableComboboxField
 									label='Conta'

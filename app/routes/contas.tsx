@@ -376,6 +376,7 @@ export async function action({
 			brassaco: parseBooleanCheckbox(formData.get("brassaco")),
 			conta: parseString(formData.get("conta")),
 			fatura: parseString(formData.get("fatura")),
+			pessoa: parseString(formData.get("pessoa")),
 			obs: parseString(formData.get("obs")),
 		};
 
@@ -600,6 +601,7 @@ function mapDespesaParaDataTableRow(
 		categoria: despesa.categoria,
 		conta: despesa.conta,
 		fatura: despesa.fatura,
+		pessoa: despesa.pessoa,
 		valor: despesa.valor,
 		brassaco: despesa.brassaco,
 		comprovante: despesa.comprovante,
@@ -627,6 +629,7 @@ function getDespesaSelecionada(
 		data: new Date(despesa.data).toISOString(),
 		conta: despesa.conta,
 		fatura: despesa.fatura,
+		pessoa: despesa.pessoa,
 		brassaco: despesa.brassaco,
 		comprovante: despesa.comprovante,
 		obs: despesa.obs,

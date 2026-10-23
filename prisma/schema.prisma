@@ -43,6 +43,8 @@ model despesas {
     comprovante String
     conta       String
     fatura      String? // permite nulo
+    /// Quem fez a despesa (Marcio, Janaina, Arthur, Camila); antigas ficam sem
+    pessoa      String?
     obs         String
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt

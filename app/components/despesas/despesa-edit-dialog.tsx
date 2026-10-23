@@ -15,6 +15,7 @@ import {
 } from "~/components/ui/dialog";
 import { SearchableComboboxField } from "./searchable-combobox-field";
 import { CONTAS_DESPESA } from "./despesa-options";
+import { PessoaSelector } from "./pessoa-despesa";
 
 export type DespesaEditavel = {
 	id: string;
@@ -24,6 +25,7 @@ export type DespesaEditavel = {
 	data: string;
 	conta: string;
 	fatura: string | null;
+	pessoa: string | null;
 	brassaco: boolean;
 	comprovante: string;
 	obs: string;
@@ -52,6 +54,7 @@ export function DespesaEditDialog({
 }: DespesaEditDialogProps) {
 	const [categoriaSelecionada, setCategoriaSelecionada] = useState("");
 	const [contaSelecionada, setContaSelecionada] = useState("");
+	const [pessoaSelecionada, setPessoaSelecionada] = useState("");
 
 	const dataInput = useMemo(
 		() => (despesa ? formatarDataParaInput(despesa.data) : ""),
@@ -65,6 +68,7 @@ export function DespesaEditDialog({
 
 		setCategoriaSelecionada(despesa.categoria);
 		setContaSelecionada(despesa.conta);
+		setPessoaSelecionada(despesa.pessoa ?? "");
 	}, [open, despesa]);
 
 	return (
@@ -83,6 +87,15 @@ export function DespesaEditDialog({
 					</DialogHeader>
 
 					<div className='grid gap-3 md:grid-cols-2'>
+						<div className='md:col-span-2'>
+							<PessoaSelector
+								name='pessoa'
+								value={pessoaSelecionada}
+								onValueChange={setPessoaSelecionada}
+								disabled={isSubmitting}
+							/>
+						</div>
+
 						<label className='grid gap-1 text-sm'>
 							Nome
 							<Input type='text' name='nome' required defaultValue={despesa?.nome} />
