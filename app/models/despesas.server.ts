@@ -220,21 +220,38 @@ function montarFiltroData(
 	return { data: filtroData } as Prisma.InputJsonObject;
 }
 
+const TAMANHO_PAGINA_DESPESAS = 500;
+
 export async function listarDespesas(
 	intervaloData?: IntervaloData,
 ): Promise<DespesaResumo[]> {
-	const resultado = (await db.$runCommandRaw({
-		find: "despesas",
-		filter: montarFiltroData(intervaloData),
-		sort: { data: -1, createdAt: -1 },
-	})) as {
-		cursor?: {
-			firstBatch?: unknown[];
-		};
-	};
+	const documentos: unknown[] = [];
 
-	const firstBatch = resultado.cursor?.firstBatch ?? [];
-	return firstBatch.map(mapRawDespesaToResumo);
+	// O find devolve só um lote (101 por padrão) e o id do cursor é um int64 que
+	// perde precisão no JSON, então não dá para usar getMore: pagina com skip/limit.
+	for (;;) {
+		const resultado = (await db.$runCommandRaw({
+			find: "despesas",
+			filter: montarFiltroData(intervaloData),
+			sort: { data: -1, createdAt: -1, _id: -1 },
+			skip: documentos.length,
+			limit: TAMANHO_PAGINA_DESPESAS,
+			batchSize: TAMANHO_PAGINA_DESPESAS,
+			singleBatch: true,
+		})) as {
+			cursor?: {
+				firstBatch?: unknown[];
+			};
+		};
+
+		const lote = resultado.cursor?.firstBatch ?? [];
+		documentos.push(...lote);
+		if (lote.length < TAMANHO_PAGINA_DESPESAS) {
+			break;
+		}
+	}
+
+	return documentos.map(mapRawDespesaToResumo);
 }
 
 export async function criarDespesa(input: CriarDespesaInput): Promise<void> {
