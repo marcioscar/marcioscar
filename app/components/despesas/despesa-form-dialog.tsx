@@ -126,7 +126,7 @@ export function DespesaFormDialog({
 						</label>
 
 						<label className='grid gap-1 text-sm md:col-span-2'>
-							Observacao
+							Observação
 							<Textarea name='obs' rows={3} />
 						</label>
 					</div>

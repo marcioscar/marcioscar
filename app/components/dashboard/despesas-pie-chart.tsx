@@ -188,7 +188,7 @@ export function DespesasPieChart({
 					</>
 				) : (
 					<p className='text-sm text-muted-foreground'>
-						Nenhuma despesa encontrada para o periodo selecionado.
+						Nenhuma despesa encontrada para o período selecionado.
 					</p>
 				)}
 			</CardContent>

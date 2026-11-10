@@ -103,7 +103,7 @@ export function DespesasDataTable({
 	});
 
 	return (
-		<div className='grid gap-3'>
+		<div className='grid min-w-0 gap-3'>
 			<div className='flex flex-wrap items-center justify-between gap-2'>
 				<Input
 					value={filtroNome}
@@ -116,7 +116,7 @@ export function DespesasDataTable({
 				</p>
 			</div>
 
-			<div className='overflow-hidden rounded-md border'>
+			<div className='min-w-0 overflow-hidden rounded-md border'>
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
@@ -180,7 +180,7 @@ export function DespesasDataTable({
 					size='sm'
 					onClick={() => table.nextPage()}
 					disabled={!table.getCanNextPage()}>
-					Proxima
+					Próxima
 				</Button>
 			</div>
 		</div>

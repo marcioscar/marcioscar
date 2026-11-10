@@ -244,7 +244,7 @@ export default function Biblioteca() {
 				<h1 className='text-2xl font-bold'>Biblioteca</h1>
 				<Form method='get' className='flex flex-wrap items-end gap-2'>
 					<label className='grid gap-1 text-sm'>
-						Mes
+						Mês
 						<select
 							name='mes'
 							defaultValue={String(filtroMes)}

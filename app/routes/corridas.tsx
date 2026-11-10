@@ -134,7 +134,7 @@ function normalizarIntervaloDatas(inicio?: Date, fim?: Date) {
 
 function formatarEpoch(segundos?: number): string {
 	if (!segundos) {
-		return "nao aplicado";
+		return "não aplicado";
 	}
 	return new Date(segundos * 1000).toLocaleString("pt-BR");
 }
@@ -229,7 +229,7 @@ export async function action({
 
 		return {
 			ok: true,
-			message: "Sincronizacao concluida com sucesso.",
+			message: "Sincronização concluída com sucesso.",
 			totalRecebidas: resultado.totalRecebidas,
 			totalSincronizadas: resultado.totalSincronizadas,
 			modo: resultado.modo,
@@ -275,11 +275,11 @@ export default function Corridas() {
 	useEffect(() => {
 		if (!actionData) return;
 		if (actionData.ok) {
-			toast.success("Sincronizacao concluida com sucesso.", {
+			toast.success("Sincronização concluída com sucesso.", {
 				description: `Recebidas: ${actionData.totalRecebidas ?? 0} | Upserts: ${actionData.totalSincronizadas ?? 0} | Modo: ${actionData.modo} | After: ${formatarEpoch(actionData.afterUsado)}`,
 			});
 		} else {
-			toast.error("Falha na sincronizacao", { description: actionData.message });
+			toast.error("Falha na sincronização", { description: actionData.message });
 		}
 	}, [actionData]);
 
@@ -414,7 +414,7 @@ export default function Corridas() {
 			</section>
 
 			<section className='grid gap-2'>
-				<h2 className='text-lg font-semibold'>Ultimas corridas sincronizadas</h2>
+				<h2 className='text-lg font-semibold'>Últimas corridas sincronizadas</h2>
 				<CorridasDataTable
 					data={corridasDataTable}
 					mapboxToken={mapboxToken}

@@ -52,7 +52,7 @@ type IntervaloData = {
 function normalizarTextoObrigatorio(valor: string, campo: string): string {
 	const texto = valor.trim();
 	if (!texto) {
-		throw new Error(`O campo "${campo}" e obrigatorio.`);
+		throw new Error(`O campo "${campo}" é obrigatório.`);
 	}
 	return texto;
 }
@@ -67,7 +67,7 @@ function normalizarPessoa(valor?: string): string | null {
 		return null;
 	}
 	if (!isPessoaDespesa(pessoa)) {
-		throw new Error(`Pessoa invalida: ${pessoa}.`);
+		throw new Error(`Pessoa inválida: ${pessoa}.`);
 	}
 	return pessoa;
 }
@@ -288,7 +288,7 @@ export async function atualizarDespesa(input: AtualizarDespesaInput): Promise<vo
 	});
 
 	if (resultado.count === 0) {
-		throw new Error("Despesa nao encontrada para edicao.");
+		throw new Error("Despesa não encontrada para edição.");
 	}
 }
 
@@ -299,6 +299,6 @@ export async function excluirDespesa(id: string): Promise<void> {
 	});
 
 	if (resultado.count === 0) {
-		throw new Error("Despesa nao encontrada para exclusao.");
+		throw new Error("Despesa não encontrada para exclusão.");
 	}
 }

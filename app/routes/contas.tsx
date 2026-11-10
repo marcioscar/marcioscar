@@ -82,7 +82,7 @@ const BOTAO_IMPORTAR_CLASS =
 function parseValor(raw: FormDataEntryValue | null): number {
 	const parsed = Number(raw);
 	if (!Number.isFinite(parsed) || parsed <= 0) {
-		throw new Error("Informe um valor valido maior que zero.");
+		throw new Error("Informe um valor válido maior que zero.");
 	}
 	return parsed;
 }
@@ -94,7 +94,7 @@ function parseData(raw: FormDataEntryValue | null): Date {
 
 	const data = new Date(`${raw}T00:00:00.000Z`);
 	if (Number.isNaN(data.getTime())) {
-		throw new Error("Data invalida.");
+		throw new Error("Data inválida.");
 	}
 
 	return data;
@@ -354,7 +354,7 @@ export async function action({
 		if (intent === "excluir") {
 			const despesaId = parseString(formData.get("id"));
 			if (!despesaId) {
-				throw new Error("Despesa invalida para exclusao.");
+				throw new Error("Despesa inválida para exclusão.");
 			}
 
 			await excluirDespesa(despesaId);
@@ -383,7 +383,7 @@ export async function action({
 		if (intent === "editar") {
 			const despesaId = parseString(formData.get("id"));
 			if (!despesaId) {
-				throw new Error("Despesa invalida para edicao.");
+				throw new Error("Despesa inválida para edição.");
 			}
 
 			const comprovanteAtual = parseString(formData.get("comprovanteAtual"));
@@ -503,7 +503,7 @@ export default function Contas() {
 						Saldo Brassaco: {formatarMoeda(saldoBrassacoAberto)}
 					</Badge>
 				</div>
-				<div className='flex items-center gap-2'>
+				<div className='flex flex-wrap items-center gap-2'>
 					<Button
 						type='button'
 						variant='outline'
@@ -541,7 +541,7 @@ export default function Contas() {
 				</div>
 			</div>
 
-			<section className='rounded-md border'>
+			<section className='min-w-0 rounded-md border'>
 				<div className='border-b px-4 py-3'>
 					<h2 className='text-lg font-semibold'>Despesas cadastradas</h2>
 				</div>

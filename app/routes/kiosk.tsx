@@ -61,7 +61,7 @@ function textoStatus(status: KioskConnectivityStatus): string {
 		return "Offline";
 	}
 
-	return "Nao configurado";
+	return "Não configurado";
 }
 
 function useClock() {
@@ -177,7 +177,7 @@ function LatestRacesCard({ data }: { data: LoaderData["ultimasCorridas"] }) {
 	return (
 		<Card className='bg-paleta-1/10 ring-paleta-1/30'>
 			<CardHeader className='pb-2'>
-				<CardTitle className='text-sm text-paleta-1'>Ultimas corridas</CardTitle>
+				<CardTitle className='text-sm text-paleta-1'>Últimas corridas</CardTitle>
 			</CardHeader>
 			<CardContent className='space-y-2'>
 				{data.length === 0 ? (

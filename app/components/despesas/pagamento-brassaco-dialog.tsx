@@ -73,7 +73,7 @@ export function PagamentoBrassacoDialog({
 						</label>
 
 						<label className='grid gap-1 text-sm'>
-							Observacao (opcional)
+							Observação (opcional)
 							<Textarea
 								name='obsPagamentoBrassaco'
 								rows={3}

@@ -155,7 +155,7 @@ export function DespesaEditDialog({
 						</label>
 
 						<label className='grid gap-1 text-sm md:col-span-2'>
-							Observacao
+							Observação
 							<Textarea name='obs' rows={3} defaultValue={despesa?.obs ?? ""} />
 						</label>
 					</div>
@@ -193,7 +193,7 @@ export function DespesaEditDialog({
 							disabled={isSubmitting || !despesa}>
 							{isSubmitting && submittingIntent !== "excluir"
 								? "Salvando..."
-								: "Salvar alteracoes"}
+								: "Salvar alterações"}
 						</Button>
 					</DialogFooter>
 				</Form>

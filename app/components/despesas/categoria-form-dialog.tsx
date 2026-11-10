@@ -181,7 +181,7 @@ export function CategoriaFormDialog({
 												checked={atualizarDespesas}
 												onChange={(e) => setAtualizarDespesas(e.target.checked)}
 											/>
-											Renomear tambem nas despesas que usam essa categoria
+											Renomear também nas despesas que usam essa categoria
 										</label>
 									</li>
 								);
@@ -241,7 +241,7 @@ export function CategoriaFormDialog({
 						})}
 					</ul>
 					<p className='text-muted-foreground text-xs'>
-						Apagar uma categoria so a remove das opcoes. As despesas que ja
+						Apagar uma categoria só a remove das opções. As despesas que já
 						usam o nome continuam com ele.
 					</p>
 				</div>

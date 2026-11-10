@@ -27,11 +27,11 @@ function formatarData(dataIso: string): string {
 	return new Date(dataIso).toLocaleString("pt-BR");
 }
 
-function formatarDistanciaKm(distanciaMetros: number): string {
+function formatarDistânciaKm(distanciaMetros: number): string {
 	return `${(distanciaMetros / 1000).toFixed(2)} km`;
 }
 
-function formatarElevacaoMetros(elevacaoMetros: number): string {
+function formatarElevaçãoMetros(elevacaoMetros: number): string {
 	return `${elevacaoMetros.toFixed(0)} m`;
 }
 
@@ -119,14 +119,14 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "distanciaMetros",
 		header: ({ column }) =>
-			sortableHeader("Distancia", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
-		cell: ({ row }) => formatarDistanciaKm(row.original.distanciaMetros),
+			sortableHeader("Distância", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
+		cell: ({ row }) => formatarDistânciaKm(row.original.distanciaMetros),
 	},
 	{
 		accessorKey: "elevacaoGanhoMetros",
 		header: ({ column }) =>
-			sortableHeader("Elevacao", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
-		cell: ({ row }) => formatarElevacaoMetros(row.original.elevacaoGanhoMetros),
+			sortableHeader("Elevação", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
+		cell: ({ row }) => formatarElevaçãoMetros(row.original.elevacaoGanhoMetros),
 	},
 	{
 		accessorKey: "tempoMovimentoSeg",
@@ -137,7 +137,7 @@ export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
 	{
 		accessorKey: "paceMedioSegPorKm",
 		header: ({ column }) =>
-			sortableHeader("Pace medio", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
+			sortableHeader("Pace médio", column.getIsSorted(), () => column.toggleSorting(column.getIsSorted() === "asc")),
 		cell: ({ row }) => formatarPace(row.original.paceMedioSegPorKm),
 	},
 ];

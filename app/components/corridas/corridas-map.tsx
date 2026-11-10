@@ -163,7 +163,7 @@ export function CorridasMap({ mapboxToken, polylines }: CorridasMapProps) {
 	if (!mapboxToken) {
 		return (
 			<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-				Token do Mapbox nao encontrado. Defina `MAPBOX_ACCESS_TOKEN` no `.env`.
+				Token do Mapbox não encontrado. Defina `MAPBOX_ACCESS_TOKEN` no `.env`.
 			</div>
 		);
 	}

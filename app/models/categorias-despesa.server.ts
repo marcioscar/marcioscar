@@ -48,7 +48,7 @@ function normalizarNomeCategoria(nomeRaw: string): string {
 		throw new Error("Informe o nome da categoria.");
 	}
 	if (nome.length > 40) {
-		throw new Error("O nome da categoria deve ter no maximo 40 caracteres.");
+		throw new Error("O nome da categoria deve ter no máximo 40 caracteres.");
 	}
 	return nome;
 }
@@ -60,7 +60,7 @@ export async function criarCategoriaDespesa(nomeRaw: string): Promise<string> {
 	const chave = chaveCategoria(nome);
 	const duplicada = existentes.find((c) => chaveCategoria(c) === chave);
 	if (duplicada) {
-		throw new Error(`A categoria "${duplicada}" ja existe.`);
+		throw new Error(`A categoria "${duplicada}" já existe.`);
 	}
 
 	await db.categoriasDespesa.create({ data: { nome } });
@@ -70,7 +70,7 @@ export async function criarCategoriaDespesa(nomeRaw: string): Promise<string> {
 export async function excluirCategoriaDespesa(nomeRaw: string): Promise<string> {
 	const nome = nomeRaw.trim();
 	if (!nome) {
-		throw new Error("Categoria invalida para exclusao.");
+		throw new Error("Categoria inválida para exclusão.");
 	}
 
 	const chave = chaveCategoria(nome);
@@ -82,7 +82,7 @@ export async function excluirCategoriaDespesa(nomeRaw: string): Promise<string> 
 		.map((c) => c.id);
 
 	if (ids.length === 0) {
-		throw new Error(`A categoria "${nome}" nao foi encontrada.`);
+		throw new Error(`A categoria "${nome}" não foi encontrada.`);
 	}
 
 	const total = await db.categoriasDespesa.count();
@@ -111,7 +111,7 @@ export async function renomearCategoriaDespesa(input: {
 		.filter((c) => chaveCategoria(c.nome) === chaveAtual)
 		.map((c) => c.id);
 	if (ids.length === 0) {
-		throw new Error(`A categoria "${nomeAtual}" nao foi encontrada.`);
+		throw new Error(`A categoria "${nomeAtual}" não foi encontrada.`);
 	}
 
 	// A mesma categoria pode trocar só maiúsculas/acentos; outra com a mesma chave não
@@ -119,7 +119,7 @@ export async function renomearCategoriaDespesa(input: {
 		(c) => chaveNova !== chaveAtual && chaveCategoria(c.nome) === chaveNova,
 	);
 	if (duplicada) {
-		throw new Error(`A categoria "${duplicada.nome.trim()}" ja existe.`);
+		throw new Error(`A categoria "${duplicada.nome.trim()}" já existe.`);
 	}
 
 	await db.categoriasDespesa.updateMany({

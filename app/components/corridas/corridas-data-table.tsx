@@ -56,7 +56,7 @@ type DistanciaFaixa = {
 
 const FAIXAS_DISTANCIA: DistanciaFaixa[] = [
 	{ id: 0, label: "Todas as corridas", minKm: null, maxKm: null },
-	{ id: 1, label: "Ate 10km", minKm: 0, maxKm: 10 },
+	{ id: 1, label: "Até 10km", minKm: 0, maxKm: 10 },
 	{ id: 2, label: "10 a 20km", minKm: 10, maxKm: 20 },
 	{ id: 3, label: "21 a 22km (meia)", minKm: 21, maxKm: 22 },
 	{ id: 4, label: "22 a 40km", minKm: 22, maxKm: 40 },
@@ -208,7 +208,7 @@ export function CorridasDataTable({
 		<div className='flex w-full min-w-0 flex-col gap-4'>
 			<div className='rounded-md border p-3'>
 				<div className='mb-2 flex flex-wrap items-center justify-between gap-2'>
-					<p className='text-sm font-medium'>Filtro de distancia</p>
+					<p className='text-sm font-medium'>Filtro de distância</p>
 					<p className='text-sm text-muted-foreground'>{faixaSelecionada.label}</p>
 				</div>
 				<Slider
@@ -328,7 +328,7 @@ export function CorridasDataTable({
 						size='sm'
 						onClick={() => table.nextPage()}
 						disabled={!table.getCanNextPage()}>
-						Proxima
+						Próxima
 					</Button>
 				</div>
 			</div>

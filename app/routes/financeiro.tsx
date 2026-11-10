@@ -530,19 +530,6 @@ export default function Financeiro() {
 						quantidade: item.totalDespesas,
 					}))}
 				/>
-				<CategoriasBarChart
-					title='Despesas por categoria'
-					description={`${getNomeMes(filtroMes)} / ${filtroAno}${sufixoPessoa}`}
-					items={saldosPorCategoria.map((item) => ({
-						label: item.categoria,
-						valor: item.totalValorDespesas,
-						quantidade: item.totalDespesas,
-						despesas: item.despesas,
-					}))}
-				/>
-			</section>
-
-			<section className='grid gap-4 md:grid-cols-2'>
 				<DespesasPieChart
 					title='Despesas por pessoa'
 					description={`${getNomeMes(filtroMes)} / ${filtroAno} · todas as pessoas`}
@@ -553,8 +540,20 @@ export default function Financeiro() {
 						quantidade: item.quantidade,
 					}))}
 				/>
-				<CategoriasTrendChart dados={categoriasTrend} />
 			</section>
+
+			<CategoriasBarChart
+				title='Despesas por categoria'
+				description={`${getNomeMes(filtroMes)} / ${filtroAno}${sufixoPessoa}`}
+				items={saldosPorCategoria.map((item) => ({
+					label: item.categoria,
+					valor: item.totalValorDespesas,
+					quantidade: item.totalDespesas,
+					despesas: item.despesas,
+				}))}
+			/>
+
+			<CategoriasTrendChart dados={categoriasTrend} />
 		</main>
 	);
 }
