@@ -16,9 +16,9 @@ import type {
 } from "~/types/analise";
 
 // mapbox-gl só roda no navegador: carrega sob demanda, depois da hidratação
-const CorridasMap = React.lazy(async () => {
-	const mod = await import("~/components/corridas/corridas-map");
-	return { default: mod.CorridasMap };
+const CorridaRotaMap = React.lazy(async () => {
+	const mod = await import("~/components/corridas/corrida-rota-map");
+	return { default: mod.CorridaRotaMap };
 });
 
 function getMapboxToken(): string | null {
@@ -121,10 +121,6 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 	const { corrida, provaAtivaInfo, mapboxToken } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
-	const polylinesMapa = React.useMemo(
-		() => (corrida.summaryPolyline ? [corrida.summaryPolyline] : []),
-		[corrida.summaryPolyline],
-	);
 
 	const [analise, setAnalise] = React.useState<AnaliseResult | null>(corrida.analise);
 	const [splits, setSplits] = React.useState<SplitMetric[] | null>(corrida.splits);
@@ -244,10 +240,11 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 				<div className="min-w-0">
 					{montado ? (
 						<React.Suspense fallback={<div className={MAPA_PLACEHOLDER}>Carregando mapa...</div>}>
-							<CorridasMap
+							<CorridaRotaMap
 								mapboxToken={mapboxToken}
-								polylines={polylinesMapa}
-								mostrarDica={false}
+								polyline={corrida.summaryPolyline}
+								distanciaMetros={corrida.distanciaMetros}
+								splits={splits}
 							/>
 						</React.Suspense>
 					) : (
