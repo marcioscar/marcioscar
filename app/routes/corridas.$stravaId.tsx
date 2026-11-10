@@ -15,6 +15,21 @@ import type {
 	BuscarDetalhesResponse,
 } from "~/types/analise";
 
+// mapbox-gl só roda no navegador: carrega sob demanda, depois da hidratação
+const CorridasMap = React.lazy(async () => {
+	const mod = await import("~/components/corridas/corridas-map");
+	return { default: mod.CorridasMap };
+});
+
+function getMapboxToken(): string | null {
+	return (
+		process.env.MAPBOX_ACCESS_TOKEN ??
+		process.env.MAPBOX_TOKEN ??
+		process.env.VITE_MAPBOX_TOKEN ??
+		null
+	);
+}
+
 export function meta({ data }: Route.MetaArgs) {
 	return [{ title: data ? `${data.corrida.nome} — Marcioscar` : "Corrida" }];
 }
@@ -47,11 +62,13 @@ export async function loader({ params }: Route.LoaderArgs) {
 			tempoMovimentoSeg: corrida.tempoMovimentoSeg,
 			paceMedioSegPorKm,
 			dataInicio: new Date(corrida.dataInicio).toISOString(),
+			summaryPolyline: corrida.summaryPolyline,
 			splits: (corrida.splits as SplitMetric[] | null) ?? null,
 			laps: (corrida.laps as LapData[] | null) ?? null,
 			analise: (corrida.analise as AnaliseResult | null) ?? null,
 			analisadaEm: corrida.analisadaEm ? corrida.analisadaEm.toISOString() : null,
 		},
+		mapboxToken: getMapboxToken(),
 		provaAtivaInfo: provaAtiva
 			? {
 					plano: provaAtiva.plano,
@@ -97,8 +114,17 @@ function categoria(m: number) {
 	return null;
 }
 
+const MAPA_PLACEHOLDER =
+	"flex h-[280px] w-full items-center justify-center rounded-md border text-sm text-muted-foreground sm:h-[360px] lg:h-[420px]";
+
 export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, provaAtivaInfo } = loaderData;
+	const { corrida, provaAtivaInfo, mapboxToken } = loaderData;
+	const [montado, setMontado] = React.useState(false);
+	React.useEffect(() => setMontado(true), []);
+	const polylinesMapa = React.useMemo(
+		() => (corrida.summaryPolyline ? [corrida.summaryPolyline] : []),
+		[corrida.summaryPolyline],
+	);
 
 	const [analise, setAnalise] = React.useState<AnaliseResult | null>(corrida.analise);
 	const [splits, setSplits] = React.useState<SplitMetric[] | null>(corrida.splits);
@@ -186,7 +212,7 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 			<div className="flex items-center gap-2">
 				<Button variant="ghost" size="sm" className="gap-1.5 -ml-2" render={<Link to="/corridas" />}>
 					<HugeiconsIcon icon={ArrowLeft01Icon} size={16} />
-					Corridas
+					Atividades
 				</Button>
 			</div>
 
@@ -212,6 +238,23 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 					</div>
 				))}
 			</div>
+
+			{/* MAPA */}
+			{corrida.summaryPolyline && (
+				<div className="min-w-0">
+					{montado ? (
+						<React.Suspense fallback={<div className={MAPA_PLACEHOLDER}>Carregando mapa...</div>}>
+							<CorridasMap
+								mapboxToken={mapboxToken}
+								polylines={polylinesMapa}
+								mostrarDica={false}
+							/>
+						</React.Suspense>
+					) : (
+						<div className={MAPA_PLACEHOLDER}>Carregando mapa...</div>
+					)}
+				</div>
+			)}
 
 			{/* BUSCAR DO STRAVA */}
 			{!hasData && !loading && (

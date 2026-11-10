@@ -9,6 +9,8 @@ import { decodePolyline } from "../../lib/polyline";
 type CorridasMapProps = {
 	mapboxToken: string | null;
 	polylines: string[];
+	// texto de ajuda acima do mapa; some na página de uma corrida só
+	mostrarDica?: boolean;
 };
 
 type FeatureCollection = GeoJSON.FeatureCollection<GeoJSON.LineString>;
@@ -97,7 +99,11 @@ function setOrUpdateSource(
 	});
 }
 
-export function CorridasMap({ mapboxToken, polylines }: CorridasMapProps) {
+export function CorridasMap({
+	mapboxToken,
+	polylines,
+	mostrarDica = true,
+}: CorridasMapProps) {
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
 	const featureCollection = useMemo(
@@ -170,9 +176,11 @@ export function CorridasMap({ mapboxToken, polylines }: CorridasMapProps) {
 
 	return (
 		<div className='flex flex-col gap-2'>
-			<p className='text-sm text-muted-foreground'>
-				Selecione uma ou mais corridas para desenhar a rota no mapa.
-			</p>
+			{mostrarDica && (
+				<p className='text-sm text-muted-foreground'>
+					Selecione uma ou mais corridas para desenhar a rota no mapa.
+				</p>
+			)}
 			<div
 				ref={containerRef}
 				className='h-[280px] w-full rounded-md border sm:h-[360px] lg:h-[420px]'
