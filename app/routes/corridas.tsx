@@ -64,7 +64,6 @@ type LoaderData = {
 	totalCorridas: number;
 	totalCorridasFiltradas: number;
 	ultimaAtualizacao: string | null;
-	mapboxToken: string | null;
 	ultimasCorridas: CorridaResumo[];
 	maratonasGraficoBarras: MaratonaBarrasDado[];
 	filtroDataInicio: string;
@@ -139,15 +138,6 @@ function formatarEpoch(segundos?: number): string {
 	return new Date(segundos * 1000).toLocaleString("pt-BR");
 }
 
-function getMapboxToken(): string | null {
-	return (
-		process.env.MAPBOX_ACCESS_TOKEN ??
-		process.env.MAPBOX_TOKEN ??
-		process.env.VITE_MAPBOX_TOKEN ??
-		null
-	);
-}
-
 function mapCorridaResumoParaDataTableRow(
 	corrida: CorridaResumo,
 ): CorridaDataTableRow {
@@ -195,7 +185,6 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 		totalCorridas,
 		totalCorridasFiltradas: ultimasCorridas.length,
 		ultimaAtualizacao: formatarDataIso(ultimaAtualizacaoDate),
-		mapboxToken: getMapboxToken(),
 		ultimasCorridas,
 		maratonasGraficoBarras,
 		filtroDataInicio,
@@ -258,7 +247,6 @@ export default function Corridas() {
 		totalCorridasFiltradas,
 		ultimaAtualizacao,
 		ultimasCorridas,
-		mapboxToken,
 		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
@@ -417,7 +405,6 @@ export default function Corridas() {
 				<h2 className='text-lg font-semibold'>Últimas corridas sincronizadas</h2>
 				<CorridasDataTable
 					data={corridasDataTable}
-					mapboxToken={mapboxToken}
 					maratonasGraficoBarras={maratonasGraficoBarras}
 				/>
 			</section>

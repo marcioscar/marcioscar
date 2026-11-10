@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useNavigate } from "react-router";
 import {
-	type RowSelectionState,
 	flexRender,
 	getCoreRowModel,
 	getPaginationRowModel,
@@ -26,11 +25,6 @@ import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
 import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
 
-const CorridasMap = React.lazy(async () => {
-	const mod = await import("./corridas-map");
-	return { default: mod.CorridasMap };
-});
-
 const CorridasGlobo = React.lazy(async () => {
 	const mod = await import("./corridas-globo");
 	return { default: mod.CorridasGlobo };
@@ -43,7 +37,6 @@ const MaratonasBarrasChart = React.lazy(async () => {
 
 type CorridasDataTableProps = {
 	data: CorridaDataTableRow[];
-	mapboxToken: string | null;
 	maratonasGraficoBarras: MaratonaBarrasDado[];
 };
 
@@ -62,16 +55,6 @@ const FAIXAS_DISTANCIA: DistanciaFaixa[] = [
 	{ id: 4, label: "22 a 40km", minKm: 22, maxKm: 40 },
 	{ id: 5, label: "40km+", minKm: 40, maxKm: null },
 ];
-
-function extrairPolylinesSelecionadas(
-	linhas: CorridaDataTableRow[],
-	rowSelection: RowSelectionState,
-): string[] {
-	return linhas
-		.filter((linha) => rowSelection[String(linha.stravaId)])
-		.map((linha) => linha.summaryPolyline)
-		.filter((polyline): polyline is string => Boolean(polyline));
-}
 
 function filtrarPorFaixaDistancia(
 	linhas: CorridaDataTableRow[],
@@ -150,7 +133,6 @@ function filtrarPorNomeOuData(
 
 export function CorridasDataTable({
 	data,
-	mapboxToken,
 	maratonasGraficoBarras,
 }: CorridasDataTableProps) {
 	const navigate = useNavigate();
@@ -158,10 +140,8 @@ export function CorridasDataTable({
 		{ id: "dataInicio", desc: true },
 	]);
 	const [faixaSelecionadaId, setFaixaSelecionadaId] = React.useState(0);
-	const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 	const [nomeBusca, setNomeBusca] = React.useState("");
 	const [dataBusca, setDataBusca] = React.useState("");
-	const [mostrarMapa, setMostrarMapa] = React.useState(false);
 	const [mostrarGlobo, setMostrarGlobo] = React.useState(false);
 
 	function handleRowClick(corrida: CorridaDataTableRow) {
@@ -185,9 +165,8 @@ export function CorridasDataTable({
 		getSortedRowModel: getSortedRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
 		onSortingChange: setSorting,
-		onRowSelectionChange: setRowSelection,
 		getRowId: (row) => String(row.stravaId),
-		state: { sorting, rowSelection },
+		state: { sorting },
 		initialState: {
 			pagination: {
 				pageSize: 10,
@@ -195,10 +174,6 @@ export function CorridasDataTable({
 		},
 	});
 
-	const polylinesSelecionadas = React.useMemo(
-		() => extrairPolylinesSelecionadas(dadosFiltrados, rowSelection),
-		[dadosFiltrados, rowSelection],
-	);
 	const corridasParaGlobo = React.useMemo(
 		() => (mostrarGlobo ? filtrarCorridasParaGlobo(data) : []),
 		[data, mostrarGlobo],
@@ -216,7 +191,6 @@ export function CorridasDataTable({
 					onValueChange={(value) => {
 						const proximaFaixaId = normalizarValorSlider(value);
 						setFaixaSelecionadaId(proximaFaixaId);
-						setRowSelection({});
 						table.setPageIndex(0);
 					}}
 					min={0}
@@ -238,7 +212,6 @@ export function CorridasDataTable({
 						value={nomeBusca}
 						onChange={(event) => {
 							setNomeBusca(event.target.value);
-							setRowSelection({});
 							table.setPageIndex(0);
 						}}
 						placeholder='Ex.: longao, treino, maratona...'
@@ -253,7 +226,6 @@ export function CorridasDataTable({
 						value={dataBusca}
 						onChange={(event) => {
 							setDataBusca(event.target.value);
-							setRowSelection({});
 							table.setPageIndex(0);
 						}}
 						className='border-input bg-background rounded-md border px-3 py-2'
@@ -310,10 +282,9 @@ export function CorridasDataTable({
 
 			<div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
 				<p className='text-sm text-muted-foreground'>
-					{table.getRowModel().rows.length} linha(s) nesta pagina,{" "}
-					{dadosFiltrados.length} apos busca, {dadosFiltradosFaixa.length} na faixa selecionada,{" "}
-					{data.length} no total.{" "}
-					{Object.keys(rowSelection).length} selecionada(s).
+					{table.getRowModel().rows.length} linha(s) nesta página,{" "}
+					{dadosFiltrados.length} após busca, {dadosFiltradosFaixa.length} na faixa selecionada,{" "}
+					{data.length} no total.
 				</p>
 				<div className='flex items-center gap-2 self-start sm:self-auto'>
 					<Button
@@ -335,35 +306,12 @@ export function CorridasDataTable({
 
 			<div className='flex flex-wrap gap-2'>
 				<Button
-					variant={mostrarMapa ? "secondary" : "outline"}
-					size='sm'
-					onClick={() => setMostrarMapa((valorAtual) => !valorAtual)}>
-					{mostrarMapa ? "Ocultar mapa" : "Mostrar mapa"}
-				</Button>
-				<Button
 					variant={mostrarGlobo ? "secondary" : "outline"}
 					size='sm'
 					onClick={() => setMostrarGlobo((valorAtual) => !valorAtual)}>
 					{mostrarGlobo ? "Ocultar globo" : "Mostrar globo"}
 				</Button>
 			</div>
-
-			{mostrarMapa ? (
-				<React.Suspense
-					fallback={
-						<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-							Carregando mapa...
-						</div>
-					}>
-					<div className='w-full min-w-0'>
-						<CorridasMap mapboxToken={mapboxToken} polylines={polylinesSelecionadas} />
-					</div>
-				</React.Suspense>
-			) : (
-				<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-					Clique em "Mostrar mapa" para carregar o mapa sob demanda.
-				</div>
-			)}
 
 			<React.Suspense
 				fallback={

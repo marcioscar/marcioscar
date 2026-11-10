@@ -3,7 +3,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
 import type { AnaliseResult, SplitMetric, LapData } from "~/types/analise";
 
 export type CorridaDataTableRow = {
@@ -70,26 +69,6 @@ function sortableHeader(titulo: string, sortState: false | "asc" | "desc", onTog
 }
 
 export const corridasColumns: ColumnDef<CorridaDataTableRow>[] = [
-	{
-		id: "select",
-		header: ({ table }) => (
-			<Checkbox
-				checked={table.getIsAllPageRowsSelected()}
-				onCheckedChange={(value) => table.toggleAllPageRowsSelected(Boolean(value))}
-				aria-label='Selecionar todas as corridas da pagina'
-			/>
-		),
-		cell: ({ row }) => (
-			<Checkbox
-				checked={row.getIsSelected()}
-				onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
-				aria-label='Selecionar corrida'
-				onClick={(e) => e.stopPropagation()}
-			/>
-		),
-		enableSorting: false,
-		enableHiding: false,
-	},
 	{
 		accessorKey: "dataInicio",
 		header: ({ column }) =>
