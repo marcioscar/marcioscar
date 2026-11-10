@@ -47,6 +47,10 @@ type LoaderData = {
 	totalDespesasPeriodo: number;
 	totalValorDespesasPeriodo: number;
 	totalValorDespesasMesAnterior: number;
+	// Mês em andamento: compara só até o dia de hoje nos dois meses
+	comparacaoAteDia: number | null;
+	totalValorAteHoje: number;
+	saldosPorContaAteHoje: { conta: string; totalValorDespesas: number }[];
 	saldoBrassaco: number;
 	totalDespesasBrassaco: number;
 	totalPagoBrassaco: number;
@@ -98,6 +102,16 @@ function getMesAnoAtual(): { mes: number; ano: number } {
 		mes: hoje.getUTCMonth() + 1,
 		ano: hoje.getUTCFullYear(),
 	};
+}
+
+function getHojeBrasil(): { dia: number; mes: number; ano: number } {
+	const [ano, mes, dia] = new Intl.DateTimeFormat("en-CA", {
+		timeZone: "America/Sao_Paulo",
+	})
+		.format(new Date())
+		.split("-")
+		.map(Number);
+	return { dia, mes, ano };
 }
 
 function parseMes(valor: string | null, fallback: number): number {
@@ -209,6 +223,10 @@ export async function loader({
 	const filtroPessoa = parsePessoa(url.searchParams.get("pessoa"));
 	const pessoa = filtroPessoa ?? undefined;
 	const prev = getPrevMesAno(filtroMes, filtroAno);
+	const hoje = getHojeBrasil();
+	const comparacaoAteDia =
+		hoje.mes === filtroMes && hoje.ano === filtroAno ? hoje.dia : null;
+	const ateDia = comparacaoAteDia ?? undefined;
 
 	const [
 		resumoBrassaco,
@@ -219,15 +237,23 @@ export async function loader({
 		saldosPorCategoria,
 		categoriasTrend,
 		saldosPorPessoa,
+		resumoAteHoje,
+		saldosPorContaAteHoje,
 	] = await Promise.all([
 		obterResumoDashboardBrassaco(6),
 		obterResumoDespesasPorPeriodo(filtroAno, filtroMes, pessoa),
-		obterResumoDespesasPorPeriodo(prev.ano, prev.mes, pessoa),
+		obterResumoDespesasPorPeriodo(prev.ano, prev.mes, pessoa, ateDia),
 		obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes, pessoa),
-		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes, pessoa),
+		obterResumoDespesasPorContaNoPeriodo(prev.ano, prev.mes, pessoa, ateDia),
 		obterResumoDespesasPorCategoriaNoPeriodo(filtroAno, filtroMes, pessoa),
 		obterCategoriasPorUltimosMeses(6, pessoa),
 		obterResumoDespesasPorPessoaNoPeriodo(filtroAno, filtroMes),
+		ateDia
+			? obterResumoDespesasPorPeriodo(filtroAno, filtroMes, pessoa, ateDia)
+			: null,
+		ateDia
+			? obterResumoDespesasPorContaNoPeriodo(filtroAno, filtroMes, pessoa, ateDia)
+			: null,
 	]);
 
 	return {
@@ -238,6 +264,10 @@ export async function loader({
 		totalDespesasPeriodo: resumoDespesasPeriodo.totalDespesas,
 		totalValorDespesasPeriodo: resumoDespesasPeriodo.totalValorDespesas,
 		totalValorDespesasMesAnterior: resumoDespesasMesAnterior.totalValorDespesas,
+		comparacaoAteDia,
+		totalValorAteHoje:
+			resumoAteHoje?.totalValorDespesas ?? resumoDespesasPeriodo.totalValorDespesas,
+		saldosPorContaAteHoje: saldosPorContaAteHoje ?? saldosPorConta,
 		saldoBrassaco: resumoBrassaco.saldoBrassaco,
 		totalDespesasBrassaco: resumoBrassaco.totalDespesasBrassaco,
 		totalPagoBrassaco: resumoBrassaco.totalPagoBrassaco,
@@ -261,7 +291,8 @@ const miniChartConfig = {
 } satisfies ChartConfig;
 
 function calcPct(atual: number, anterior: number) {
-	if (anterior <= 0) return null;
+	// sem gasto no mês a variação é sempre -100%: não informa nada
+	if (anterior <= 0 || atual <= 0) return null;
 	return ((atual - anterior) / anterior) * 100;
 }
 
@@ -279,11 +310,11 @@ function MiniBarChart({ atual, anterior, labelAnterior, labelAtual }: MiniBarCha
 	];
 
 	return (
-		<ChartContainer config={miniChartConfig} className='aspect-auto h-16 w-full'>
+		<ChartContainer config={miniChartConfig} className='aspect-auto h-28 w-full'>
 			<BarChart
 				accessibilityLayer
 				data={data}
-				barSize={28}
+				barSize={36}
 				margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
 				<XAxis
 					dataKey='label'
@@ -324,6 +355,9 @@ export default function Financeiro() {
 		totalDespesasPeriodo,
 		totalValorDespesasPeriodo,
 		totalValorDespesasMesAnterior,
+		comparacaoAteDia,
+		totalValorAteHoje,
+		saldosPorContaAteHoje,
 		saldosPorConta,
 		saldosPorContaMesAnterior,
 		saldosPorCategoria,
@@ -348,6 +382,13 @@ export default function Financeiro() {
 	const next = getNextMesAno(filtroMes, filtroAno);
 	const labelAnterior = getNomeMesAbreviado(prev.mes);
 	const labelAtual = getNomeMesAbreviado(filtroMes);
+	const mapaContaAteHoje = useMemo(
+		() => new Map(saldosPorContaAteHoje.map((c) => [c.conta, c.totalValorDespesas])),
+		[saldosPorContaAteHoje],
+	);
+	const sufixoComparacao = comparacaoAteDia
+		? ` (até dia ${comparacaoAteDia})`
+		: "";
 	const itensPorPessoa = montarItensPorPessoa(saldosPorPessoa);
 	const sufixoPessoa = filtroPessoa ? ` · ${filtroPessoa}` : "";
 
@@ -427,7 +468,7 @@ export default function Financeiro() {
 			{/* --- Card total + cards por conta --- */}
 			<section className='grid min-w-0 gap-4 lg:grid-cols-[1fr_2fr]'>
 				{/* Total de despesas */}
-				<Card className='min-w-0 overflow-hidden'>
+				<Card className='flex min-w-0 flex-col overflow-hidden'>
 					<CardHeader>
 						<div className='flex items-start justify-between gap-3'>
 							<div className='grid gap-0.5'>
@@ -443,26 +484,27 @@ export default function Financeiro() {
 							</div>
 						</div>
 					</CardHeader>
-					<CardContent className='flex items-end justify-between gap-4'>
+					<CardContent className='flex flex-1 items-end justify-between gap-4'>
 						<div className='flex flex-col gap-1'>
 							<p className='text-muted-foreground text-xs'>
 								{totalDespesasPeriodo} despesas · {getNomeMes(filtroMes)} {filtroAno}
 							</p>
 							{(() => {
-								const pct = calcPct(totalValorDespesasPeriodo, totalValorDespesasMesAnterior);
+								const pct = calcPct(totalValorAteHoje, totalValorDespesasMesAnterior);
 								if (pct === null) return null;
 								const subindo = pct > 0;
 								return (
 									<p className={`flex items-center gap-1 text-xs font-medium ${subindo ? "text-perigo" : "text-sucesso"}`}>
 										{subindo ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
 										{Math.abs(pct).toFixed(1)}% vs {labelAnterior}
+										{sufixoComparacao}
 									</p>
 								);
 							})()}
 						</div>
-						<div className='w-28 shrink-0'>
+						<div className='w-40 shrink-0'>
 							<MiniBarChart
-								atual={totalValorDespesasPeriodo}
+								atual={totalValorAteHoje}
 								anterior={totalValorDespesasMesAnterior}
 								labelAnterior={labelAnterior}
 								labelAtual={labelAtual}
@@ -476,7 +518,10 @@ export default function Financeiro() {
 				{saldosPorContaExibicao.map((saldoConta) => {
 					const { cor, Icone } = getContaConfig(saldoConta.conta);
 					const anterior = mapaContaMesAnterior.get(saldoConta.conta) ?? 0;
-					const pct = calcPct(saldoConta.totalValorDespesas, anterior);
+					const pct = calcPct(
+						mapaContaAteHoje.get(saldoConta.conta) ?? 0,
+						anterior,
+					);
 					const subindo = (pct ?? 0) > 0;
 					return (
 						<Card

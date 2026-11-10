@@ -105,6 +105,7 @@ export function DespesasPieChart({
 }: DespesasPieChartProps) {
 	const itensPizza = normalizarItensPizza(items);
 	const chartConfig = criarChartConfig(itensPizza, palette);
+	const total = itensPizza.reduce((acc, item) => acc + item.valor, 0);
 
 	return (
 		<Card className='bg-linear-to-br from-card via-card to-muted/40'>
@@ -160,31 +161,30 @@ export function DespesasPieChart({
 							</PieChart>
 						</ChartContainer>
 
-						<div className='flex flex-wrap gap-x-4 gap-y-2 text-sm'>
+						<ul className='grid gap-1.5 text-sm'>
 							{itensPizza.map((item, index) => (
-								<div key={`${item.key}-legend`} className='flex items-center gap-1.5'>
-									<span
-										aria-hidden
-										className='h-2.5 w-2.5 shrink-0 rounded-[2px]'
-										style={{ backgroundColor: getCorPaleta(index, palette) }}
-									/>
-									<span className='text-foreground'>{item.label}</span>
-								</div>
-							))}
-						</div>
-
-						<div className='grid gap-1.5 text-sm'>
-							{itensPizza.map((item) => (
-								<div
+								<li
 									key={item.key}
-									className='flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2'>
-									<span className='min-w-0 truncate'>{item.label}</span>
-									<span className='shrink-0 font-medium tabular-nums text-foreground sm:text-right'>
-										{formatarMoeda(item.valor)}
+									className='flex min-w-0 items-center justify-between gap-2'>
+									<span className='flex min-w-0 items-center gap-2'>
+										<span
+											aria-hidden
+											className='h-2.5 w-2.5 shrink-0 rounded-[2px]'
+											style={{ backgroundColor: getCorPaleta(index, palette) }}
+										/>
+										<span className='truncate'>{item.label}</span>
 									</span>
-								</div>
+									<span className='flex shrink-0 items-baseline gap-2 tabular-nums'>
+										<span className='font-medium text-foreground'>
+											{formatarMoeda(item.valor)}
+										</span>
+										<span className='w-10 text-right text-xs text-muted-foreground'>
+											{total > 0 ? `${Math.round((item.valor / total) * 100)}%` : "–"}
+										</span>
+									</span>
+								</li>
 							))}
-						</div>
+						</ul>
 					</>
 				) : (
 					<p className='text-sm text-muted-foreground'>

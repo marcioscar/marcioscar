@@ -95,11 +95,21 @@ function getNumeroSeguro(valor: number | null | undefined): number {
 	return typeof valor === "number" && Number.isFinite(valor) ? valor : 0;
 }
 
-function getIntervaloMesAno(ano: number, mes: number): { inicio: Date; fim: Date } {
+// ateDia limita o intervalo ao dia informado (comparação com mês em andamento)
+function getIntervaloMesAno(
+	ano: number,
+	mes: number,
+	ateDia?: number,
+): { inicio: Date; fim: Date } {
 	const dataBase = new Date(Date.UTC(ano, mes - 1, 1, 0, 0, 0, 0));
+	const fimMes = getFimMesUtc(dataBase);
+	const fim =
+		ateDia && ateDia < fimMes.getUTCDate()
+			? new Date(Date.UTC(ano, mes - 1, ateDia, 23, 59, 59, 999))
+			: fimMes;
 	return {
 		inicio: getInicioMesUtc(dataBase),
-		fim: getFimMesUtc(dataBase),
+		fim,
 	};
 }
 
@@ -238,8 +248,9 @@ export async function obterResumoDespesasPorPeriodo(
 	ano: number,
 	mes: number,
 	pessoa?: string,
+	ateDia?: number,
 ): Promise<ResumoDespesasPeriodo> {
-	const intervalo = getIntervaloMesAno(ano, mes);
+	const intervalo = getIntervaloMesAno(ano, mes, ateDia);
 	const filtroPeriodo = {
 		data: {
 			gte: intervalo.inicio,
@@ -288,8 +299,9 @@ export async function obterResumoDespesasPorContaNoPeriodo(
 	ano: number,
 	mes: number,
 	pessoa?: string,
+	ateDia?: number,
 ): Promise<ResumoContaPeriodo[]> {
-	const intervalo = getIntervaloMesAno(ano, mes);
+	const intervalo = getIntervaloMesAno(ano, mes, ateDia);
 	const despesas = await db.despesas.findMany({
 		where: {
 			data: {
