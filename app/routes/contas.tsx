@@ -220,7 +220,7 @@ function getTituloErroOperacao(operacao: ActionData["operacao"]): string {
 
 export function meta({}: Route.MetaArgs) {
 	return [
-		{ title: "Contas | Marcioscar" },
+		{ title: "Despesas | Marcioscar" },
 		{ name: "description", content: "Cadastro e acompanhamento de despesas" },
 	];
 }
@@ -493,7 +493,7 @@ export default function Contas() {
 		<main className='grid w-full min-w-0 gap-4'>
 			<div className='flex flex-wrap items-center justify-between gap-2'>
 				<div className='flex flex-wrap items-center gap-2'>
-					<h1 className='text-2xl font-bold'>Contas</h1>
+					<h1 className='text-2xl font-bold'>Despesas</h1>
 					<Badge variant='outline'>Despesas: {totalDespesas}</Badge>
 					<Badge variant='outline'>Total: {formatarMoeda(totalValor)}</Badge>
 					<Badge variant='outline'>

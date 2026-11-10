@@ -46,7 +46,7 @@ import { CorridasSemanaChart } from "~/components/corridas/corridas-semana-chart
 
 export function meta({}: Route.MetaArgs) {
 	return [
-		{ title: "Marcioscar" },
+		{ title: "Atividades | Marcioscar" },
 		{ name: "description", content: "Marcioscar" },
 	];
 }
@@ -299,7 +299,7 @@ export default function Corridas() {
 
 			<div className='flex items-start justify-between gap-2'>
 				<div className='flex flex-wrap items-center gap-2'>
-					<h1 className='text-2xl font-bold'>Corridas</h1>
+					<h1 className='text-2xl font-bold'>Atividades</h1>
 					<Badge className='text-sucesso bg-sucesso/15' variant='outline'>
 						Total: {totalCorridas ?? 0}
 					</Badge>

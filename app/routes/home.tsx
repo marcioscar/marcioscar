@@ -31,7 +31,7 @@ import { CorridaCoachPanel } from "~/components/dashboard-corrida/corrida-coach-
 
 export function meta({}: Route.MetaArgs) {
 	return [
-		{ title: "Corrida | Marcioscar" },
+		{ title: "Painel de corrida | Marcioscar" },
 		{ name: "description", content: "Painel de corrida do Marcioscar" },
 	];
 }
@@ -186,7 +186,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 	return (
 		<main className="grid gap-4 md:gap-6">
 			<div className="flex flex-wrap items-center justify-between gap-2">
-				<h1 className="text-2xl font-bold">Corrida</h1>
+				<h1 className="text-2xl font-bold">Painel de corrida</h1>
 			</div>
 
 			{provaAtiva && paceAlvoSeg !== null && daysUntilRace !== null ? (

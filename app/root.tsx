@@ -9,7 +9,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import { AppSidebar } from "./components/app-sidebar";
+import { AppSidebar, getNavAtual } from "./components/app-sidebar";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -56,6 +56,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
 	const location = useLocation();
 	const isKioskRoute = location.pathname === "/kiosk";
+	const navAtual = getNavAtual(location.pathname);
 
 	if (isKioskRoute) {
 		return (
@@ -72,8 +73,15 @@ export default function App() {
 			<SidebarInset>
 				<header className='flex h-14 items-center gap-2 border-b px-4'>
 					<SidebarTrigger />
-					<MarcaIcone className='size-8' />
-					<span className='text-sm font-medium'>Marcioscar</span>
+					{/* no celular a barra lateral fica escondida, então a marca aparece aqui */}
+					<MarcaIcone className='size-7 md:hidden' />
+					{navAtual && (
+						<nav aria-label='Você está em' className='flex items-center gap-1.5 text-sm'>
+							<span className='text-muted-foreground'>{navAtual.grupo}</span>
+							<span className='text-muted-foreground/60'>/</span>
+							<span className='font-medium'>{navAtual.titulo}</span>
+						</nav>
+					)}
 				</header>
 				<div className='flex min-h-0 min-w-0 flex-1 flex-col p-4'>
 					<Outlet />

@@ -194,7 +194,7 @@ function montarSaldosPorContaComPadrao(
 
 export function meta({}: Route.MetaArgs) {
 	return [
-		{ title: "Financeiro | Marcioscar" },
+		{ title: "Resumo financeiro | Marcioscar" },
 		{ name: "description", content: "Dashboard financeiro do Marcioscar" },
 	];
 }
@@ -354,7 +354,7 @@ export default function Financeiro() {
 	return (
 		<main className='grid gap-4 md:gap-6'>
 			<div className='flex flex-wrap items-center justify-between gap-2'>
-				<h1 className='text-2xl font-bold'>Financeiro</h1>
+				<h1 className='text-2xl font-bold'>Resumo financeiro</h1>
 				<div className='flex items-center gap-2'>
 					<Link
 						to={montarQuery(prev.mes, prev.ano, filtroPessoa)}
