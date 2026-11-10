@@ -34,7 +34,7 @@ export const COR_ROTA_PADRAO = "#3b7f86";
 export const CORES_RITMO = ["#2f7f86", "#d2a53f", "#c2602f"] as const;
 const COR_PARADO = "#9a958c";
 // abaixo disso o trecho é caminhada/pausa e não entra na escala de cores
-const VELOCIDADE_MINIMA_MPS = 1.4;
+export const VELOCIDADE_MINIMA_MPS = 1.4;
 
 function metrosEntre(a: Coordinate, b: Coordinate): number {
 	const R = 6371000;

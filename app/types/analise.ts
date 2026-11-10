@@ -5,6 +5,8 @@ export type SplitMetric = {
 	moving_time: number
 	elevation_difference: number
 	average_speed: number
+	/** Velocidade equivalente no plano (GAP do Strava) */
+	average_grade_adjusted_speed?: number
 	average_heartrate?: number
 	pace_zone?: number
 }

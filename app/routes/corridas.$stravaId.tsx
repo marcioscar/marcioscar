@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { buscarCorridaPorStravaId } from "~/models/corridas.server";
 import { obterProvaAtiva } from "~/models/provas.server";
 import { Button } from "~/components/ui/button";
+import { CorridaPaceDesnivelChart } from "~/components/corridas/corrida-pace-desnivel-chart";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import type {
@@ -252,6 +253,9 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 					)}
 				</div>
 			)}
+
+			{/* PACE × SUBIDA */}
+			{splits && splits.length > 1 && <CorridaPaceDesnivelChart splits={splits} />}
 
 			{/* BUSCAR DO STRAVA */}
 			{!hasData && !loading && (
