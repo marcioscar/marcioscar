@@ -242,14 +242,13 @@ export default function Biblioteca() {
 		<main className='grid w-full min-w-0 max-w-full gap-4'>
 			<div className='flex min-w-0 flex-wrap items-center justify-between gap-2'>
 				<h1 className='text-2xl font-bold'>Biblioteca</h1>
-				<Form method='get' className='flex flex-wrap items-end gap-2'>
-					<label className='grid gap-1 text-sm'>
-						Mês
+				<Form method='get' className='flex flex-wrap items-center gap-2'>
 						<select
 							name='mes'
+							aria-label='Mês'
 							defaultValue={String(filtroMes)}
 							onChange={onFiltroChange}
-							className='border-input bg-background rounded-md border px-3 py-2 capitalize'>
+							className='border-input bg-background rounded-md border px-3 py-2 text-sm capitalize'>
 							{Array.from({ length: 12 }, (_, index) => index + 1).map(
 								(mes) => (
 									<option key={mes} value={mes}>
@@ -258,21 +257,18 @@ export default function Biblioteca() {
 								),
 							)}
 						</select>
-					</label>
-					<label className='grid gap-1 text-sm'>
-						Ano
 						<select
 							name='ano'
+							aria-label='Ano'
 							defaultValue={String(filtroAno)}
 							onChange={onFiltroChange}
-							className='border-input bg-background rounded-md border px-3 py-2'>
+							className='border-input bg-background rounded-md border px-3 py-2 text-sm'>
 							{opcoesAno.map((ano) => (
 								<option key={ano} value={ano}>
 									{ano}
 								</option>
 							))}
 						</select>
-					</label>
 				</Form>
 			</div>
 

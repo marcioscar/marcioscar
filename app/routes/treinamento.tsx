@@ -308,12 +308,12 @@ export default function TreinamentoRoute() {
 		: 'border-sucesso/30 bg-sucesso/10 text-sucesso'
 
 	return (
-		<div className='flex flex-col gap-6 p-4 md:p-6'>
+		<div className='flex flex-col gap-6'>
 
 			{/* Header */}
 			<div className='flex items-start justify-between'>
 				<div>
-					<h1 className='text-2xl font-semibold tracking-tight'>Plano de Treinamento</h1>
+					<h1 className='text-2xl font-bold'>Plano de treinamento</h1>
 					<p className='text-sm text-muted-foreground mt-1'>Metodologia Canova — {plan.totalWeeks} semanas</p>
 				</div>
 			</div>

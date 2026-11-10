@@ -314,9 +314,9 @@ export function CorridasGraficosChart({ corridas }: Props) {
 						← Anterior
 					</Button>
 					<span className='text-muted-foreground text-xs'>
-						{totalPaginas > 1
-							? `${periodo === "semana" ? "semanas" : "meses"} ${todosDados.length - (pagina + 1) * janela + 1}–${Math.min(todosDados.length - pagina * janela, todosDados.length)} de ${todosDados.length}`
-							: `${todosDados.length} ${periodo === "semana" ? "semana" + (todosDados.length !== 1 ? "s" : "") : "mes" + (todosDados.length !== 1 ? "es" : "")}`}
+						{dadosPagina.length > 1
+							? `${dadosPagina[0].label} – ${dadosPagina[dadosPagina.length - 1].label}`
+							: (dadosPagina[0]?.label ?? "")}
 					</span>
 					<Button
 						variant='outline'

@@ -24,7 +24,13 @@ export type CorridaDataTableRow = {
 };
 
 function formatarData(dataIso: string): string {
-	return new Date(dataIso).toLocaleString("pt-BR");
+	const data = new Date(dataIso);
+	const dia = data.toLocaleDateString("pt-BR");
+	const hora = data.toLocaleTimeString("pt-BR", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+	return `${dia} · ${hora}`;
 }
 
 function formatarDistânciaKm(distanciaMetros: number): string {
