@@ -1,13 +1,14 @@
 import type { Route } from "./+types/contas";
 import {
 	Form,
+	Link,
 	useActionData,
 	useLoaderData,
 	useNavigation,
+	useSubmit,
 } from "react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
 	atualizarDespesa,
@@ -51,6 +52,8 @@ type LoaderData = {
 	totalPagamentosBrassaco: number;
 	filtroDataInicio: string;
 	filtroDataFim: string;
+	filtroMes: number;
+	filtroAno: number;
 };
 
 type ActionData = {
@@ -68,16 +71,42 @@ type ActionData = {
 	transacoes?: TransacaoImportada[];
 };
 
-const BOTAO_EDITAR_CLASS =
-	"border-paleta-2/30 bg-paleta-2/10 text-paleta-2 hover:bg-paleta-2/20";
-const BOTAO_PAGAR_BRASSACO_CLASS =
-	"border-paleta-4/30 bg-paleta-4/10 text-paleta-4 hover:bg-paleta-4/20";
-const BOTAO_NOVA_DESPESA_CLASS =
-	"border-paleta-1/30 bg-paleta-1/10 text-paleta-1 hover:bg-paleta-1/20";
-const BOTAO_NOVA_CATEGORIA_CLASS =
-	"border-paleta-7/30 bg-paleta-7/10 text-paleta-7 hover:bg-paleta-7/20";
-const BOTAO_IMPORTAR_CLASS =
-	"border-paleta-6/30 bg-paleta-6/10 text-paleta-6 hover:bg-paleta-6/20";
+const NAV_BTN =
+	"inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-sm hover:bg-accent hover:text-accent-foreground transition-colors";
+const SELECT_CLASS =
+	"border-input bg-background rounded-md border px-3 py-2 text-sm capitalize";
+
+function getNomeMes(mes: number): string {
+	return new Date(Date.UTC(2025, mes - 1, 1)).toLocaleString("pt-BR", {
+		month: "long",
+		timeZone: "UTC",
+	});
+}
+
+function obterIntervaloMes(ano: number, mes: number): { inicio: Date; fim: Date } {
+	return {
+		inicio: new Date(Date.UTC(ano, mes - 1, 1, 0, 0, 0, 0)),
+		fim: new Date(Date.UTC(ano, mes, 0, 23, 59, 59, 999)),
+	};
+}
+
+function parseMesAno(
+	mesRaw: string | null,
+	anoRaw: string | null,
+): { mes: number; ano: number } | null {
+	const mes = Number(mesRaw);
+	const ano = Number(anoRaw);
+	if (!Number.isInteger(mes) || mes < 1 || mes > 12) return null;
+	if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) return null;
+	return { mes, ano };
+}
+
+// O intervalo filtrado é exatamente um mês cheio?
+function isMesCheio(inicio: string, fim: string): boolean {
+	const [ano, mes, dia] = inicio.split("-").map(Number);
+	if (dia !== 1) return false;
+	return fim === formatarDataInput(obterIntervaloMes(ano, mes).fim);
+}
 
 function parseValor(raw: FormDataEntryValue | null): number {
 	const parsed = Number(raw);
@@ -233,12 +262,25 @@ export async function loader({
 	const filtroDataInicioRaw = url.searchParams.get("dataInicio");
 	const filtroDataFimRaw = url.searchParams.get("dataFim");
 
+	// ?mes=&ano= (navegação por mês) tem prioridade sobre o período personalizado
+	const mesAno = parseMesAno(
+		url.searchParams.get("mes"),
+		url.searchParams.get("ano"),
+	);
+	const intervaloMes = mesAno
+		? obterIntervaloMes(mesAno.ano, mesAno.mes)
+		: null;
+
 	const dataInicio =
+		intervaloMes?.inicio ??
 		parseDateFromSearchParam(filtroDataInicioRaw, "inicio") ??
 		intervaloMesAtual.inicio;
 	const dataFim =
-		parseDateFromSearchParam(filtroDataFimRaw, "fim") ?? intervaloMesAtual.fim;
+		intervaloMes?.fim ??
+		parseDateFromSearchParam(filtroDataFimRaw, "fim") ??
+		intervaloMesAtual.fim;
 	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
+	const inicioEfetivo = intervaloData.inicio ?? intervaloMesAtual.inicio;
 
 	const [despesas, resumoSaldoBrassaco, categorias] = await Promise.all([
 		listarDespesas(intervaloData),
@@ -261,6 +303,8 @@ export async function loader({
 		filtroDataFim: formatarDataInput(
 			intervaloData.fim ?? intervaloMesAtual.fim,
 		),
+		filtroMes: inicioEfetivo.getUTCMonth() + 1,
+		filtroAno: inicioEfetivo.getUTCFullYear(),
 	};
 }
 
@@ -435,7 +479,27 @@ export default function Contas() {
 		totalPagamentosBrassaco,
 		filtroDataInicio,
 		filtroDataFim,
+		filtroMes,
+		filtroAno,
 	} = useLoaderData<typeof loader>();
+	const submit = useSubmit();
+	const periodoPersonalizado = !isMesCheio(filtroDataInicio, filtroDataFim);
+	const mesAnterior =
+		filtroMes === 1
+			? { mes: 12, ano: filtroAno - 1 }
+			: { mes: filtroMes - 1, ano: filtroAno };
+	const mesSeguinte =
+		filtroMes === 12
+			? { mes: 1, ano: filtroAno + 1 }
+			: { mes: filtroMes + 1, ano: filtroAno };
+	const anoAtual = new Date().getUTCFullYear();
+	const opcoesAno = Array.from(
+		new Set([anoAtual - 3, anoAtual - 2, anoAtual - 1, anoAtual, anoAtual + 1, filtroAno]),
+	).sort((a, b) => a - b);
+	const abrirEdicao = useCallback((id: string) => {
+		setSelectedDespesaId(id);
+		setDialogEdicaoOpen(true);
+	}, []);
 	const actionData = useActionData<typeof action>();
 	const navigation = useNavigation();
 	const isSubmitting = navigation.state === "submitting";
@@ -492,61 +556,117 @@ export default function Contas() {
 	return (
 		<main className='grid w-full min-w-0 gap-4'>
 			<div className='flex flex-wrap items-center justify-between gap-2'>
+				<h1 className='text-2xl font-bold'>Despesas</h1>
 				<div className='flex flex-wrap items-center gap-2'>
-					<h1 className='text-2xl font-bold'>Despesas</h1>
-					<Badge variant='outline'>Despesas: {totalDespesas}</Badge>
-					<Badge variant='outline'>Total: {formatarMoeda(totalValor)}</Badge>
-					<Badge variant='outline'>
-						Pago Brassaco: {formatarMoeda(totalPagoBrassaco)}
-					</Badge>
-					<Badge variant='outline'>
-						Saldo Brassaco: {formatarMoeda(saldoBrassacoAberto)}
-					</Badge>
-				</div>
-				<div className='flex flex-wrap items-center gap-2'>
-					<Button
-						type='button'
-						variant='outline'
-						className={BOTAO_EDITAR_CLASS}
-						disabled={!despesaSelecionada}
-						onClick={() => setDialogEdicaoOpen(true)}>
-						Editar despesa
-					</Button>
 					<PagamentoBrassacoDialog
 						open={dialogPagamentoBrassacoOpen}
 						onOpenChange={setDialogPagamentoBrassacoOpen}
 						isSubmitting={isSubmittingPagamentoBrassaco}
 						totalPagamentosBrassaco={totalPagamentosBrassaco}
 						defaultDataPagamento={formatarDataInput(new Date())}
-						triggerClassName={BOTAO_PAGAR_BRASSACO_CLASS}
 					/>
 					<CategoriaFormDialog
 						open={dialogCategoriaOpen}
 						onOpenChange={setDialogCategoriaOpen}
 						isSubmitting={isSubmittingCategoria}
 						categorias={categorias}
-						triggerClassName={BOTAO_NOVA_CATEGORIA_CLASS}
 					/>
-					<ImportarPdfDialog
-						categorias={categorias}
-						triggerClassName={BOTAO_IMPORTAR_CLASS}
-					/>
+					<ImportarPdfDialog categorias={categorias} />
 					<DespesaFormDialog
 						open={dialogNovoOpen}
 						onOpenChange={setDialogNovoOpen}
 						isSubmitting={isSubmitting}
 						categorias={categorias}
-						triggerClassName={BOTAO_NOVA_DESPESA_CLASS}
 					/>
 				</div>
 			</div>
 
-			<section className='min-w-0 rounded-md border'>
-				<div className='border-b px-4 py-3'>
-					<h2 className='text-lg font-semibold'>Despesas cadastradas</h2>
+			<section className='grid gap-3 sm:grid-cols-3'>
+				<div className='rounded-2xl border border-border bg-card px-4 py-3.5'>
+					<p className='text-xs text-muted-foreground'>Total do período</p>
+					<p className='mt-1 text-2xl font-bold tabular-nums'>
+						{formatarMoeda(totalValor)}
+					</p>
+					<p className='mt-0.5 text-xs text-muted-foreground'>
+						{totalDespesas} despesa(s)
+					</p>
 				</div>
-				<div className='border-b p-4'>
-					<Form method='get' className='flex flex-wrap items-end gap-3'>
+				<div className='rounded-2xl border border-border bg-card px-4 py-3.5'>
+					<p className='text-xs text-muted-foreground'>Saldo Brassaco em aberto</p>
+					<p className='mt-1 text-2xl font-bold tabular-nums'>
+						{formatarMoeda(saldoBrassacoAberto)}
+					</p>
+					<p className='mt-0.5 text-xs text-muted-foreground'>
+						todas as despesas Brassaco menos os pagamentos
+					</p>
+				</div>
+				<div className='rounded-2xl border border-border bg-card px-4 py-3.5'>
+					<p className='text-xs text-muted-foreground'>Pago pela Brassaco</p>
+					<p className='mt-1 text-2xl font-bold tabular-nums'>
+						{formatarMoeda(totalPagoBrassaco)}
+					</p>
+					<p className='mt-0.5 text-xs text-muted-foreground'>
+						{totalPagamentosBrassaco} pagamento(s) desde o início
+					</p>
+				</div>
+			</section>
+
+			<section className='min-w-0 rounded-md border'>
+				<div className='flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3'>
+					<h2 className='text-lg font-semibold'>
+						{periodoPersonalizado
+							? "Período personalizado"
+							: `Despesas de ${getNomeMes(filtroMes)} de ${filtroAno}`}
+					</h2>
+					<div className='flex items-center gap-2'>
+						<Link
+							to={`?mes=${mesAnterior.mes}&ano=${mesAnterior.ano}`}
+							className={NAV_BTN}
+							aria-label='Mês anterior'>
+							←
+						</Link>
+						<Form method='get' className='flex items-center gap-2'>
+							<select
+								name='mes'
+								aria-label='Mês'
+								value={String(filtroMes)}
+								onChange={(e) => submit(e.currentTarget.form)}
+								className={SELECT_CLASS}>
+								{Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
+									<option key={mes} value={mes}>
+										{getNomeMes(mes)}
+									</option>
+								))}
+							</select>
+							<select
+								name='ano'
+								aria-label='Ano'
+								value={String(filtroAno)}
+								onChange={(e) => submit(e.currentTarget.form)}
+								className={SELECT_CLASS}>
+								{opcoesAno.map((ano) => (
+									<option key={ano} value={ano}>
+										{ano}
+									</option>
+								))}
+							</select>
+						</Form>
+						<Link
+							to={`?mes=${mesSeguinte.mes}&ano=${mesSeguinte.ano}`}
+							className={NAV_BTN}
+							aria-label='Próximo mês'>
+							→
+						</Link>
+					</div>
+				</div>
+				<details className='border-b px-4 py-2' open={periodoPersonalizado}>
+					<summary className='cursor-pointer text-sm text-muted-foreground'>
+						Período personalizado
+					</summary>
+					<Form
+						key={`${filtroDataInicio}-${filtroDataFim}`}
+						method='get'
+						className='flex flex-wrap items-end gap-3 pt-3 pb-2'>
 						<label className='grid gap-1 text-sm'>
 							Data inicial
 							<input
@@ -566,15 +686,14 @@ export default function Contas() {
 							/>
 						</label>
 						<Button type='submit' variant='outline'>
-							Aplicar filtro
+							Aplicar
 						</Button>
 					</Form>
-				</div>
+				</details>
 				<div className='p-4'>
 					<DespesasDataTable
 						data={despesasDataTable}
-						selectedDespesaId={selectedDespesaId}
-						onSelectDespesaId={setSelectedDespesaId}
+						onEditDespesa={abrirEdicao}
 					/>
 				</div>
 			</section>

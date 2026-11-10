@@ -112,6 +112,7 @@ export const despesasColumns: ColumnDef<DespesaDataTableRow>[] = [
 					href={row.original.comprovante}
 					target='_blank'
 					rel='noreferrer'
+					onClick={(event) => event.stopPropagation()}
 					className='text-primary underline'>
 					Abrir
 				</a>

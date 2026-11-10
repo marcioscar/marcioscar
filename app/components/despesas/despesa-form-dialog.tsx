@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Form } from "react-router";
+import { Plus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
@@ -49,7 +50,8 @@ export function DespesaFormDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogTrigger
-				render={<Button variant='outline' className={triggerClassName} />}>
+				render={<Button className={triggerClassName} />}>
+				<Plus size={16} />
 				Nova despesa
 			</DialogTrigger>
 			<DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>

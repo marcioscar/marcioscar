@@ -14,7 +14,8 @@ import {
 
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
+import { Pencil } from "lucide-react";
+import { cn } from "~/lib/utils";
 import {
 	Table,
 	TableBody,
@@ -24,50 +25,54 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import { despesasColumns, type DespesaDataTableRow } from "./despesas-columns";
+import { COR_PESSOA, PESSOAS_DESPESA } from "./despesa-options";
 
 type DespesasDataTableProps = {
 	data: DespesaDataTableRow[];
-	selectedDespesaId: string | null;
-	onSelectDespesaId: (id: string | null) => void;
+	onEditDespesa: (id: string) => void;
 };
 
 export function DespesasDataTable({
 	data,
-	selectedDespesaId,
-	onSelectDespesaId,
+	onEditDespesa,
 }: DespesasDataTableProps) {
 	const [sorting, setSorting] = React.useState<SortingState>([
 		{ id: "data", desc: true },
 	]);
 	const [filtroNome, setFiltroNome] = React.useState("");
-	const toggleSelecaoDespesa = React.useCallback(
-		(id: string) => {
-			onSelectDespesaId(selectedDespesaId === id ? null : id);
-		},
-		[onSelectDespesaId, selectedDespesaId],
+	const [filtroPessoa, setFiltroPessoa] = React.useState<string | null>(null);
+	const dataFiltrada = React.useMemo(
+		() =>
+			filtroPessoa ? data.filter((d) => d.pessoa === filtroPessoa) : data,
+		[data, filtroPessoa],
 	);
 	const columns = React.useMemo<ColumnDef<DespesaDataTableRow>[]>(
 		() => [
+			...despesasColumns,
 			{
-				id: "select",
+				id: "acoes",
 				header: "",
 				cell: ({ row }) => (
-					<Checkbox
-						checked={row.original.id === selectedDespesaId}
-						onClick={(event) => event.stopPropagation()}
-						onCheckedChange={() => toggleSelecaoDespesa(row.original.id)}
-						aria-label='Selecionar despesa'
-					/>
+					<Button
+						type='button'
+						variant='ghost'
+						size='icon-sm'
+						aria-label={`Editar ${row.original.nome}`}
+						onClick={(event) => {
+							event.stopPropagation();
+							onEditDespesa(row.original.id);
+						}}>
+						<Pencil size={14} className='text-muted-foreground' />
+					</Button>
 				),
 				enableSorting: false,
 			},
-			...despesasColumns,
 		],
-		[selectedDespesaId, toggleSelecaoDespesa],
+		[onEditDespesa],
 	);
 
 	const table = useReactTable({
-		data,
+		data: dataFiltrada,
 		columns,
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
@@ -104,6 +109,38 @@ export function DespesasDataTable({
 
 	return (
 		<div className='grid min-w-0 gap-3'>
+			<div
+				role='group'
+				aria-label='Filtrar por pessoa'
+				className='flex flex-wrap items-center gap-1.5'>
+				{[null, ...PESSOAS_DESPESA].map((pessoa) => {
+					const ativa = filtroPessoa === pessoa;
+					const cor = pessoa ? COR_PESSOA[pessoa] : "var(--foreground)";
+					return (
+						<button
+							key={pessoa ?? "todos"}
+							type='button'
+							aria-pressed={ativa}
+							onClick={() => setFiltroPessoa(pessoa)}
+							className={cn(
+								"inline-flex h-8 items-center rounded-full border px-3 text-sm transition-colors hover:bg-accent",
+							)}
+							style={
+								ativa
+									? {
+											color: cor,
+											borderColor: cor,
+											background: `color-mix(in oklch, ${cor} 12%, transparent)`,
+											fontWeight: 500,
+										}
+									: undefined
+							}>
+							{pessoa ?? "Todos"}
+						</button>
+					);
+				})}
+			</div>
+
 			<div className='flex flex-wrap items-center justify-between gap-2'>
 				<Input
 					value={filtroNome}
@@ -140,12 +177,7 @@ export function DespesasDataTable({
 								<TableRow
 									key={row.id}
 									className='cursor-pointer'
-									data-state={
-										row.original.id === selectedDespesaId
-											? "selected"
-											: undefined
-									}
-									onClick={() => toggleSelecaoDespesa(row.original.id)}>
+									onClick={() => onEditDespesa(row.original.id)}>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell key={cell.id}>
 											{flexRender(
