@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { geoNaturalEarth1, geoPath } from "d3-geo";
 import { merge, mesh } from "topojson-client";
 import type {
@@ -9,21 +10,25 @@ import type {
 import mundo from "world-atlas/countries-110m.json";
 
 import { CORES_RITMO, corDoRitmo } from "~/lib/rota";
+import { formatarData, formatarPace, formatarTempo } from "~/lib/formatar-corrida";
 import {
 	LOCAIS_MARATONAS,
 	ROTULO_PADRAO,
 	type LocalMaratona,
 } from "~/lib/maratonas-locais";
+import type { MaratonaDetalhada } from "~/types/maratonas";
 
-export type MaratonaNoMapa = {
-	stravaId: number;
-	nome: string;
-	dataInicioIso: string;
-	tempoTotalSeg: number;
-	paceMedioSegPorKm: number | null;
-	localLat: number | null;
-	localLng: number | null;
-};
+export type MaratonaNoMapa = Pick<
+	MaratonaDetalhada,
+	| "stravaId"
+	| "nome"
+	| "dataInicioIso"
+	| "distanciaMetros"
+	| "tempoTotalSeg"
+	| "paceMedioSegPorKm"
+	| "localLat"
+	| "localLng"
+>;
 
 const LARGURA = 1000;
 const ANTARTIDA = "010";
@@ -47,12 +52,13 @@ const projecao = geoNaturalEarth1().fitWidth(LARGURA, recorte);
 const gerarCaminho = geoPath(projecao).digits(1);
 const ALTURA = Math.ceil(gerarCaminho.bounds(recorte)[1][1]);
 
-const caminhoTerra = gerarCaminho(
-	merge(
-		topologia,
-		geometriasPaises.filter((g) => g.id !== ANTARTIDA),
-	),
-) ?? "";
+const caminhoTerra =
+	gerarCaminho(
+		merge(
+			topologia,
+			geometriasPaises.filter((g) => g.id !== ANTARTIDA),
+		),
+	) ?? "";
 const caminhoFronteiras =
 	gerarCaminho(mesh(topologia, paises, (a, b) => a !== b)) ?? "";
 
@@ -63,25 +69,10 @@ function caminhoDosPaises(ids: Set<string>): string {
 		: "";
 }
 
-// ---- formatação ----
-function formatarTempo(seg: number): string {
-	const h = Math.floor(seg / 3600);
-	const m = Math.floor((seg % 3600) / 60);
-	const s = seg % 60;
-	return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function formatarPace(segPorKm: number | null): string {
-	if (!segPorKm || segPorKm <= 0) return "—";
-	return `${Math.floor(segPorKm / 60)}:${String(Math.round(segPorKm % 60)).padStart(2, "0")}/km`;
-}
-
-function formatarData(iso: string): string {
-	return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
-}
+const COR_PAIS = "color-mix(in oklab, var(--paleta-1) 32%, var(--card))";
 
 // ---- cada maratona com seu lugar (tabela primeiro, coordenadas do Strava depois) ----
-type PontoMapa = {
+export type PontoMapa = {
 	maratona: MaratonaNoMapa;
 	local: Pick<LocalMaratona, "cidade" | "lat" | "lng" | "rotulo">;
 	paisId: string | null;
@@ -96,7 +87,7 @@ function nomeCurto(nome: string): string {
 		.trim();
 }
 
-function montarPontos(maratonas: MaratonaNoMapa[]): {
+export function montarPontos(maratonas: MaratonaNoMapa[]): {
 	pontos: PontoMapa[];
 	semLocal: MaratonaNoMapa[];
 } {
@@ -132,12 +123,62 @@ function montarPontos(maratonas: MaratonaNoMapa[]): {
 	return { pontos, semLocal };
 }
 
+/** Pontos em ordem cronológica: a sequência da "viagem no tempo" */
+export function ordenarParaViagem(pontos: PontoMapa[]): PontoMapa[] {
+	return [...pontos].sort((a, b) =>
+		a.maratona.dataInicioIso.localeCompare(b.maratona.dataInicioIso),
+	);
+}
+
 type Props = {
 	maratonas: MaratonaNoMapa[];
+	selecionadaId?: number | null;
+	onSelecionar?: (id: number) => void;
+	/** Reprodução da viagem: aparece até este índice cronológico (−1 = nada). null = tudo */
+	passoViagem?: number | null;
 };
 
-export function MapaMundiMaratonas({ maratonas }: Props) {
-	const { pontos, semLocal } = montarPontos(maratonas);
+export function MapaMundiMaratonas({
+	maratonas,
+	selecionadaId = null,
+	onSelecionar,
+	passoViagem = null,
+}: Props) {
+	const { pontos, semLocal } = useMemo(() => montarPontos(maratonas), [maratonas]);
+	const ordenados = useMemo(() => ordenarParaViagem(pontos), [pontos]);
+	const arcos = useMemo(
+		() =>
+			ordenados.slice(1).map((destino, i) => {
+				const origem = ordenados[i];
+				return (
+					gerarCaminho({
+						type: "LineString",
+						coordinates: [
+							[origem.local.lng, origem.local.lat],
+							[destino.local.lng, destino.local.lat],
+						],
+					}) ?? ""
+				);
+			}),
+		[ordenados],
+	);
+
+	const emViagem = passoViagem !== null;
+	const visiveis = emViagem
+		? new Set(ordenados.slice(0, passoViagem + 1).map((p) => p.maratona.stravaId))
+		: null;
+	const pontosVisiveis = visiveis
+		? pontos.filter((p) => visiveis.has(p.maratona.stravaId))
+		: pontos;
+	const ultimoDaViagem = emViagem ? (ordenados[passoViagem] ?? null) : null;
+
+	const idsVisitados = new Set(
+		pontosVisiveis.map((p) => p.paisId).filter((id): id is string => id !== null),
+	);
+	const chaveVisitados = [...idsVisitados].sort().join(",");
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	const caminhoVisitados = useMemo(() => caminhoDosPaises(idsVisitados), [chaveVisitados]);
+
 	if (pontos.length === 0) {
 		return (
 			<p className='rounded-md border p-3 text-sm text-muted-foreground'>
@@ -146,37 +187,52 @@ export function MapaMundiMaratonas({ maratonas }: Props) {
 		);
 	}
 
+	// a escala de cor usa todas as provas, para a cor não mudar durante a viagem
 	const tempos = pontos.map((p) => p.maratona.tempoTotalSeg);
 	const melhorTempo = Math.min(...tempos);
 	const piorTempo = Math.max(...tempos);
 	const amplitude = piorTempo - melhorTempo;
-	const idsVisitados = new Set(
-		pontos.map((p) => p.paisId).filter((id): id is string => id !== null),
-	);
-	const caminhoVisitados = caminhoDosPaises(idsVisitados);
+	const interativo = Boolean(onSelecionar);
+
+	function selecionar(id: number) {
+		onSelecionar?.(id);
+	}
 
 	return (
 		<div className='flex min-w-0 flex-col gap-2'>
 			<div className='overflow-x-auto rounded-xl border border-border bg-card'>
 				<svg
 					viewBox={`0 0 ${LARGURA} ${ALTURA}`}
-					role='img'
-					aria-label={`Mapa-múndi com ${pontos.length} maratonas em ${idsVisitados.size} países`}
+					role='group'
+					aria-label={`Mapa-múndi com ${pontos.length} maratonas em ${new Set(pontos.map((p) => p.paisId).filter(Boolean)).size} países`}
 					className='block h-auto w-full min-w-[760px]'>
 					<path d={caminhoTerra} style={{ fill: "var(--muted)" }} />
-					<path
-						d={caminhoVisitados}
-						style={{
-							fill: "color-mix(in oklab, var(--paleta-1) 32%, var(--card))",
-						}}
-					/>
+					<path d={caminhoVisitados} style={{ fill: COR_PAIS }} />
 					<path
 						d={caminhoFronteiras}
 						style={{ fill: "none", stroke: "var(--card)", strokeWidth: 0.5 }}
 					/>
 
+					{/* arcos da viagem: uma maratona até a próxima */}
+					{emViagem &&
+						arcos.slice(0, Math.max(0, passoViagem)).map((d, i) => (
+							<path
+								key={`arco-${ordenados[i + 1].maratona.stravaId}`}
+								d={d}
+								pathLength={1}
+								className='maratona-arco'
+								style={{
+									fill: "none",
+									stroke: "var(--paleta-4)",
+									strokeWidth: 1.3,
+									strokeLinecap: "round",
+									opacity: 0.75,
+								}}
+							/>
+						))}
+
 					{/* linhas até os rótulos deslocados */}
-					{pontos.map((p) => {
+					{pontosVisiveis.map((p) => {
 						const r = p.local.rotulo ?? ROTULO_PADRAO;
 						if (Math.abs(r.dx) < 20 && Math.abs(r.dy) < 14) return null;
 						return (
@@ -191,14 +247,56 @@ export function MapaMundiMaratonas({ maratonas }: Props) {
 						);
 					})}
 
-					{pontos.map((p) => {
+					{pontosVisiveis.map((p) => {
 						const t = amplitude > 0 ? (p.maratona.tempoTotalSeg - melhorTempo) / amplitude : 0;
 						const melhor = p.maratona.tempoTotalSeg === melhorTempo;
+						const selecionada = p.maratona.stravaId === selecionadaId;
+						const rotulo = `${p.local.cidade}, ${formatarTempo(p.maratona.tempoTotalSeg)}`;
 						return (
-							<g key={p.maratona.stravaId}>
+							<g
+								key={p.maratona.stravaId}
+								className={`group ${emViagem ? "maratona-ponto-entra" : ""} ${interativo ? "cursor-pointer" : ""}`}
+								{...(interativo
+									? {
+											role: "button",
+											tabIndex: 0,
+											"aria-label": `${rotulo}. Ver detalhes da prova`,
+											"aria-pressed": selecionada,
+											onClick: () => selecionar(p.maratona.stravaId),
+											onKeyDown: (e: React.KeyboardEvent) => {
+												if (e.key === "Enter" || e.key === " ") {
+													e.preventDefault();
+													selecionar(p.maratona.stravaId);
+												}
+											},
+										}
+									: {})}>
 								<title>
-									{`${p.maratona.nome} · ${formatarData(p.maratona.dataInicioIso)} · ${formatarTempo(p.maratona.tempoTotalSeg)} · ${formatarPace(p.maratona.paceMedioSegPorKm)}`}
+									{`${p.maratona.nome} · ${formatarData(p.maratona.dataInicioIso)} · ${formatarTempo(p.maratona.tempoTotalSeg)} · ${formatarPace(p.maratona.paceMedioSegPorKm, "/km")}`}
 								</title>
+								{/* área de clique maior que o ponto */}
+								<circle cx={p.x} cy={p.y} r={RAIO_PONTO + 8} style={{ fill: "transparent" }} />
+								{p === ultimoDaViagem && (
+									<circle
+										cx={p.x}
+										cy={p.y}
+										r={RAIO_PONTO + 1}
+										className='maratona-pulso'
+										style={{ fill: "var(--paleta-4)" }}
+									/>
+								)}
+								{selecionada && (
+									<circle
+										cx={p.x}
+										cy={p.y}
+										r={RAIO_PONTO + 8}
+										style={{
+											fill: "color-mix(in oklab, var(--foreground) 10%, transparent)",
+											stroke: "var(--foreground)",
+											strokeWidth: 1.3,
+										}}
+									/>
+								)}
 								{melhor && (
 									<circle
 										cx={p.x}
@@ -211,23 +309,29 @@ export function MapaMundiMaratonas({ maratonas }: Props) {
 									cx={p.x}
 									cy={p.y}
 									r={RAIO_PONTO}
+									className='origin-center transition-transform [transform-box:fill-box] group-hover:scale-125'
 									style={{ fill: corDoRitmo(t), stroke: "var(--card)", strokeWidth: 1.5 }}
 								/>
 							</g>
 						);
 					})}
 
-					{pontos.map((p) => {
+					{pontosVisiveis.map((p) => {
 						const r = p.local.rotulo ?? ROTULO_PADRAO;
+						const selecionada = p.maratona.stravaId === selecionadaId;
 						return (
 							<text
 								key={`rotulo-${p.maratona.stravaId}`}
 								x={p.x + r.dx}
 								y={p.y + r.dy}
 								textAnchor={r.ancora}
+								onClick={interativo ? () => selecionar(p.maratona.stravaId) : undefined}
+								className={emViagem ? "maratona-ponto-entra" : ""}
 								style={{
 									fontSize: 11,
 									fill: "var(--foreground)",
+									fontWeight: selecionada ? 700 : 400,
+									cursor: interativo ? "pointer" : undefined,
 									paintOrder: "stroke",
 									stroke: "var(--muted)",
 									strokeWidth: 3,
@@ -259,9 +363,7 @@ export function MapaMundiMaratonas({ maratonas }: Props) {
 					<span
 						aria-hidden
 						className='size-2.5 rounded-[2px]'
-						style={{
-							background: "color-mix(in oklab, var(--paleta-1) 32%, var(--card))",
-						}}
+						style={{ background: COR_PAIS }}
 					/>
 					País com maratona
 				</span>

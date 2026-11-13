@@ -3,6 +3,7 @@ import * as React from "react";
 import { Link } from "react-router";
 import { buscarCorridaPorStravaId } from "~/models/corridas.server";
 import { obterProvaAtiva } from "~/models/provas.server";
+import { getMapboxToken } from "~/lib/mapbox.server";
 import { Button } from "~/components/ui/button";
 import { CorridaPaceDesnivelChart } from "~/components/corridas/corrida-pace-desnivel-chart";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -21,15 +22,6 @@ const CorridaRotaMap = React.lazy(async () => {
 	const mod = await import("~/components/corridas/corrida-rota-map");
 	return { default: mod.CorridaRotaMap };
 });
-
-function getMapboxToken(): string | null {
-	return (
-		process.env.MAPBOX_ACCESS_TOKEN ??
-		process.env.MAPBOX_TOKEN ??
-		process.env.VITE_MAPBOX_TOKEN ??
-		null
-	);
-}
 
 export function meta({ data }: Route.MetaArgs) {
 	return [{ title: data ? `${data.corrida.nome} — Marcioscar` : "Corrida" }];

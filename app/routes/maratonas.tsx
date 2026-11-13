@@ -4,7 +4,9 @@ import {
 	listarMaratonas,
 	listarMaratonasParaGraficoBarras,
 } from "~/models/corridas.server";
-import { MapaMundiMaratonas } from "~/components/maratonas/mapa-mundi";
+import { ExploradorMaratonas } from "~/components/maratonas/maratonas-explorador";
+import { getMapboxToken } from "~/lib/mapbox.server";
+import { formatarData, formatarPace, formatarTempo } from "~/lib/formatar-corrida";
 import { LOCAIS_MARATONAS } from "~/lib/maratonas-locais";
 import { MaratonasBarrasChart } from "~/components/corridas/maratonas-barras-chart";
 import {
@@ -29,23 +31,7 @@ export async function loader({}: Route.LoaderArgs) {
 		listarMaratonasParaGraficoBarras(15),
 	]);
 
-	return { maratonas, maratonasGraficoBarras };
-}
-
-function formatarTempo(seg: number): string {
-	const h = Math.floor(seg / 3600);
-	const m = Math.floor((seg % 3600) / 60);
-	const s = seg % 60;
-	return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function formatarPace(segPorKm: number | null): string {
-	if (!segPorKm || segPorKm <= 0) return "—";
-	return `${Math.floor(segPorKm / 60)}:${String(Math.round(segPorKm % 60)).padStart(2, "0")} /km`;
-}
-
-function formatarData(iso: string): string {
-	return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+	return { maratonas, maratonasGraficoBarras, mapboxToken: getMapboxToken() };
 }
 
 function Tile({
@@ -67,7 +53,7 @@ function Tile({
 }
 
 export default function Maratonas() {
-	const { maratonas, maratonasGraficoBarras } = useLoaderData<typeof loader>();
+	const { maratonas, maratonasGraficoBarras, mapboxToken } = useLoaderData<typeof loader>();
 
 	if (maratonas.length === 0) {
 		return (
@@ -119,7 +105,7 @@ export default function Maratonas() {
 
 			<section className='grid min-w-0 gap-2'>
 				<h2 className='text-lg font-semibold'>Onde foram</h2>
-				<MapaMundiMaratonas maratonas={maratonas} />
+				<ExploradorMaratonas maratonas={maratonas} mapboxToken={mapboxToken} />
 			</section>
 
 			<div className='w-full min-w-0'>

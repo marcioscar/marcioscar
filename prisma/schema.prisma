@@ -26,6 +26,9 @@ model Corrida {
     laps                Json?
     analise             Json?
     analisadaEm         DateTime?
+    /// Detalhes que só o endpoint de atividade do Strava devolve (não vêm na listagem)
+    calorias            Int?
+    temperaturaMedia    Float?
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 

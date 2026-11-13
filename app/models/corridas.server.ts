@@ -2,6 +2,8 @@ export { buscarCorridasStrava as buscarCorridasDoStrava } from "~/services/strav
 export { sincronizarCorridasDoStrava } from "~/services/strava/sync.server";
 import { db } from "../../db.server";
 import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
+import type { MaratonaDetalhada } from "~/types/maratonas";
+import type { SplitMetric } from "~/types/analise";
 
 export type CorridaResumo = {
   stravaId: number;
@@ -258,22 +260,27 @@ function montarLabelEixoX(dataInicio: Date, nome: string): string {
   return `${data} · ${curto}`;
 }
 
-export type MaratonaResumo = {
-  stravaId: number;
-  nome: string;
-  dataInicioIso: string;
-  distanciaMetros: number;
-  elevacaoGanhoMetros: number;
-  tempoMovimentoSeg: number;
-  /** Tempo total da prova (elapsed), em segundos */
-  tempoTotalSeg: number;
-  paceMedioSegPorKm: number | null;
-  summaryPolyline: string | null;
-  localLat: number | null;
-  localLng: number | null;
-};
+export type MaratonaResumo = MaratonaDetalhada;
 
-export async function listarMaratonas(): Promise<MaratonaResumo[]> {
+function numeroOuNull(valor: unknown): number | null {
+  return typeof valor === "number" && Number.isFinite(valor) ? valor : null;
+}
+
+function extrairSplitsCompactos(valor: unknown): SplitMetric[] | null {
+  if (!Array.isArray(valor) || valor.length === 0) return null;
+  return (valor as SplitMetric[]).map((s) => ({
+    split: s.split,
+    distance: s.distance,
+    elapsed_time: s.elapsed_time,
+    moving_time: s.moving_time,
+    elevation_difference: s.elevation_difference,
+    average_speed: s.average_speed,
+    average_grade_adjusted_speed: s.average_grade_adjusted_speed,
+    average_heartrate: s.average_heartrate,
+  }));
+}
+
+export async function listarMaratonas(): Promise<MaratonaDetalhada[]> {
   const corridas = await db.corrida.findMany({
     where: {
       distanciaMetros: { gt: METROS_MARATONA_MIN },
@@ -286,14 +293,20 @@ export async function listarMaratonas(): Promise<MaratonaResumo[]> {
       elevacaoGanhoMetros: true,
       tempoMovimentoSeg: true,
       tempoTotalSeg: true,
+      frequenciaMedia: true,
+      frequenciaMaxima: true,
+      calorias: true,
+      temperaturaMedia: true,
       dataInicio: true,
       dadosBrutos: true,
+      splits: true,
     },
   });
 
   return corridas.map((corrida) => {
     const distanciaKm = corrida.distanciaMetros / 1000;
     const localCoords = extrairLocalCoords(corrida.dadosBrutos);
+    const bruto = (corrida.dadosBrutos ?? {}) as Record<string, unknown>;
 
     return {
       stravaId: corrida.stravaId,
@@ -310,6 +323,14 @@ export async function listarMaratonas(): Promise<MaratonaResumo[]> {
       summaryPolyline: extrairSummaryPolyline(corrida.dadosBrutos),
       localLat: localCoords.localLat,
       localLng: localCoords.localLng,
+      frequenciaMedia: corrida.frequenciaMedia,
+      frequenciaMaxima: corrida.frequenciaMaxima,
+      calorias: corrida.calorias,
+      temperaturaMedia: corrida.temperaturaMedia,
+      elevMinima: numeroOuNull(bruto.elev_low),
+      elevMaxima: numeroOuNull(bruto.elev_high),
+      totalFotos: numeroOuNull(bruto.total_photo_count) ?? 0,
+      splits: extrairSplitsCompactos(corrida.splits),
     };
   });
 }

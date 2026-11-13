@@ -119,6 +119,37 @@ export async function buscarAtividadeDetalhada(stravaId: number): Promise<Record
   return response.json() as Promise<Record<string, unknown>>;
 }
 
+export type FotoAtividade = {
+  url: string;
+  legenda: string | null;
+};
+
+export async function buscarFotosAtividade(stravaId: number): Promise<FotoAtividade[]> {
+  const token = await getAccessToken();
+  const url = `${STRAVA_ACTIVITY_ENDPOINT}/${stravaId}/photos?size=1200&photo_sources=true`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Strava fotos da atividade ${stravaId} falhou: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    urls?: Record<string, string>;
+    caption?: string | null;
+  }[];
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload
+    .map((foto) => ({
+      url: Object.values(foto.urls ?? {})[0] ?? "",
+      legenda: foto.caption?.trim() || null,
+    }))
+    .filter((foto) => foto.url.startsWith("https://"));
+}
+
 export async function buscarCorridasStrava(
   options: BuscarCorridasStravaOptions = {},
 ): Promise<CorridaStrava[]> {

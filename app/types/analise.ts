@@ -34,6 +34,8 @@ export type AnalyzeApiResponse = {
 export type BuscarDetalhesResponse = {
 	splits: SplitMetric[]
 	laps: LapData[]
+	calorias?: number | null
+	temperaturaMedia?: number | null
 }
 
 export type LapAnotado = {
