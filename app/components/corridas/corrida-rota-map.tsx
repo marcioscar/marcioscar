@@ -48,7 +48,9 @@ function aplicarModo(
 	for (const { el, km, pace } of marcos) {
 		const mostra = comTempo && pace !== null;
 		el.textContent = mostra ? formatarTempoKm(pace) : String(km);
-		el.className = mostra ? CLASSE_KM_TEMPO : CLASSE_KM;
+		// o Mapbox põe classes próprias no elemento (posição/âncora): preservar
+		const doMapbox = Array.from(el.classList).filter((c) => c.startsWith("mapboxgl-"));
+		el.className = [mostra ? CLASSE_KM_TEMPO : CLASSE_KM, ...doMapbox].join(" ");
 	}
 }
 
