@@ -4,7 +4,8 @@ import {
 	listarMaratonas,
 	listarMaratonasParaGraficoBarras,
 } from "~/models/corridas.server";
-import { CorridasGlobo } from "~/components/corridas/corridas-globo";
+import { MapaMundiMaratonas } from "~/components/maratonas/mapa-mundi";
+import { LOCAIS_MARATONAS } from "~/lib/maratonas-locais";
 import { MaratonasBarrasChart } from "~/components/corridas/maratonas-barras-chart";
 import {
 	Table,
@@ -84,17 +85,25 @@ export default function Maratonas() {
 	);
 	const ultima = maratonas[0];
 	const primeira = maratonas[maratonas.length - 1];
+	const locais = maratonas.map((m) => LOCAIS_MARATONAS[m.stravaId]).filter(Boolean);
+	const paises = new Set(locais.map((l) => l.paisId));
+	const cidades = new Set(locais.map((l) => l.cidade));
 	const kmTotais = maratonas.reduce((acc, m) => acc + m.distanciaMetros, 0) / 1000;
 
 	return (
 		<main className='grid w-full min-w-0 gap-4'>
 			<h1 className='text-2xl font-bold'>Maratonas</h1>
 
-			<section className='grid gap-3 sm:grid-cols-3'>
+			<section className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
 				<Tile
 					label='Maratonas concluídas'
 					valor={String(maratonas.length)}
 					nota={`${Math.round(kmTotais).toLocaleString("pt-BR")} km em provas · desde ${new Date(primeira.dataInicioIso).getUTCFullYear()}`}
+				/>
+				<Tile
+					label='Países'
+					valor={String(paises.size)}
+					nota={`${cidades.size} cidades diferentes`}
 				/>
 				<Tile
 					label='Melhor tempo'
@@ -110,9 +119,7 @@ export default function Maratonas() {
 
 			<section className='grid min-w-0 gap-2'>
 				<h2 className='text-lg font-semibold'>Onde foram</h2>
-				<div className='w-full min-w-0'>
-					<CorridasGlobo corridasFiltradas={maratonas} />
-				</div>
+				<MapaMundiMaratonas maratonas={maratonas} />
 			</section>
 
 			<div className='w-full min-w-0'>

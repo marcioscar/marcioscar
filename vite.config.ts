@@ -30,14 +30,6 @@ function resolveManualChunks(id: string): string | undefined {
     return "vendor-mapbox";
   }
 
-  if (
-    id.includes("node_modules/react-globe.gl") ||
-    id.includes("node_modules/three") ||
-    id.includes("node_modules/three-globe")
-  ) {
-    return "vendor-globe";
-  }
-
   if (id.includes("node_modules/recharts")) {
     return "vendor-charts";
   }
