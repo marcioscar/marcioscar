@@ -6,6 +6,7 @@ export default [
   route("financeiro", "routes/financeiro.tsx"),
   route("corridas", "routes/corridas.tsx"),
   route("corridas/:stravaId", "routes/corridas.$stravaId.tsx"),
+  route("maratonas", "routes/maratonas.tsx"),
   route("contas", "routes/contas.tsx"),
   route("biblioteca", "routes/biblioteca.tsx"),
   route("treinamento", "routes/treinamento.tsx"),

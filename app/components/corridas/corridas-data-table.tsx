@@ -21,23 +21,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "~/components/ui/table";
-import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 
 import { corridasColumns, type CorridaDataTableRow } from "./corridas-columns";
 
-const CorridasGlobo = React.lazy(async () => {
-	const mod = await import("./corridas-globo");
-	return { default: mod.CorridasGlobo };
-});
-
-const MaratonasBarrasChart = React.lazy(async () => {
-	const mod = await import("./maratonas-barras-chart");
-	return { default: mod.MaratonasBarrasChart };
-});
-
 type CorridasDataTableProps = {
 	data: CorridaDataTableRow[];
-	maratonasGraficoBarras: MaratonaBarrasDado[];
 };
 
 type DistanciaFaixa = {
@@ -71,16 +59,6 @@ function filtrarPorFaixaDistancia(
 		const dentroDoMaximo =
 			faixa.maxKm === null ? true : distanciaKm < faixa.maxKm;
 		return dentroDoMinimo && dentroDoMaximo;
-	});
-}
-
-function filtrarCorridasParaGlobo(
-	linhas: CorridaDataTableRow[],
-): CorridaDataTableRow[] {
-	return linhas.filter((linha) => {
-		const distanciaKm = linha.distanciaMetros / 1000;
-		const isMaratona = distanciaKm > 40;
-		return isMaratona;
 	});
 }
 
@@ -133,7 +111,6 @@ function filtrarPorNomeOuData(
 
 export function CorridasDataTable({
 	data,
-	maratonasGraficoBarras,
 }: CorridasDataTableProps) {
 	const navigate = useNavigate();
 	const [sorting, setSorting] = React.useState<SortingState>([
@@ -142,7 +119,6 @@ export function CorridasDataTable({
 	const [faixaSelecionadaId, setFaixaSelecionadaId] = React.useState(0);
 	const [nomeBusca, setNomeBusca] = React.useState("");
 	const [dataBusca, setDataBusca] = React.useState("");
-	const [mostrarGlobo, setMostrarGlobo] = React.useState(false);
 
 	function handleRowClick(corrida: CorridaDataTableRow) {
 		navigate(`/corridas/${corrida.stravaId}`);
@@ -174,10 +150,6 @@ export function CorridasDataTable({
 		},
 	});
 
-	const corridasParaGlobo = React.useMemo(
-		() => (mostrarGlobo ? filtrarCorridasParaGlobo(data) : []),
-		[data, mostrarGlobo],
-	);
 
 	return (
 		<div className='flex w-full min-w-0 flex-col gap-4'>
@@ -303,43 +275,6 @@ export function CorridasDataTable({
 					</Button>
 				</div>
 			</div>
-
-			<div className='flex flex-wrap gap-2'>
-				<Button
-					variant={mostrarGlobo ? "secondary" : "outline"}
-					size='sm'
-					onClick={() => setMostrarGlobo((valorAtual) => !valorAtual)}>
-					{mostrarGlobo ? "Ocultar globo" : "Mostrar globo"}
-				</Button>
-			</div>
-
-			<React.Suspense
-				fallback={
-					<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-						Carregando gráfico de maratonas...
-					</div>
-				}>
-				<div className='w-full min-w-0'>
-					<MaratonasBarrasChart maratonas={maratonasGraficoBarras} />
-				</div>
-			</React.Suspense>
-
-			{mostrarGlobo ? (
-				<React.Suspense
-					fallback={
-						<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-							Carregando globo...
-						</div>
-					}>
-					<div className='w-full min-w-0'>
-						<CorridasGlobo corridasFiltradas={corridasParaGlobo} />
-					</div>
-				</React.Suspense>
-			) : (
-				<div className='rounded-md border p-3 text-sm text-muted-foreground'>
-					Clique em "Mostrar globo" para carregar o globo sob demanda.
-				</div>
-			)}
 		</div>
 	);
 }

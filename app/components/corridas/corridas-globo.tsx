@@ -4,8 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { decodePolyline } from "../../lib/polyline";
 import type { CorridaDataTableRow } from "./corridas-columns";
 
+export type CorridaGlobo = Pick<
+  CorridaDataTableRow,
+  | "stravaId"
+  | "nome"
+  | "tempoMovimentoSeg"
+  | "summaryPolyline"
+  | "localLat"
+  | "localLng"
+>;
+
 type CorridasGloboProps = {
-  corridasFiltradas: CorridaDataTableRow[];
+  corridasFiltradas: CorridaGlobo[];
 };
 
 type GloboComponentProps = {
@@ -115,7 +125,7 @@ function formatarTempoConclusao(segundosTotais: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-function buildPathsData(corridasFiltradas: CorridaDataTableRow[]) {
+function buildPathsData(corridasFiltradas: CorridaGlobo[]) {
   return corridasFiltradas
     .filter((corrida) => Boolean(corrida.summaryPolyline))
     .map((corrida) => {
@@ -132,7 +142,7 @@ function buildPathsData(corridasFiltradas: CorridaDataTableRow[]) {
     .filter((corrida) => corrida.coords.length > 1);
 }
 
-function buildPointsData(corridasFiltradas: CorridaDataTableRow[]): CorredorPoint[] {
+function buildPointsData(corridasFiltradas: CorridaGlobo[]): CorredorPoint[] {
   const tempos = corridasFiltradas.map((corrida) => corrida.tempoMovimentoSeg);
   const minTempo = Math.min(...tempos);
   const maxTempo = Math.max(...tempos);
@@ -166,7 +176,7 @@ function buildLabelsData(pointsData: CorredorPoint[]): CorredorLabel[] {
   }));
 }
 
-function getPointFromCorrida(corrida: CorridaDataTableRow): Coordenada | null {
+function getPointFromCorrida(corrida: CorridaGlobo): Coordenada | null {
   if (typeof corrida.localLat === "number" && typeof corrida.localLng === "number") {
     return { lat: corrida.localLat, lng: corrida.localLng };
   }
@@ -256,7 +266,7 @@ export function CorridasGlobo({ corridasFiltradas }: CorridasGloboProps) {
   if (corridasFiltradas.length === 0) {
     return (
       <div className="rounded-md border p-3 text-sm text-muted-foreground">
-        Nenhuma corrida na faixa selecionada para visualizar no globo.
+        Nenhuma maratona para visualizar no globo.
       </div>
     );
   }

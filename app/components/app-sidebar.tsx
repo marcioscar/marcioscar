@@ -9,6 +9,7 @@ import {
 	Invoice01Icon,
 	Books02Icon,
 	Target01Icon,
+	Medal01Icon,
 } from "@hugeicons/core-free-icons";
 import {
 	Sidebar,
@@ -44,6 +45,7 @@ export const navGroups: NavGroup[] = [
 		items: [
 			{ title: "Painel", href: "/", icon: Home01Icon },
 			{ title: "Atividades", href: "/corridas", icon: WorkoutRunIcon },
+			{ title: "Maratonas", href: "/maratonas", icon: Medal01Icon },
 			{ title: "Treinamento", href: "/treinamento", icon: Target01Icon },
 		],
 	},

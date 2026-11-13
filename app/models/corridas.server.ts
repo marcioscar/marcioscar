@@ -258,6 +258,62 @@ function montarLabelEixoX(dataInicio: Date, nome: string): string {
   return `${data} · ${curto}`;
 }
 
+export type MaratonaResumo = {
+  stravaId: number;
+  nome: string;
+  dataInicioIso: string;
+  distanciaMetros: number;
+  elevacaoGanhoMetros: number;
+  tempoMovimentoSeg: number;
+  /** Tempo total da prova (elapsed), em segundos */
+  tempoTotalSeg: number;
+  paceMedioSegPorKm: number | null;
+  summaryPolyline: string | null;
+  localLat: number | null;
+  localLng: number | null;
+};
+
+export async function listarMaratonas(): Promise<MaratonaResumo[]> {
+  const corridas = await db.corrida.findMany({
+    where: {
+      distanciaMetros: { gt: METROS_MARATONA_MIN },
+    },
+    orderBy: { dataInicio: "desc" },
+    select: {
+      stravaId: true,
+      nome: true,
+      distanciaMetros: true,
+      elevacaoGanhoMetros: true,
+      tempoMovimentoSeg: true,
+      tempoTotalSeg: true,
+      dataInicio: true,
+      dadosBrutos: true,
+    },
+  });
+
+  return corridas.map((corrida) => {
+    const distanciaKm = corrida.distanciaMetros / 1000;
+    const localCoords = extrairLocalCoords(corrida.dadosBrutos);
+
+    return {
+      stravaId: corrida.stravaId,
+      nome: corrida.nome.trim(),
+      dataInicioIso: corrida.dataInicio.toISOString(),
+      distanciaMetros: corrida.distanciaMetros,
+      elevacaoGanhoMetros: corrida.elevacaoGanhoMetros,
+      tempoMovimentoSeg: corrida.tempoMovimentoSeg,
+      tempoTotalSeg: corrida.tempoTotalSeg,
+      paceMedioSegPorKm:
+        distanciaKm > 0
+          ? Math.round(corrida.tempoMovimentoSeg / distanciaKm)
+          : null,
+      summaryPolyline: extrairSummaryPolyline(corrida.dadosBrutos),
+      localLat: localCoords.localLat,
+      localLng: localCoords.localLng,
+    };
+  });
+}
+
 export async function listarMaratonasParaGraficoBarras(
   limite: number,
 ): Promise<MaratonaBarrasDado[]> {

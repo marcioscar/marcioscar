@@ -12,11 +12,9 @@ import {
 	buscarUltimaAtualizacaoCorridas,
 	contarCorridasSalvas,
 	listarUltimasCorridas,
-	listarMaratonasParaGraficoBarras,
 	sincronizarCorridasDoStrava,
 	type CorridaResumo,
 } from "~/models/corridas.server";
-import type { MaratonaBarrasDado } from "~/types/maratonas-barras";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -65,7 +63,6 @@ type LoaderData = {
 	totalCorridasFiltradas: number;
 	ultimaAtualizacao: string | null;
 	ultimasCorridas: CorridaResumo[];
-	maratonasGraficoBarras: MaratonaBarrasDado[];
 	filtroDataInicio: string;
 	filtroDataFim: string;
 };
@@ -173,12 +170,11 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 	const dataFim = parseDateFromSearchParam(filtroDataFim, "fim");
 	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
 
-	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas, maratonasGraficoBarras] =
+	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas] =
 		await Promise.all([
 			contarCorridasSalvas(),
 			buscarUltimaAtualizacaoCorridas(),
 			listarUltimasCorridas(undefined, intervaloData),
-			listarMaratonasParaGraficoBarras(15),
 		]);
 
 	return {
@@ -186,7 +182,6 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 		totalCorridasFiltradas: ultimasCorridas.length,
 		ultimaAtualizacao: formatarDataIso(ultimaAtualizacaoDate),
 		ultimasCorridas,
-		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
 	};
@@ -247,7 +242,6 @@ export default function Corridas() {
 		totalCorridasFiltradas,
 		ultimaAtualizacao,
 		ultimasCorridas,
-		maratonasGraficoBarras,
 		filtroDataInicio,
 		filtroDataFim,
 	} = loaderData;
@@ -405,7 +399,6 @@ export default function Corridas() {
 				<h2 className='text-lg font-semibold'>Últimas corridas sincronizadas</h2>
 				<CorridasDataTable
 					data={corridasDataTable}
-					maratonasGraficoBarras={maratonasGraficoBarras}
 				/>
 			</section>
 		</main>
