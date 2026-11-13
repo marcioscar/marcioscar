@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -22,6 +22,11 @@ function formatarPace(segPorKm: number): string {
 	return `${min}:${String(seg).padStart(2, "0")}/km`;
 }
 
+function formatarTempoKm(segPorKm: number): string {
+	const total = Math.round(segPorKm);
+	return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function criarMarcador(texto: string, classe: string): HTMLDivElement {
 	const el = document.createElement("div");
 	el.className = classe;
@@ -31,8 +36,21 @@ function criarMarcador(texto: string, classe: string): HTMLDivElement {
 
 const CLASSE_KM =
 	"flex size-5 items-center justify-center rounded-full border border-white bg-neutral-800 text-[10px] font-semibold leading-none text-white shadow";
+const CLASSE_KM_TEMPO =
+	"flex h-5 items-center justify-center rounded-full border border-white bg-neutral-800 px-1.5 text-[10px] font-semibold leading-none tabular-nums text-white shadow";
 const CLASSE_PONTA =
 	"flex h-5 items-center justify-center rounded-full border border-white px-1.5 text-[10px] font-semibold leading-none text-white shadow";
+
+function aplicarModo(
+	marcos: { el: HTMLDivElement; km: number; pace: number | null }[],
+	comTempo: boolean,
+) {
+	for (const { el, km, pace } of marcos) {
+		const mostra = comTempo && pace !== null;
+		el.textContent = mostra ? formatarTempoKm(pace) : String(km);
+		el.className = mostra ? CLASSE_KM_TEMPO : CLASSE_KM;
+	}
+}
 
 export function CorridaRotaMap({
 	mapboxToken,
@@ -41,10 +59,23 @@ export function CorridaRotaMap({
 	splits,
 }: CorridaRotaMapProps) {
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const marcosRef = useRef<{ el: HTMLDivElement; km: number; pace: number | null }[]>([]);
+	const temTempos = splits !== null && splits.length > 0;
+	// em provas longas os 42 rótulos se atropelam: começa desligado
+	const [mostrarTempos, setMostrarTempos] = useState(
+		temTempos && distanciaMetros <= 15_000,
+	);
 	const rota = useMemo(
 		() => montarRota(polyline, distanciaMetros, splits),
 		[polyline, distanciaMetros, splits],
 	);
+
+	const modoRef = useRef(mostrarTempos);
+	modoRef.current = mostrarTempos;
+
+	useEffect(() => {
+		aplicarModo(marcosRef.current, mostrarTempos);
+	}, [mostrarTempos]);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -62,6 +93,7 @@ export function CorridaRotaMap({
 		map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
 		const marcadores: mapboxgl.Marker[] = [];
+		marcosRef.current = [];
 		const popup = new mapboxgl.Popup({
 			closeButton: false,
 			closeOnClick: false,
@@ -107,10 +139,12 @@ export function CorridaRotaMap({
 					popup.setLngLat(marco.coordenada).setText(detalhes.join(" · ")).addTo(map);
 				});
 				el.addEventListener("mouseleave", () => popup.remove());
+				marcosRef.current.push({ el, km: marco.km, pace: marco.paceSegPorKm });
 				marcadores.push(
 					new mapboxgl.Marker({ element: el }).setLngLat(marco.coordenada).addTo(map),
 				);
 			}
+			aplicarModo(marcosRef.current, modoRef.current);
 
 			marcadores.push(
 				new mapboxgl.Marker({
@@ -163,6 +197,17 @@ export function CorridaRotaMap({
 				ref={containerRef}
 				className='h-[280px] w-full rounded-md border sm:h-[360px] lg:h-[420px]'
 			/>
+			{temTempos && (
+				<label className='flex w-fit cursor-pointer items-center gap-2 text-sm'>
+					<input
+						type='checkbox'
+						className='size-4'
+						checked={mostrarTempos}
+						onChange={(e) => setMostrarTempos(e.target.checked)}
+					/>
+					Mostrar o tempo de cada km no mapa
+				</label>
+			)}
 			{rota.escala ? (
 				<div className='flex items-center gap-2 text-xs text-muted-foreground'>
 					<span className='tabular-nums'>
