@@ -1,5 +1,7 @@
 export type CorridaStrava = {
   id: number;
+  /** mesmo valor de `id`, como texto; exato para ids de 64 bits */
+  id_str?: string;
   name: string;
   distance: number;
   moving_time: number;
