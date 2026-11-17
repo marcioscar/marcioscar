@@ -26,6 +26,8 @@ import {
 import { criarBibliotecaColumns, type LivroDataTableRow } from "./biblioteca-columns";
 import { BibliotecaEditDialog } from "./biblioteca-edit-dialog";
 import { BibliotecaNovoDialog } from "./biblioteca-novo-dialog";
+import { BibliotecaEstante } from "./biblioteca-estante";
+import { BibliotecaLivroDetalhe } from "./biblioteca-livro-detalhe";
 
 type BibliotecaDataTableProps = {
 	livros: LivroDataTableRow[];
@@ -51,6 +53,8 @@ export function BibliotecaDataTable({ livros }: BibliotecaDataTableProps) {
 	const [filtroBusca, setFiltroBusca] = React.useState("");
 	const [idEdicao, setIdEdicao] = React.useState<string | null>(null);
 	const [novoAberto, setNovoAberto] = React.useState(false);
+	const [visao, setVisao] = React.useState<"estante" | "lista">("estante");
+	const [idDetalhe, setIdDetalhe] = React.useState<string | null>(null);
 
 	const livroEmEdicao = React.useMemo(() => {
 		if (!idEdicao) {
@@ -97,6 +101,8 @@ export function BibliotecaDataTable({ livros }: BibliotecaDataTableProps) {
 	});
 
 	const dialogAberto = livroEmEdicao !== null;
+	const livrosFiltrados = table.getFilteredRowModel().rows.map((r) => r.original);
+	const livroDetalhe = idDetalhe ? (livros.find((l) => l.id === idDetalhe) ?? null) : null;
 
 	return (
 		<div className="flex w-full min-w-0 flex-col gap-4">
@@ -113,12 +119,35 @@ export function BibliotecaDataTable({ livros }: BibliotecaDataTableProps) {
 						Novo livro
 					</Button>
 				</div>
-				<p className="text-sm text-muted-foreground">
-					{table.getFilteredRowModel().rows.length} livro(s)
-				</p>
+				<div className="flex items-center gap-3">
+					<div role="group" aria-label="Visualização" className="flex rounded-md border p-0.5">
+						{(["estante", "lista"] as const).map((v) => (
+							<button
+								key={v}
+								type="button"
+								aria-pressed={visao === v}
+								onClick={() => setVisao(v)}
+								className={
+									"rounded px-3 py-1 text-sm capitalize transition-colors " +
+									(visao === v
+										? "bg-primary text-primary-foreground"
+										: "text-muted-foreground hover:text-foreground")
+								}>
+								{v}
+							</button>
+						))}
+					</div>
+					<p className="text-sm text-muted-foreground">
+						{livrosFiltrados.length} livro(s)
+					</p>
+				</div>
 			</div>
 
-			<div className="min-w-0 max-w-full rounded-md border">
+			{visao === "estante" && (
+				<BibliotecaEstante livros={livrosFiltrados} onAbrir={(l) => setIdDetalhe(l.id)} />
+			)}
+
+			<div className={"min-w-0 max-w-full rounded-md border " + (visao === "estante" ? "hidden" : "")}>
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
@@ -160,7 +189,7 @@ export function BibliotecaDataTable({ livros }: BibliotecaDataTableProps) {
 				</Table>
 			</div>
 
-			<div className="flex flex-wrap items-center justify-between gap-2">
+			<div className={"flex flex-wrap items-center justify-between gap-2 " + (visao === "estante" ? "hidden" : "")}>
 				<p className="text-sm text-muted-foreground">
 					Página {table.getState().pagination.pageIndex + 1} de{" "}
 					{table.getPageCount() || 1}
@@ -184,6 +213,17 @@ export function BibliotecaDataTable({ livros }: BibliotecaDataTableProps) {
 					</Button>
 				</div>
 			</div>
+
+			<BibliotecaLivroDetalhe
+				livro={livroDetalhe}
+				onOpenChange={(aberto) => {
+					if (!aberto) setIdDetalhe(null);
+				}}
+				onEditar={(l) => {
+					setIdDetalhe(null);
+					setIdEdicao(l.id);
+				}}
+			/>
 
 			<BibliotecaEditDialog
 				livro={livroEmEdicao}
