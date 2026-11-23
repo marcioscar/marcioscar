@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { db } from '../../db.server'
 import { buscarAtividadeDetalhada } from '~/services/strava/client.server'
+import { tabelaZonasParaPrompt } from '~/lib/zonas-pace'
 import type { AnaliseInput, AnaliseResult, SplitMetric, LapData, AnalyzeApiResponse } from '~/types/analise'
 
 export type { AnaliseInput, AnaliseResult, SplitMetric, LapData, AnalyzeApiResponse }
@@ -138,6 +139,10 @@ Analise esta sessão de treino e avalie se está alinhada com a metodologia Cano
 - **Bloco Especial / Fartlek**: variações de pace identificáveis nos splits
 - **Repetições / Tiro**: pace próximo ou abaixo do alvo com recuperação (difícil de ver em pace médio mas visível nos splits)
 - **Corrida de Prova**: pace de corrida
+
+## Zonas de ritmo do atleta (Canova + Jack Daniels) — pace absoluto
+${tabelaZonasParaPrompt()}
+Use ESTAS zonas (Z1–Z6) para classificar o ritmo de splits, voltas e do pace médio, citando a zona (ex: "Z4 Limiar"). Elas valem mais que as diferenças relativas ao pace alvo acima, que ficam só como apoio para identificar o tipo de sessão.
 
 Princípios-chave de Canova:
 - Todo treino deve ter objetivo claro; evitar "zona cinza"
