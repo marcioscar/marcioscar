@@ -137,6 +137,37 @@ model TreinoManual {
     @@index([data])
 }
 
+/// Treino lido do app Saúde (Apple Watch) pelo app do iPhone. `healthId` é o UUID do HKWorkout.
+model TreinoSaude {
+    id               String   @id @default(auto()) @map("_id") @db.ObjectId
+    healthId         String   @unique
+    /// corrida | caminhada | musculacao | outro
+    tipo             String
+    /// Nome do tipo no HealthKit (ex.: "running", "traditionalStrengthTraining")
+    tipoHealthKit    String
+    inicio           DateTime
+    fim              DateTime
+    duracaoSeg       Float
+    distanciaM       Float?
+    caloriasKcal     Float?
+    fcMedia          Float?
+    fcMaxima         Float?
+    /// passos por minuto (passos ÷ duração)
+    cadenciaMedia    Float?
+    potenciaMediaW   Float?
+    passadaM         Float?
+    oscilacaoVerticalCm Float?
+    contatoSoloMs    Float?
+    elevacaoGanhoM   Float?
+    /// Rota em polyline (precisão 5), reduzida para ~300 pontos
+    polyline         String?
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    @@index([inicio])
+    @@index([tipo])
+}
+
 model biblioteca {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String

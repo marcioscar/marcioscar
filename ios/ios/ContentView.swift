@@ -6,6 +6,7 @@ private let ptBR = Locale(identifier: "pt_BR")
 
 struct ContentView: View {
     @State private var store = TreinosStore()
+    @State private var saude = SaudeSync()
     @State private var detalhe: Sessao?
     @State private var mostrarAjustes = false
     @State private var planoPrevia = WorkoutPlan(.custom(CustomWorkout(activity: .running, location: .outdoor, displayName: "")))
@@ -32,7 +33,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $mostrarAjustes) {
-            AjustesView(aoSalvar: { await store.carregar() }, aoLimpar: { await store.limparRelogio() })
+            AjustesView(aoSalvar: { await store.carregar() }, aoLimpar: { await store.limparRelogio() }, saude: saude)
         }
         .workoutPreview(planoPrevia, isPresented: $mostrarPrevia)
         .task {
@@ -524,6 +525,7 @@ struct AjustesView: View {
     @Environment(\.dismiss) private var dismiss
     var aoSalvar: () async -> Void
     var aoLimpar: () async -> Void
+    var saude: SaudeSync
 
     @State private var confirmandoLimpeza = false
     @State private var limpo = false
@@ -566,6 +568,35 @@ struct AjustesView: View {
                             .foregroundStyle(deuCerto ? .green : .red)
                             .font(.footnote)
                     }
+                }
+                Section {
+                    Button {
+                        Task { await saude.sincronizar(desdeAnoInteiro: true) }
+                    } label: {
+                        HStack {
+                            Text("Sincronizar treinos do ano")
+                            if saude.rodando { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(saude.rodando || !Servidor.configurado)
+                    Button("Sincronizar só os novos") {
+                        Task { await saude.sincronizar(desdeAnoInteiro: false) }
+                    }
+                    .disabled(saude.rodando || !Servidor.configurado)
+                    switch saude.fase {
+                    case .parado: EmptyView()
+                    case .lendo: Text("Lendo o app Saúde…").font(.footnote).foregroundStyle(.secondary)
+                    case .enviando(let feitos, let total):
+                        Text("Enviando \(feitos) de \(total)…").font(.footnote).foregroundStyle(.secondary)
+                    case .concluido(let msg):
+                        Label(msg, systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.footnote)
+                    case .erro(let msg):
+                        Label(msg, systemImage: "xmark.octagon.fill").foregroundStyle(.red).font(.footnote)
+                    }
+                } header: {
+                    Text("Apple Saúde")
+                } footer: {
+                    Text("Lê corridas, caminhadas e musculação gravadas pelo Apple Watch (com frequência cardíaca, rota e métricas de corrida) e envia para o site.")
                 }
                 Section {
                     Button("Remover treinos do relógio", role: .destructive) { confirmandoLimpeza = true }

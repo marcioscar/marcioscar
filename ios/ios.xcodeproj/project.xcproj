@@ -42,7 +42,7 @@
         "ENABLE_USER_SELECTED_FILES": "readonly",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_KEY_CFBundleDisplayName": "Treino Watch",
-        "INFOPLIST_KEY_NSHealthShareUsageDescription": "Necessário para agendar treinos no Apple Watch.",
+        "INFOPLIST_KEY_NSHealthShareUsageDescription": "Para ler seus treinos do Apple Watch (corrida, caminhada, musculação) e enviá-los ao seu site.",
         "INFOPLIST_KEY_NSHealthUpdateUsageDescription": "Necessário para agendar treinos no Apple Watch.",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]": "YES",

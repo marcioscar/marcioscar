@@ -1,0 +1,234 @@
+import CoreLocation
+import Foundation
+import HealthKit
+
+/// Lê os treinos do app Saúde (gravados pelo Apple Watch) e envia para o site.
+@Observable
+@MainActor
+final class SaudeSync {
+    enum Fase: Equatable {
+        case parado
+        case lendo
+        case enviando(Int, Int)
+        case concluido(String)
+        case erro(String)
+    }
+
+    var fase: Fase = .parado
+    var rodando: Bool {
+        switch fase {
+        case .lendo, .enviando: true
+        default: false
+        }
+    }
+
+    private let store = HKHealthStore()
+    private let tamanhoLote = 25
+
+    // MARK: tipos lidos
+
+    private var tiposLeitura: Set<HKObjectType> {
+        var t: Set<HKObjectType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute()]
+        let ids: [HKQuantityTypeIdentifier] = [
+            .heartRate, .distanceWalkingRunning, .activeEnergyBurned, .stepCount,
+            .runningPower, .runningStrideLength, .runningVerticalOscillation, .runningGroundContactTime,
+        ]
+        for id in ids { t.insert(HKQuantityType(id)) }
+        return t
+    }
+
+    // MARK: fluxo principal
+
+    /// Sincroniza. `desdeAnoInteiro` lê desde 1º de janeiro; senão, só o que for mais novo que o site já tem.
+    func sincronizar(desdeAnoInteiro: Bool) async {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            fase = .erro("O app Saúde não está disponível neste aparelho.")
+            return
+        }
+        fase = .lendo
+        do {
+            try await store.requestAuthorization(toShare: [], read: tiposLeitura)
+
+            let inicio = try await dataInicial(anoInteiro: desdeAnoInteiro)
+            let treinos = try await lerTreinos(desde: inicio)
+            if treinos.isEmpty {
+                fase = .concluido("Nenhum treino novo no Saúde.")
+                return
+            }
+
+            var enviados = 0
+            var criados = 0
+            var atualizados = 0
+            for lote in treinos.chunked(tamanhoLote) {
+                fase = .enviando(enviados, treinos.count)
+                let r = try await Servidor.enviarTreinosSaude(lote)
+                criados += r.criados
+                atualizados += r.atualizados
+                enviados += lote.count
+            }
+            fase = .concluido("\(treinos.count) treinos lidos: \(criados) novos, \(atualizados) atualizados.")
+        } catch {
+            fase = .erro(error.localizedDescription)
+        }
+    }
+
+    private func dataInicial(anoInteiro: Bool) async throws -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let primeiroDoAno = cal.date(from: DateComponents(year: cal.component(.year, from: Date()), month: 1, day: 1))!
+        if anoInteiro { return primeiroDoAno }
+        // incremental: do mais recente que o site tem, menos 2 dias de folga
+        if let recente = try await Servidor.maisRecenteSaude() {
+            return max(recente.addingTimeInterval(-2 * 86400), primeiroDoAno)
+        }
+        return primeiroDoAno
+    }
+
+    // MARK: leitura
+
+    private func lerTreinos(desde: Date) async throws -> [TreinoSaudePayload] {
+        let predicado = HKQuery.predicateForSamples(withStart: desde, end: nil)
+        let descritor = HKSampleQueryDescriptor(
+            predicates: [.workout(predicado)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        let workouts = try await descritor.result(for: store)
+
+        var saida: [TreinoSaudePayload] = []
+        for w in workouts {
+            saida.append(await montar(w))
+        }
+        return saida
+    }
+
+    private func montar(_ w: HKWorkout) async -> TreinoSaudePayload {
+        let (tipo, nomeHK) = classificar(w.workoutActivityType)
+
+        func media(_ id: HKQuantityTypeIdentifier, _ unidade: HKUnit) -> Double? {
+            w.statistics(for: HKQuantityType(id))?.averageQuantity()?.doubleValue(for: unidade)
+        }
+        func soma(_ id: HKQuantityTypeIdentifier, _ unidade: HKUnit) -> Double? {
+            w.statistics(for: HKQuantityType(id))?.sumQuantity()?.doubleValue(for: unidade)
+        }
+
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        let passos = soma(.stepCount, .count())
+        let elevacao = (w.metadata?[HKMetadataKeyElevationAscended] as? HKQuantity)?.doubleValue(for: .meter())
+
+        let rota = tipo == .musculacao ? nil : await polylineDaRota(w)
+
+        return TreinoSaudePayload(
+            healthId: w.uuid.uuidString,
+            tipo: tipo.rawValue,
+            tipoHealthKit: nomeHK,
+            inicio: w.startDate,
+            fim: w.endDate,
+            duracaoSeg: w.duration,
+            distanciaM: soma(.distanceWalkingRunning, .meter()),
+            caloriasKcal: soma(.activeEnergyBurned, .kilocalorie()),
+            fcMedia: media(.heartRate, bpm),
+            fcMaxima: w.statistics(for: HKQuantityType(.heartRate))?.maximumQuantity()?.doubleValue(for: bpm),
+            cadenciaMedia: passos.flatMap { w.duration > 0 ? $0 / (w.duration / 60) : nil },
+            potenciaMediaW: media(.runningPower, .watt()),
+            passadaM: media(.runningStrideLength, .meter()),
+            oscilacaoVerticalCm: media(.runningVerticalOscillation, .meterUnit(with: .centi)),
+            contatoSoloMs: media(.runningGroundContactTime, .secondUnit(with: .milli)),
+            elevacaoGanhoM: elevacao,
+            polyline: rota
+        )
+    }
+
+    private func polylineDaRota(_ w: HKWorkout) async -> String? {
+        do {
+            let descritor = HKAnchoredObjectQueryDescriptor(
+                predicates: [.workoutRoute(HKQuery.predicateForObjects(from: w))],
+                anchor: nil
+            )
+            let resultado = try await descritor.result(for: store)
+            var pontos: [CLLocationCoordinate2D] = []
+            for rota in resultado.addedSamples {
+                for try await loc in HKWorkoutRouteQueryDescriptor(rota).results(for: store) {
+                    pontos.append(loc.coordinate)
+                }
+            }
+            guard pontos.count >= 2 else { return nil }
+            return Polyline.codificar(Polyline.reduzir(pontos, maximo: 300))
+        } catch {
+            return nil
+        }
+    }
+
+    private func classificar(_ t: HKWorkoutActivityType) -> (TipoSaude, String) {
+        switch t {
+        case .running: (.corrida, "running")
+        case .walking: (.caminhada, "walking")
+        case .hiking: (.caminhada, "hiking")
+        case .traditionalStrengthTraining: (.musculacao, "traditionalStrengthTraining")
+        case .functionalStrengthTraining: (.musculacao, "functionalStrengthTraining")
+        case .coreTraining: (.musculacao, "coreTraining")
+        default: (.outro, "other(\(t.rawValue))")
+        }
+    }
+}
+
+enum TipoSaude: String, Codable {
+    case corrida, caminhada, musculacao, outro
+}
+
+struct TreinoSaudePayload: Codable {
+    var healthId: String
+    var tipo: String
+    var tipoHealthKit: String
+    var inicio: Date
+    var fim: Date
+    var duracaoSeg: Double
+    var distanciaM: Double?
+    var caloriasKcal: Double?
+    var fcMedia: Double?
+    var fcMaxima: Double?
+    var cadenciaMedia: Double?
+    var potenciaMediaW: Double?
+    var passadaM: Double?
+    var oscilacaoVerticalCm: Double?
+    var contatoSoloMs: Double?
+    var elevacaoGanhoM: Double?
+    var polyline: String?
+}
+
+enum Polyline {
+    /// Reduz a rota a no máximo `maximo` pontos, escolhendo pontos igualmente espaçados.
+    static func reduzir(_ p: [CLLocationCoordinate2D], maximo: Int) -> [CLLocationCoordinate2D] {
+        guard p.count > maximo, maximo > 1 else { return p }
+        return (0..<maximo).map { p[Int(Double($0) * Double(p.count - 1) / Double(maximo - 1))] }
+    }
+
+    /// Google Encoded Polyline, precisão 5.
+    static func codificar(_ pontos: [CLLocationCoordinate2D]) -> String {
+        var lat = 0, lng = 0
+        var out = ""
+        func valor(_ v: Int) -> String {
+            var n = v < 0 ? ~(v << 1) : (v << 1)
+            var s = ""
+            while n >= 0x20 {
+                s.append(Character(UnicodeScalar((0x20 | (n & 0x1f)) + 63)!))
+                n >>= 5
+            }
+            s.append(Character(UnicodeScalar(n + 63)!))
+            return s
+        }
+        for p in pontos {
+            let la = Int((p.latitude * 1e5).rounded())
+            let ln = Int((p.longitude * 1e5).rounded())
+            out += valor(la - lat) + valor(ln - lng)
+            lat = la
+            lng = ln
+        }
+        return out
+    }
+}
+
+extension Array {
+    func chunked(_ n: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: n).map { Array(self[$0..<Swift.min($0 + n, count)]) }
+    }
+}

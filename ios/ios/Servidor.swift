@@ -78,4 +78,61 @@ enum Servidor {
             throw Erro.rede(error.localizedDescription)
         }
     }
+
+    // MARK: Apple Saúde
+
+    private static func requisicao(_ caminho: String, metodo: String = "GET") throws -> URLRequest {
+        guard let token, !token.isEmpty else { throw Erro.semToken }
+        guard let url = URL(string: endereco)?.appendingPathComponent(caminho), url.scheme?.hasPrefix("http") == true else {
+            throw Erro.urlInvalida
+        }
+        var req = URLRequest(url: url, timeoutInterval: 60)
+        req.httpMethod = metodo
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return req
+    }
+
+    private static func executar(_ req: URLRequest) async throws -> Data {
+        do {
+            let (dados, resp) = try await URLSession.shared.data(for: req)
+            let codigo = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            if codigo == 401 { throw Erro.token }
+            guard (200..<300).contains(codigo) else { throw Erro.servidor(codigo) }
+            return dados
+        } catch let e as Erro {
+            throw e
+        } catch {
+            throw Erro.rede(error.localizedDescription)
+        }
+    }
+
+    /// Data do treino do Saúde mais recente que o site já tem (nil se não tiver nenhum).
+    static func maisRecenteSaude() async throws -> Date? {
+        struct Resumo: Decodable { var total: Int; var maisRecente: String? }
+        let dados = try await executar(try requisicao("api/saude-treinos"))
+        let r = try JSONDecoder().decode(Resumo.self, from: dados)
+        guard let s = r.maisRecente else { return nil }
+        return ISO8601DateFormatter.comFracao.date(from: s) ?? ISO8601DateFormatter().date(from: s)
+    }
+
+    struct RespostaEnvio: Decodable { var criados: Int; var atualizados: Int; var descartados: Int }
+
+    static func enviarTreinosSaude(_ treinos: [TreinoSaudePayload]) async throws -> RespostaEnvio {
+        var req = try requisicao("api/saude-treinos", metodo: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        struct Corpo: Encodable { var treinos: [TreinoSaudePayload] }
+        req.httpBody = try enc.encode(Corpo(treinos: treinos))
+        let dados = try await executar(req)
+        return try JSONDecoder().decode(RespostaEnvio.self, from: dados)
+    }
+}
+
+extension ISO8601DateFormatter {
+    static let comFracao: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 }

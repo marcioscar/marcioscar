@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useFetcher, useLoaderData } from "react-router";
-import { Check, Clock, Footprints, Minus } from "lucide-react";
+import { Check, Clock, Dumbbell, Footprints, Minus } from "lucide-react";
 import { toast } from "sonner";
 import type { Route } from "./+types/treinos";
 import { TreinoEditorDialog } from "~/components/treinos/treino-editor-dialog";
@@ -14,6 +14,7 @@ import {
 	DialogTitle,
 } from "~/components/ui/dialog";
 import { db } from "../../db.server";
+import { listarTreinosSaude } from "~/models/treino-saude.server";
 import { chaveDia } from "~/lib/carga-treino";
 import {
 	ROTULO_FASE,
@@ -71,11 +72,15 @@ function ehCaminhada(distanciaM: number, tempoSeg: number): boolean {
 }
 
 export type AtividadeDia = {
-	stravaId: number;
+	/** Só atividades do Strava têm página de detalhe */
+	stravaId: number | null;
+	chave: string;
 	nome: string;
 	km: number;
 	tempoSeg: number;
 	caminhada: boolean;
+	musculacao: boolean;
+	origem: "strava" | "saude";
 };
 
 function mesValido(v: string | null): v is string {
@@ -93,8 +98,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const inicio = segundaDe(primeiro);
 	const fim = somarDias(segundaDe(ultimoDoMes), 6);
 
-	const [treinos, corridas] = await Promise.all([
+	const [treinos, saude, corridas] = await Promise.all([
 		listarTreinosManuais(inicio, fim),
+		listarTreinosSaude(new Date(`${somarDias(inicio, -1)}T00:00:00Z`), new Date(`${somarDias(fim, 2)}T00:00:00Z`)),
 		db.corrida.findMany({
 			where: {
 				dataInicio: {
@@ -108,17 +114,45 @@ export async function loader({ request }: Route.LoaderArgs) {
 	]);
 
 	const atividades: Record<string, AtividadeDia[]> = {};
+	const inicioStrava: number[] = [];
 	for (const c of corridas) {
 		const dia = chaveDia(c.dataInicio);
 		if (dia < inicio || dia > fim) continue;
+		inicioStrava.push(c.dataInicio.getTime());
 		(atividades[dia] ??= []).push({
 			stravaId: c.stravaId,
+			chave: `strava-${c.stravaId}`,
 			nome: c.nome,
 			km: c.distanciaMetros / 1000,
 			tempoSeg: c.tempoMovimentoSeg,
 			caminhada: ehCaminhada(c.distanciaMetros, c.tempoMovimentoSeg),
+			musculacao: false,
+			origem: "strava",
 		});
 	}
+
+	// Treinos do app Saúde: o que já veio do Strava (começo a até 15 min de diferença) não entra de novo.
+	const QUINZE_MIN = 15 * 60 * 1000;
+	for (const t of saude) {
+		const dia = chaveDia(t.inicio);
+		if (dia < inicio || dia > fim) continue;
+		const duplicado =
+			(t.tipo === "corrida" || t.tipo === "caminhada") &&
+			inicioStrava.some((i) => Math.abs(i - t.inicio.getTime()) <= QUINZE_MIN);
+		if (duplicado) continue;
+		const km = (t.distanciaM ?? 0) / 1000;
+		(atividades[dia] ??= []).push({
+			stravaId: null,
+			chave: `saude-${t.healthId}`,
+			nome: t.tipo === "musculacao" ? "Musculação" : t.tipo === "caminhada" ? "Caminhada" : t.tipo === "corrida" ? "Corrida" : "Treino",
+			km,
+			tempoSeg: t.duracaoSeg,
+			caminhada: t.tipo === "caminhada" || (t.tipo === "corrida" && ehCaminhada(t.distanciaM ?? 0, t.duracaoSeg)),
+			musculacao: t.tipo === "musculacao",
+			origem: "saude",
+		});
+	}
+	for (const lista of Object.values(atividades)) lista.sort((a, b) => a.chave.localeCompare(b.chave));
 
 	return { hoje, mes, inicio, fim, treinos, atividades };
 }
@@ -182,7 +216,7 @@ function somarMes(mes: string, delta: number): string {
 
 /** Pareia o treino planejado do dia com a corrida mais longa (sem contar caminhada) feita no mesmo dia. */
 function parear(planejado: TreinoManualDados | undefined, atividades: AtividadeDia[]) {
-	const corridas = atividades.filter((a) => !a.caminhada);
+	const corridas = atividades.filter((a) => !a.caminhada && !a.musculacao);
 	const principal = planejado && planejado.tipo !== "descanso" ? [...corridas].sort((a, b) => b.km - a.km)[0] : undefined;
 	return {
 		feita: principal,
@@ -236,15 +270,14 @@ function CartaoPlanejado({
 
 function CartaoAtividade({ a }: { a: AtividadeDia }) {
 	const pace = a.km > 0 ? a.tempoSeg / a.km : null;
-	return (
-		<Link
-			to={`/corridas/${a.stravaId}`}
-			onClick={(e) => e.stopPropagation()}
-			className="grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50"
-			style={a.caminhada ? { opacity: 0.7 } : undefined}>
+	const Icone = a.musculacao ? Dumbbell : Footprints;
+	const conteudo = (
+		<>
 			<div className="flex items-center gap-1.5">
-				<Footprints size={13} className="shrink-0 text-muted-foreground" />
-				<span className="min-w-0 flex-1 truncate font-semibold">{a.caminhada ? "Caminhada" : a.nome}</span>
+				<Icone size={13} className="shrink-0 text-muted-foreground" />
+				<span className="min-w-0 flex-1 truncate font-semibold">
+					{a.caminhada ? "Caminhada" : a.musculacao ? "Musculação" : a.nome}
+				</span>
 				{!a.caminhada && (
 					<span className="flex size-4 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--paleta-1)", color: "white" }}>
 						<Check size={11} />
@@ -252,10 +285,25 @@ function CartaoAtividade({ a }: { a: AtividadeDia }) {
 				)}
 			</div>
 			<p className="truncate text-[11px] text-muted-foreground tabular-nums">
-				{formatarKm(a.km)} · {formatarDuracao(a.tempoSeg)}
-				{pace && !a.caminhada ? ` · ${formatarPaceSeg(pace)}` : ""}
+				{a.musculacao ? formatarDuracao(a.tempoSeg) : `${formatarKm(a.km)} · ${formatarDuracao(a.tempoSeg)}`}
+				{pace && !a.caminhada && !a.musculacao ? ` · ${formatarPaceSeg(pace)}` : ""}
 			</p>
+		</>
+	);
+	const classe =
+		"grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50";
+	return a.stravaId !== null ? (
+		<Link
+			to={`/corridas/${a.stravaId}`}
+			onClick={(e) => e.stopPropagation()}
+			className={classe}
+			style={a.caminhada ? { opacity: 0.7 } : undefined}>
+			{conteudo}
 		</Link>
+	) : (
+		<div className={classe} style={a.caminhada ? { opacity: 0.7 } : undefined} title="Lido do app Saúde">
+			{conteudo}
+		</div>
 	);
 }
 
@@ -384,6 +432,7 @@ export default function Treinos() {
 						const doMes = (dia: string) => dia.startsWith(mes);
 						let kmFeitos = 0;
 						let segFeitos = 0;
+						let segMusculacao = 0;
 						let kmPlan = 0;
 						let segPlan = 0;
 						for (const dia of dias) {
@@ -393,6 +442,10 @@ export default function Treinos() {
 								segPlan += estimarSegundos(t);
 							}
 							for (const a of atividades[dia] ?? []) {
+								if (a.musculacao) {
+									segMusculacao += a.tempoSeg;
+									continue;
+								}
 								if (a.caminhada) continue;
 								kmFeitos += a.km;
 								segFeitos += a.tempoSeg;
@@ -428,7 +481,7 @@ export default function Treinos() {
 													<p className="px-1 text-[11px] text-muted-foreground">Descanso</p>
 												)}
 												{soltas.map((a) => (
-													<CartaoAtividade key={a.stravaId} a={a} />
+													<CartaoAtividade key={a.chave} a={a} />
 												))}
 											</div>
 										</div>
@@ -447,6 +500,14 @@ export default function Treinos() {
 											{formatarDuracao(segFeitos)} / {formatarDuracao(segPlan)}
 										</p>
 									</div>
+									{segMusculacao > 0 && (
+										<div>
+											<p className="flex items-center gap-1.5 font-semibold">
+												<Dumbbell size={13} className="text-muted-foreground" /> Musculação
+											</p>
+											<p className="mt-1 text-muted-foreground tabular-nums">{formatarDuracao(segMusculacao)}</p>
+										</div>
+									)}
 									<Button type="button" variant="ghost" size="xs" className="w-fit" onClick={() => setSugerindo(dias[0])}>
 										Sugerir semana
 									</Button>
