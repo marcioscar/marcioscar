@@ -7,3 +7,9 @@
 /build/
 
 /generated/prisma
+
+# Xcode
+ios/**/xcuserdata/
+ios/**/DerivedData/
+ios/build/
+.DS_Store
