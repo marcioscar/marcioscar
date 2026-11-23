@@ -209,7 +209,7 @@ export function CorridaCargaTreino({ carga }: { carga: CargaTreino }) {
 
 				<p className="text-xs text-muted-foreground">
 					Estimativa a partir das suas corridas no Strava: carga = tempo × intensidade pela frequência
-					cardíaca; relação = carga dos últimos 7 dias ÷ média semanal dos últimos 28. Não é orientação médica.
+					cardíaca; relação = média móvel de 7 dias ÷ média móvel de 28 dias, ajustada para se aproximar do Apple Fitness. Não é orientação médica.
 				</p>
 			</CardContent>
 		</Card>

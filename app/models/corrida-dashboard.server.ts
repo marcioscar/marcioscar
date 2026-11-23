@@ -1,6 +1,6 @@
 import { db } from "../../db.server";
 import { getInicioSemana } from "~/lib/provaUtils";
-import { calcularCargaTreino, type CargaTreino } from "~/lib/carga-treino";
+import { calcularCargaTreino, DIAS_HISTORICO, type CargaTreino } from "~/lib/carga-treino";
 
 export type VolumeSemanaItem = {
 	inicioSemana: string;
@@ -93,12 +93,12 @@ export async function obterResumoSemanaAtual(): Promise<ResumoSemanaAtual> {
 	};
 }
 
-/** Carga de treino e relação aguda:crônica dos últimos 7 dias (precisa de 34 dias de histórico). */
+/** Carga de treino e relação aguda:crônica dos últimos 7 dias (a média exponencial usa ~120 dias de histórico). */
 export async function obterCargaTreino(): Promise<CargaTreino> {
 	const dia = 24 * 3600 * 1000;
 	const [corridas, fcMax] = await Promise.all([
 		db.corrida.findMany({
-			where: { dataInicio: { gte: new Date(Date.now() - 40 * dia) } },
+			where: { dataInicio: { gte: new Date(Date.now() - DIAS_HISTORICO * dia) } },
 			select: {
 				dataInicio: true,
 				tempoMovimentoSeg: true,

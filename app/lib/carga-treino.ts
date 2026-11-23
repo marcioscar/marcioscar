@@ -1,11 +1,19 @@
-// Carga de treino e relação aguda:crônica (ACWR), estimadas só com dados do Strava.
+// Carga de treino e relação aguda:crônica, estimadas só com dados do Strava.
 //
-// Carga de uma corrida = minutos × (FC média / FC máxima de referência)², escalada
-// para que 60 min na FC máxima valham 100 pontos. Sem FC, assume 75% da FC máxima.
-// Relação do dia = carga dos últimos 7 dias ÷ (carga dos últimos 28 dias ÷ 4).
+// Calibrado contra a relação de carga do Apple Fitness (7 dias de dados reais, erro
+// médio ≈ 0,04): carga de uma corrida = minutos × (FC média / FC máxima)⁴ × 7,75;
+// sem FC, assume 75% da FC máxima. A relação do dia é a média móvel exponencial da
+// carga com janela de 7 dias (aguda) dividida pela de 28 dias (crônica). Por ser
+// exponencial, a relação cai no dia seguinte a um treino forte, como no Apple.
 
 export const FUSO = "America/Sao_Paulo";
 const FC_PADRAO_FRACAO = 0.75;
+const EXPOENTE_INTENSIDADE = 4;
+const ESCALA_CARGA = 7.75;
+const JANELA_AGUDA = 7;
+const JANELA_CRONICA = 28;
+/** Dias de histórico para a média exponencial estabilizar. */
+export const DIAS_HISTORICO = 120;
 
 export type ZonaCarga = "destreino" | "ideal" | "medio" | "alto";
 
@@ -70,7 +78,7 @@ export function cargaDaCorrida(
 		frequenciaMedia && frequenciaMedia > 0 && fcReferencia > 0
 			? Math.min(frequenciaMedia / fcReferencia, 1.05)
 			: FC_PADRAO_FRACAO;
-	return (tempoMovimentoSeg / 60) * fracao * fracao * (100 / 60);
+	return (tempoMovimentoSeg / 60) * fracao ** EXPOENTE_INTENSIDADE * ESCALA_CARGA;
 }
 
 export type DiaRelacao = {
@@ -133,17 +141,25 @@ export function calcularCargaTreino(
 
 	const cargaPorDia = new Map<string, number>();
 	for (const i of itens) cargaPorDia.set(i.chave, (cargaPorDia.get(i.chave) ?? 0) + i.carga);
-	const soma = (ate: string, janela: number) => {
-		let total = 0;
-		for (let k = 0; k < janela; k++) total += cargaPorDia.get(somarDias(ate, -k)) ?? 0;
-		return total;
-	};
+
+	// médias móveis exponenciais diárias (aguda e crônica), do começo do histórico até hoje
+	const alfaA = 2 / (JANELA_AGUDA + 1);
+	const alfaC = 2 / (JANELA_CRONICA + 1);
+	const relacaoPorDia = new Map<string, number | null>();
+	let aguda = 0;
+	let cronica = 0;
+	for (let k = DIAS_HISTORICO - 1; k >= 0; k--) {
+		const chave = somarDias(hojeChave, -k);
+		const carga = cargaPorDia.get(chave) ?? 0;
+		aguda += alfaA * (carga - aguda);
+		cronica += alfaC * (carga - cronica);
+		relacaoPorDia.set(chave, cronica > 0 ? aguda / cronica : null);
+	}
 
 	const dias: DiaRelacao[] = [];
 	for (let k = 6; k >= 0; k--) {
 		const chave = somarDias(hojeChave, -k);
-		const cronica = soma(chave, 28) / 4;
-		const relacao = cronica > 0 ? soma(chave, 7) / cronica : null;
+		const relacao = relacaoPorDia.get(chave) ?? null;
 		const data = new Date(`${chave}T12:00:00Z`);
 		dias.push({
 			chave,
