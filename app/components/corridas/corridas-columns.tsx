@@ -7,6 +7,11 @@ import type { AnaliseResult, SplitMetric, LapData } from "~/types/analise";
 
 export type CorridaDataTableRow = {
 	stravaId: number;
+	/** chave única da linha (strava-123 ou relogio-<uuid>) */
+	chave: string;
+	/** página de detalhe */
+	href: string;
+	origem: "strava" | "relogio";
 	summaryPolyline: string | null;
 	localLat: number | null;
 	localLng: number | null;

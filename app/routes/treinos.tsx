@@ -15,6 +15,7 @@ import {
 } from "~/components/ui/dialog";
 import { db } from "../../db.server";
 import { listarTreinosSaude } from "~/models/treino-saude.server";
+import { RELOGIO_DESDE } from "~/lib/fonte-dados";
 import { chaveDia } from "~/lib/carga-treino";
 import {
 	ROTULO_FASE,
@@ -72,8 +73,11 @@ function ehCaminhada(distanciaM: number, tempoSeg: number): boolean {
 }
 
 export type AtividadeDia = {
-	/** Só atividades do Strava têm página de detalhe */
+	/** página de detalhe da corrida (Strava ou relógio); null para musculação etc. */
+	href: string | null;
 	stravaId: number | null;
+	/** início em ms (UTC), para casar Strava e relógio */
+	dataMs: number;
 	chave: string;
 	nome: string;
 	km: number;
@@ -118,9 +122,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 	for (const c of corridas) {
 		const dia = chaveDia(c.dataInicio);
 		if (dia < inicio || dia > fim) continue;
+		// a partir de RELOGIO_DESDE a fonte é o relógio: o Strava só entra se o relógio não tiver a mesma corrida
 		inicioStrava.push(c.dataInicio.getTime());
 		(atividades[dia] ??= []).push({
+			href: `/corridas/${c.stravaId}`,
 			stravaId: c.stravaId,
+			dataMs: c.dataInicio.getTime(),
 			chave: `strava-${c.stravaId}`,
 			nome: c.nome,
 			km: c.distanciaMetros / 1000,
@@ -136,13 +143,27 @@ export async function loader({ request }: Route.LoaderArgs) {
 	for (const t of saude) {
 		const dia = chaveDia(t.inicio);
 		if (dia < inicio || dia > fim) continue;
+		const doRelogio = dia >= RELOGIO_DESDE;
 		const duplicado =
+			!doRelogio &&
 			(t.tipo === "corrida" || t.tipo === "caminhada") &&
 			inicioStrava.some((i) => Math.abs(i - t.inicio.getTime()) <= QUINZE_MIN);
 		if (duplicado) continue;
+		if (doRelogio && (t.tipo === "corrida" || t.tipo === "caminhada")) {
+			// tira do dia a atividade do Strava equivalente (relógio manda daqui em diante)
+			const lista = atividades[dia];
+			if (lista) {
+				const i = lista.findIndex(
+					(a) => a.origem === "strava" && !a.musculacao && Math.abs(a.dataMs - t.inicio.getTime()) <= QUINZE_MIN,
+				);
+				if (i >= 0) lista.splice(i, 1);
+			}
+		}
 		const km = (t.distanciaM ?? 0) / 1000;
 		(atividades[dia] ??= []).push({
+			href: t.tipo === "corrida" ? `/corridas/relogio/${t.healthId}` : null,
 			stravaId: null,
+			dataMs: t.inicio.getTime(),
 			chave: `saude-${t.healthId}`,
 			nome: t.tipo === "musculacao" ? "Musculação" : t.tipo === "caminhada" ? "Caminhada" : t.tipo === "corrida" ? "Corrida" : "Treino",
 			km,
@@ -292,16 +313,16 @@ function CartaoAtividade({ a }: { a: AtividadeDia }) {
 	);
 	const classe =
 		"grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50";
-	return a.stravaId !== null ? (
+	return a.href !== null ? (
 		<Link
-			to={`/corridas/${a.stravaId}`}
+			to={a.href}
 			onClick={(e) => e.stopPropagation()}
 			className={classe}
 			style={a.caminhada ? { opacity: 0.7 } : undefined}>
 			{conteudo}
 		</Link>
 	) : (
-		<div className={classe} style={a.caminhada ? { opacity: 0.7 } : undefined} title="Lido do app Saúde">
+		<div className={classe} style={a.caminhada ? { opacity: 0.7 } : undefined} title="Dados do Apple Watch">
 			{conteudo}
 		</div>
 	);

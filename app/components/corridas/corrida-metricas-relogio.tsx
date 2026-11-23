@@ -52,7 +52,8 @@ function montarItens(m: MetricasRelogio): Item[] {
 }
 
 function paceDe(distanciaM: number, tempoSeg: number): string {
-	return distanciaM > 0 ? formatarPace(tempoSeg / (distanciaM / 1000)) : "—";
+	// descansos (poucos metros em 1:30) dão um pace sem sentido: o Fitness também mostra "—"
+	return distanciaM >= 150 ? formatarPace(tempoSeg / (distanciaM / 1000)) : "—";
 }
 
 function Tabela({

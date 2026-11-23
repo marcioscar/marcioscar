@@ -246,3 +246,89 @@ export async function buscarTreinoSaudeParaCorrida(inicio: Date) {
 	)
 	return candidatos[0] ?? null
 }
+
+// ── Corridas do relógio no formato das páginas de Atividades ────────────────
+
+export type CorridaRelogio = {
+	healthId: string
+	nome: string
+	dataInicio: string
+	distanciaMetros: number
+	tempoMovimentoSeg: number
+	elevacaoGanhoMetros: number
+	summaryPolyline: string | null
+	fcMedia: number | null
+	splits: {
+		split: number
+		distance: number
+		elapsed_time: number
+		moving_time: number
+		elevation_difference: number
+		average_speed: number
+		average_heartrate?: number
+	}[]
+	laps: {
+		lap_index: number
+		name: string
+		distance: number
+		elapsed_time: number
+		moving_time: number
+		average_speed: number
+		average_heartrate?: number
+	}[]
+}
+
+function nomeDaCorrida(inicio: Date): string {
+	const hora = Number(inicio.toLocaleString('pt-BR', { hour: 'numeric', hour12: false, timeZone: 'America/Sao_Paulo' }))
+	return hora < 12 ? 'Corrida matinal' : hora < 18 ? 'Corrida da tarde' : 'Corrida noturna'
+}
+
+type LinhaSaude = Awaited<ReturnType<typeof listarTreinosSaude>>[number]
+
+export function paraCorridaRelogio(t: LinhaSaude): CorridaRelogio {
+	const splits = ((t.splits as SplitSaude[] | null) ?? []).map(s => ({
+		split: s.km,
+		distance: s.distanciaM,
+		elapsed_time: s.tempoSeg,
+		moving_time: s.tempoSeg,
+		elevation_difference: 0,
+		average_speed: s.tempoSeg > 0 ? s.distanciaM / s.tempoSeg : 0,
+		...(s.fcMedia ? { average_heartrate: s.fcMedia } : {}),
+	}))
+	const laps = ((t.voltas as VoltaSaude[] | null) ?? []).map((v, i) => ({
+		lap_index: i,
+		name: v.rotulo ?? `Volta ${v.indice}`,
+		distance: v.distanciaM,
+		elapsed_time: v.tempoSeg,
+		moving_time: v.tempoSeg,
+		average_speed: v.tempoSeg > 0 ? v.distanciaM / v.tempoSeg : 0,
+		...(v.fcMedia ? { average_heartrate: v.fcMedia } : {}),
+	}))
+	return {
+		healthId: t.healthId,
+		nome: nomeDaCorrida(t.inicio),
+		dataInicio: t.inicio.toISOString(),
+		distanciaMetros: t.distanciaM ?? 0,
+		tempoMovimentoSeg: Math.round(t.duracaoSeg),
+		elevacaoGanhoMetros: t.elevacaoGanhoM ?? 0,
+		summaryPolyline: t.polyline,
+		fcMedia: t.fcMedia,
+		splits,
+		laps,
+	}
+}
+
+/** Corridas (não caminhadas) lidas do relógio a partir de `de`, no formato usado nas listas. */
+export async function listarCorridasRelogio(de: Date, inicio?: Date, fim?: Date): Promise<CorridaRelogio[]> {
+	const piso = inicio && inicio > de ? inicio : de
+	const teto = fim ?? new Date('2100-01-01')
+	const linhas = await listarTreinosSaude(piso, teto)
+	return linhas
+		.filter(t => t.tipo === 'corrida')
+		.filter(t => (t.distanciaM ?? 0) / 1000 === 0 || t.duracaoSeg / ((t.distanciaM ?? 0) / 1000) <= 570)
+		.map(paraCorridaRelogio)
+}
+
+export async function buscarTreinoSaudePorId(healthId: string) {
+	return db.treinoSaude.findUnique({ where: { healthId } })
+}

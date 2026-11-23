@@ -121,7 +121,7 @@ export function CorridasDataTable({
 	const [dataBusca, setDataBusca] = React.useState("");
 
 	function handleRowClick(corrida: CorridaDataTableRow) {
-		navigate(`/corridas/${corrida.stravaId}`);
+		navigate(corrida.href);
 	}
 
 	const faixaSelecionada = FAIXAS_DISTANCIA[faixaSelecionadaId];
@@ -141,7 +141,7 @@ export function CorridasDataTable({
 		getSortedRowModel: getSortedRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
 		onSortingChange: setSorting,
-		getRowId: (row) => String(row.stravaId),
+		getRowId: (row) => row.chave,
 		state: { sorting },
 		initialState: {
 			pagination: {

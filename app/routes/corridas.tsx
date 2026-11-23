@@ -38,6 +38,8 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CorridasDataTable } from "~/components/corridas/corridas-data-table";
 import type { CorridaDataTableRow } from "~/components/corridas/corridas-columns";
+import { FOLGA_MESMA_ATIVIDADE_MS, RELOGIO_DESDE_DATA } from "~/lib/fonte-dados";
+import { listarCorridasRelogio, type CorridaRelogio } from "~/models/treino-saude.server";
 import { CorridasGraficosChart } from "~/components/corridas/corridas-graficos-chart";
 import { CorridasHojeCards } from "~/components/corridas/corridas-hoje-cards";
 import { CorridasSemanaChart } from "~/components/corridas/corridas-semana-chart";
@@ -63,6 +65,7 @@ type LoaderData = {
 	totalCorridasFiltradas: number;
 	ultimaAtualizacao: string | null;
 	ultimasCorridas: CorridaResumo[];
+	corridasRelogio: CorridaRelogio[];
 	filtroDataInicio: string;
 	filtroDataFim: string;
 };
@@ -146,6 +149,9 @@ function mapCorridaResumoParaDataTableRow(
 
 	return {
 		stravaId: corrida.stravaId,
+		chave: `strava-${corrida.stravaId}`,
+		href: `/corridas/${corrida.stravaId}`,
+		origem: "strava",
 		summaryPolyline: corrida.summaryPolyline,
 		localLat: corrida.localLat,
 		localLng: corrida.localLng,
@@ -162,6 +168,29 @@ function mapCorridaResumoParaDataTableRow(
 	};
 }
 
+function mapCorridaRelogioParaDataTableRow(c: CorridaRelogio): CorridaDataTableRow {
+	return {
+		stravaId: 0,
+		chave: `relogio-${c.healthId}`,
+		href: `/corridas/relogio/${c.healthId}`,
+		origem: "relogio",
+		summaryPolyline: c.summaryPolyline,
+		localLat: null,
+		localLng: null,
+		nome: c.nome,
+		distanciaMetros: c.distanciaMetros,
+		elevacaoGanhoMetros: c.elevacaoGanhoMetros,
+		tempoMovimentoSeg: c.tempoMovimentoSeg,
+		paceMedioSegPorKm:
+			c.distanciaMetros > 0 ? Math.round(c.tempoMovimentoSeg / (c.distanciaMetros / 1000)) : null,
+		dataInicio: c.dataInicio,
+		splits: c.splits.length > 0 ? c.splits : null,
+		laps: c.laps.length > 1 ? c.laps : null,
+		analise: null,
+		analisadaEm: null,
+	};
+}
+
 async function getHomeStats(request: Request): Promise<LoaderData> {
 	const url = new URL(request.url);
 	const filtroDataInicio = url.searchParams.get("dataInicio") ?? "";
@@ -170,18 +199,29 @@ async function getHomeStats(request: Request): Promise<LoaderData> {
 	const dataFim = parseDateFromSearchParam(filtroDataFim, "fim");
 	const intervaloData = normalizarIntervaloDatas(dataInicio, dataFim);
 
-	const [totalCorridas, ultimaAtualizacaoDate, ultimasCorridas] =
+	const [totalCorridas, ultimaAtualizacaoDate, corridasStrava, corridasRelogio] =
 		await Promise.all([
 			contarCorridasSalvas(),
 			buscarUltimaAtualizacaoCorridas(),
 			listarUltimasCorridas(undefined, intervaloData),
+			listarCorridasRelogio(RELOGIO_DESDE_DATA, intervaloData.inicio, intervaloData.fim),
 		]);
+
+	// A partir de RELOGIO_DESDE o relógio é a fonte: a corrida do Strava só fica se o relógio não tiver a mesma.
+	const ultimasCorridas = corridasStrava.filter((c) => {
+		const inicio = new Date(c.dataInicio).getTime();
+		if (inicio < RELOGIO_DESDE_DATA.getTime()) return true;
+		return !corridasRelogio.some(
+			(r) => Math.abs(new Date(r.dataInicio).getTime() - inicio) <= FOLGA_MESMA_ATIVIDADE_MS,
+		);
+	});
 
 	return {
 		totalCorridas,
-		totalCorridasFiltradas: ultimasCorridas.length,
+		totalCorridasFiltradas: ultimasCorridas.length + corridasRelogio.length,
 		ultimaAtualizacao: formatarDataIso(ultimaAtualizacaoDate),
 		ultimasCorridas,
+		corridasRelogio,
 		filtroDataInicio,
 		filtroDataFim,
 	};
@@ -242,12 +282,14 @@ export default function Corridas() {
 		totalCorridasFiltradas,
 		ultimaAtualizacao,
 		ultimasCorridas,
+		corridasRelogio,
 		filtroDataInicio,
 		filtroDataFim,
 	} = loaderData;
-	const corridasDataTable = ultimasCorridas.map(
-		mapCorridaResumoParaDataTableRow,
-	);
+	const corridasDataTable = [
+		...ultimasCorridas.map(mapCorridaResumoParaDataTableRow),
+		...corridasRelogio.map(mapCorridaRelogioParaDataTableRow),
+	];
 	const filtroFormKey = `${filtroDataInicio}-${filtroDataFim}`;
 	const filtroAtivo = filtroDataInicio !== "" || filtroDataFim !== "";
 	const [filtroAberto, setFiltroAberto] = useState(false);

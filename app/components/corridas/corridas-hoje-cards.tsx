@@ -139,7 +139,7 @@ export function CorridasHojeCards({ corridas }: Props) {
 					const temLaps = corrida.laps && corrida.laps.length > 1;
 					return (
 						<div
-							key={corrida.stravaId}
+							key={corrida.chave}
 							className='bg-card ring-foreground/10 overflow-hidden rounded-2xl ring-1'>
 
 							{/* Cabeçalho do card */}

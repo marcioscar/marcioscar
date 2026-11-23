@@ -5,6 +5,7 @@ export default [
   route("kiosk", "routes/kiosk.tsx"),
   route("financeiro", "routes/financeiro.tsx"),
   route("corridas", "routes/corridas.tsx"),
+  route("corridas/relogio/:healthId", "routes/corridas.relogio.$healthId.tsx"),
   route("corridas/:stravaId", "routes/corridas.$stravaId.tsx"),
   route("maratonas", "routes/maratonas.tsx"),
   route("contas", "routes/contas.tsx"),
