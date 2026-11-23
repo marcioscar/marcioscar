@@ -32,7 +32,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $mostrarAjustes) {
-            AjustesView { await store.carregar() }
+            AjustesView(aoSalvar: { await store.carregar() }, aoLimpar: { await store.limparRelogio() })
         }
         .workoutPreview(planoPrevia, isPresented: $mostrarPrevia)
         .task {
@@ -523,7 +523,10 @@ struct LinhaEtapa: View {
 struct AjustesView: View {
     @Environment(\.dismiss) private var dismiss
     var aoSalvar: () async -> Void
+    var aoLimpar: () async -> Void
 
+    @State private var confirmandoLimpeza = false
+    @State private var limpo = false
     @State private var endereco = Servidor.endereco
     @State private var token = Servidor.token ?? ""
     @State private var testando = false
@@ -564,9 +567,31 @@ struct AjustesView: View {
                             .font(.footnote)
                     }
                 }
+                Section {
+                    Button("Remover treinos do relógio", role: .destructive) { confirmandoLimpeza = true }
+                    if limpo {
+                        Label("Pronto. Abra o app Treino no relógio para conferir.", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.footnote)
+                    }
+                } footer: {
+                    Text("Apaga do Apple Watch os treinos que este app agendou, inclusive os de teste antigos.")
+                }
             }
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog(
+                "Remover todos os treinos que este app agendou no relógio?",
+                isPresented: $confirmandoLimpeza,
+                titleVisibility: .visible
+            ) {
+                Button("Remover tudo do relógio", role: .destructive) {
+                    Task { await aoLimpar(); limpo = true }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("Treinos de teste antigos somem junto. Depois é só enviar a semana de novo.")
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Fechar") { dismiss() } }
             }

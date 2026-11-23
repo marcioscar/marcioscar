@@ -61,6 +61,20 @@ final class TreinosStore {
         agendadas = Set(lista.map(\.plan.id))
     }
 
+    /// Apaga do relógio tudo o que este app agendou (inclui treinos de teste antigos).
+    func limparRelogio() async {
+        guard WorkoutScheduler.isSupported else { return }
+        let estado = await WorkoutScheduler.shared.requestAuthorization()
+        guard estado == .authorized else {
+            mensagem = "Sem permissão para mexer nos treinos do relógio."
+            return
+        }
+        let antes = await WorkoutScheduler.shared.scheduledWorkouts.count
+        await WorkoutScheduler.shared.removeAllWorkouts()
+        await atualizarAgendadas()
+        mensagem = antes == 0 ? "Não havia treinos agendados." : "\(antes) treino(s) removido(s) do relógio."
+    }
+
     func enviar(_ todas: [Sessao]) async {
         // dias que já passaram não entram (o relógio não agenda no passado)
         let hoje = calendario.startOfDay(for: Date())
