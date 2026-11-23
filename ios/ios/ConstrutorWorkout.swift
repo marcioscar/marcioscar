@@ -19,11 +19,11 @@ enum ConstrutorWorkout {
     }
 
     private static func alerta(_ e: Etapa) -> (any WorkoutAlert)? {
-        guard let z = e.zona else { return nil }
+        guard let faixa = e.faixaKmh else { return nil }
         return SpeedRangeAlert(
-            target: Measurement(value: z.kmh.lowerBound, unit: UnitSpeed.kilometersPerHour)
+            target: Measurement(value: faixa.lowerBound, unit: UnitSpeed.kilometersPerHour)
                 ...
-                Measurement(value: z.kmh.upperBound, unit: UnitSpeed.kilometersPerHour),
+                Measurement(value: faixa.upperBound, unit: UnitSpeed.kilometersPerHour),
             metric: .current
         )
     }

@@ -3,7 +3,11 @@ import HealthKit
 import WorkoutKit
 
 struct ContentView: View {
-    @State private var sessoes = SemanaExemplo.sessoes()
+    @State private var sessoes: [Sessao] = []
+    @State private var infoSemana: RespostaSemana?
+    @State private var carregando = false
+    @State private var erro: String?
+    @State private var mostrarAjustes = false
     @State private var selecionadaId: String?
     @State private var agendadas: Set<UUID> = []
     @State private var mensagem: String?
@@ -40,8 +44,20 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     faixaSemana
+                    if let erro {
+                        Label(erro, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                    } else if sessoes.isEmpty && !carregando {
+                        Text(infoSemana?.aviso ?? "Nenhum treino planejado para esta semana.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     detalheDoDia
-                    listaDaSemana
+                    if !sessoes.isEmpty { listaDaSemana }
                     if let mensagem {
                         Text(mensagem)
                             .font(.footnote)
@@ -56,12 +72,21 @@ struct ContentView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Treinos da semana")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { mostrarAjustes = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Ajustes")
+                }
+            }
+            .refreshable { await carregarSemana() }
+        }
+        .sheet(isPresented: $mostrarAjustes) {
+            AjustesView { await carregarSemana() }
         }
         .workoutPreview(planoPrevia, isPresented: $mostrarPrevia)
         .task {
-            if selecionadaId == nil {
-                selecionadaId = (sessao(em: Date()) ?? sessoes.first { $0.dataComoDate >= Calendar.current.startOfDay(for: Date()) } ?? sessoes.first)?.id
-            }
+            if !Servidor.configurado { mostrarAjustes = true }
+            await carregarSemana()
             await atualizarAgendadas()
         }
     }
@@ -250,6 +275,25 @@ struct ContentView: View {
         }
     }
 
+    // MARK: dados do site
+
+    private func carregarSemana() async {
+        carregando = true
+        defer { carregando = false }
+        do {
+            let r = try await Servidor.buscarSemana()
+            infoSemana = r
+            sessoes = r.sessoes.sorted { $0.data < $1.data }
+            erro = nil
+            let hoje = Calendar.current.startOfDay(for: Date())
+            if selecionada == nil {
+                selecionadaId = (sessao(em: Date()) ?? sessoes.first { $0.dataComoDate >= hoje } ?? sessoes.first)?.id
+            }
+        } catch {
+            erro = error.localizedDescription
+        }
+    }
+
     // MARK: envio
 
     private func atualizarAgendadas() async {
@@ -258,7 +302,14 @@ struct ContentView: View {
         agendadas = Set(lista.map(\.plan.id))
     }
 
-    private func enviar(_ lista: [Sessao]) async {
+    private func enviar(_ todas: [Sessao]) async {
+        // dias que já passaram não entram (o relógio não agenda no passado)
+        let hoje = Calendar.current.startOfDay(for: Date())
+        let lista = todas.filter { $0.dataComoDate >= hoje }
+        guard !lista.isEmpty else {
+            mensagem = "Esses treinos já passaram."
+            return
+        }
         enviando = true
         defer { enviando = false }
 
@@ -303,7 +354,9 @@ struct LinhaEtapa: View {
                     Text("Z\(z.rawValue) · \(z.nome)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(z.cor)
-                    Text("\(z.pace) /km").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                    if let p = etapa.textoPace {
+                        Text("\(p) /km").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                    }
                 }
             }
         }
@@ -312,4 +365,75 @@ struct LinhaEtapa: View {
 
 #Preview {
     ContentView()
+}
+
+
+struct AjustesView: View {
+    @Environment(\.dismiss) private var dismiss
+    var aoSalvar: () async -> Void
+
+    @State private var endereco = Servidor.endereco
+    @State private var token = Servidor.token ?? ""
+    @State private var testando = false
+    @State private var resultado: String?
+    @State private var deuCerto = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Site") {
+                    TextField("Endereço", text: $endereco)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                }
+                Section {
+                    SecureField("Token", text: $token)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Token de acesso")
+                } footer: {
+                    Text("É o valor de TREINO_API_TOKEN configurado no site. Fica guardado no Keychain do iPhone.")
+                }
+                Section {
+                    Button {
+                        Task { await salvarETestar() }
+                    } label: {
+                        HStack {
+                            Text("Salvar e testar")
+                            if testando { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(testando || token.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if let resultado {
+                        Label(resultado, systemImage: deuCerto ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                            .foregroundStyle(deuCerto ? .green : .red)
+                            .font(.footnote)
+                    }
+                }
+            }
+            .navigationTitle("Ajustes")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Fechar") { dismiss() } }
+            }
+        }
+    }
+
+    private func salvarETestar() async {
+        testando = true
+        defer { testando = false }
+        Servidor.endereco = endereco
+        Servidor.token = token
+        do {
+            let r = try await Servidor.buscarSemana()
+            deuCerto = true
+            resultado = r.sessoes.isEmpty ? (r.aviso ?? "Conectado, mas sem treinos na semana.") : "Conectado: \(r.sessoes.count) treinos na semana."
+            await aoSalvar()
+        } catch {
+            deuCerto = false
+            resultado = error.localizedDescription
+        }
+    }
 }

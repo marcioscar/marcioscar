@@ -69,6 +69,26 @@ struct Etapa: Codable, Hashable {
     var distanciaM: Double?
     var tempoSeg: Double?
     var zona: Zona?
+    /// Faixa de pace da etapa em seg/km (rápido ≤ lento). Quando existe, vale mais que a zona.
+    var paceRapidoSeg: Double?
+    var paceLentoSeg: Double?
+
+    /// Faixa de velocidade (km/h) para o alerta do relógio: pace explícito ou, senão, a zona.
+    var faixaKmh: ClosedRange<Double>? {
+        if let r = paceRapidoSeg, let l = paceLentoSeg, r > 0, l >= r {
+            return (3600 / l)...(3600 / r)
+        }
+        return zona?.kmh
+    }
+
+    var textoPace: String? {
+        func f(_ seg: Double) -> String {
+            let t = Int(seg.rounded())
+            return "\(t / 60):" + String(format: "%02d", t % 60)
+        }
+        if let r = paceRapidoSeg, let l = paceLentoSeg { return "\(f(l))–\(f(r))" }
+        return zona?.pace
+    }
 
     var descricaoMeta: String {
         if let d = distanciaM {
@@ -121,6 +141,8 @@ struct Sessao: Codable, Identifiable, Hashable {
     var data: String
     var titulo: String
     var tipo: TipoSessao
+    /// "canova" (gerado pelo plano) ou "treinador" (prescrito por ele)
+    var origem: String?
     var aquecimento: Etapa?
     var blocos: [Bloco]
     var desaquecimento: Etapa?
@@ -151,49 +173,22 @@ struct Sessao: Codable, Identifiable, Hashable {
     }
 }
 
-enum SemanaExemplo {
-    /// Semana de exemplo (terça, quinta, sábado, domingo) a partir da segunda-feira da semana atual.
-    static func sessoes(referencia: Date = Date()) -> [Sessao] {
-        var cal = Calendar(identifier: .gregorian)
-        cal.firstWeekday = 2
-        let segunda = cal.dateInterval(of: .weekOfYear, for: referencia)!.start
-        func dia(_ n: Int) -> String {
-            let d = cal.date(byAdding: .day, value: n, to: segunda)!
-            let f = DateFormatter()
-            f.calendar = cal
-            f.dateFormat = "yyyy-MM-dd"
-            return f.string(from: d)
-        }
-        let aq = Etapa(papel: .aquecimento, distanciaM: nil, tempoSeg: 600, zona: .z1)
-        let des = Etapa(papel: .desaquecimento, distanciaM: nil, tempoSeg: 600, zona: .z1)
+struct SemanaInfo: Codable {
+    var inicio: String
+    var fim: String
+    var numero: Int
+    var totalSemanas: Int
+    var fase: String
+}
 
-        return [
-            Sessao(
-                id: "ex-\(dia(1))", data: dia(1), titulo: "Rodagem leve 8 km", tipo: .leve,
-                aquecimento: nil,
-                blocos: [Bloco(repeticoes: 1, etapas: [Etapa(papel: .trabalho, distanciaM: 8000, tempoSeg: nil, zona: .z2)])],
-                desaquecimento: nil),
-            Sessao(
-                id: "ex-\(dia(3))", data: dia(3), titulo: "Limiar 3 × 2 km", tipo: .limiar,
-                aquecimento: aq,
-                blocos: [Bloco(repeticoes: 3, etapas: [
-                    Etapa(papel: .trabalho, distanciaM: 2000, tempoSeg: nil, zona: .z4),
-                    Etapa(papel: .recuperacao, distanciaM: nil, tempoSeg: 120, zona: .z1),
-                ])],
-                desaquecimento: des),
-            Sessao(
-                id: "ex-\(dia(5))", data: dia(5), titulo: "Tiros 6 × 800 m", tipo: .tiros,
-                aquecimento: aq,
-                blocos: [Bloco(repeticoes: 6, etapas: [
-                    Etapa(papel: .trabalho, distanciaM: 800, tempoSeg: nil, zona: .z5),
-                    Etapa(papel: .recuperacao, distanciaM: nil, tempoSeg: 120, zona: .z1),
-                ])],
-                desaquecimento: des),
-            Sessao(
-                id: "ex-\(dia(6))", data: dia(6), titulo: "Longão 18 km", tipo: .longao,
-                aquecimento: nil,
-                blocos: [Bloco(repeticoes: 1, etapas: [Etapa(papel: .trabalho, distanciaM: 18000, tempoSeg: nil, zona: .z2)])],
-                desaquecimento: nil),
-        ]
-    }
+struct ProvaInfo: Codable {
+    var nome: String
+    var paceAlvo: String
+}
+
+struct RespostaSemana: Codable {
+    var semana: SemanaInfo?
+    var prova: ProvaInfo?
+    var sessoes: [Sessao]
+    var aviso: String?
 }

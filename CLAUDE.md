@@ -44,6 +44,7 @@ Required in `.env`:
 - `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN` — Strava OAuth credentials
 - `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, `POCKETBASE_ADMIN_PASSWORD`, `POCKETBASE_COLLECTION`, `POCKETBASE_FIELD` — PocketBase file storage
 - `MAPBOX_ACCESS_TOKEN` — Mapbox for route maps on the Corridas page
+- `TREINO_API_TOKEN` — bearer token for `GET /api/treino-semana` (used by the iOS app in `ios/`)
 
 ## MongoDB / Prisma Notes
 

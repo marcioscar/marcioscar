@@ -2,11 +2,8 @@ import { Link } from "react-router";
 import type { Route } from "./+types/home";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Target01Icon } from "@hugeicons/core-free-icons";
-import { halfMarathonPlan } from "~/data/halfMarathonPlan";
-import { marathonPlan } from "~/data/marathonPlan";
-import type { Phase } from "~/data/halfMarathonPlan";
-import { planWeek, type DayOfWeek, type PlannedSession } from "~/lib/canovaPlanner";
-import { obterTreinoTreinador } from "~/models/treino-treinador.server";
+import type { DayOfWeek } from "~/lib/canovaPlanner";
+import { montarPlanoSemanaAtual, type PlanoSemanaAtual } from "~/models/plano-semana.server";
 import { listarProvas } from "~/models/provas.server";
 import { listarUltimasCorridas, type CorridaResumo } from "~/models/corridas.server";
 import {
@@ -21,7 +18,6 @@ import {
 	gerarLeituraTreinador,
 	type CoachInsight,
 } from "~/models/coach-insight.server";
-import { computeDaysUntilRace, computeCurrentWeek } from "~/lib/provaUtils";
 import { parsePace, resolveWeeklyKm } from "~/lib/trainingPaceUtils";
 import { CorridaHero } from "~/components/dashboard-corrida/corrida-hero";
 import { CorridaKpiRow } from "~/components/dashboard-corrida/corrida-kpi-row";
@@ -39,11 +35,6 @@ export function meta({}: Route.MetaArgs) {
 		{ name: "description", content: "Painel de corrida do Marcioscar" },
 	];
 }
-
-const PLANS: Record<string, typeof halfMarathonPlan> = {
-	meia: halfMarathonPlan,
-	maratona: marathonPlan,
-};
 
 const DIAS_ORDEM: DayOfWeek[] = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -64,14 +55,6 @@ function fcMaximaReferencia(corridas: CorridaResumo[]): number | null {
 	if (valores.length === 0) return null;
 	return Math.max(...valores);
 }
-
-type PlanoSemanaAtual = {
-	numero: number;
-	totalSemanas: number;
-	fase: Phase;
-	sessions: PlannedSession[];
-	volumeFraction: number;
-} | null;
 
 type LoaderData = {
 	provaAtiva: Awaited<ReturnType<typeof listarProvas>>[number] | null;
@@ -102,35 +85,10 @@ export async function loader(): Promise<LoaderData> {
 	let coachInsight: CoachInsight | null = null;
 
 	if (provaAtiva) {
-		const plan = PLANS[provaAtiva.plano] ?? halfMarathonPlan;
-		distanciaKm = plan.distance === "42.2km" ? 42.2 : 21.1;
-		daysUntilRace = computeDaysUntilRace(new Date(provaAtiva.dataProva));
-		const numero = computeCurrentWeek(daysUntilRace, plan.totalWeeks);
-		const weekPlan = numero ? plan.weeks.find((w) => w.number === numero) : null;
-
-		if (numero && weekPlan) {
-			// O plano-base é um template Canova em dias fixos. Reescrevemos a semana
-			// exatamente nos dias que o atleta escolheu, preservando longão e trabalho
-			// específico e redistribuindo o volume entre as sessões que sobram.
-			// Treinos que o treinador prescreveu para esta semana ficam fixos;
-			// o Canova completa os dias restantes.
-			const doTreinador = await obterTreinoTreinador(provaAtiva.id, numero);
-			const sessionsDoAtleta = planWeek(
-				weekPlan,
-				provaAtiva.diasTreino as DayOfWeek[],
-				resolveWeeklyKm(weekPlan.volumeFraction, provaAtiva.kmSemanais),
-				provaAtiva.plano,
-				{ coachSessions: doTreinador, targetPace: provaAtiva.paceAlvo },
-			);
-
-			planoSemanaAtual = {
-				numero,
-				totalSemanas: plan.totalWeeks,
-				fase: weekPlan.phase,
-				sessions: sessionsDoAtleta,
-				volumeFraction: weekPlan.volumeFraction,
-			};
-		}
+		const montado = await montarPlanoSemanaAtual(provaAtiva)
+		planoSemanaAtual = montado.plano
+		daysUntilRace = montado.daysUntilRace
+		distanciaKm = montado.distanciaKm
 
 		coachInsight = await obterLeituraTreinadorCache(provaAtiva.id);
 	}

@@ -14,6 +14,7 @@ export default [
   route("api/interpretar-treino", "routes/api.interpretar-treino.ts"),
   route("api/buscar-splits", "routes/api.buscar-splits.ts"),
   route("api/fotos-corrida", "routes/api.fotos-corrida.ts"),
+  route("api/treino-semana", "routes/api.treino-semana.ts"),
   route("robots.txt", "routes/robots.ts"),
   route("sitemap.xml", "routes/sitemap.ts"),
 ] satisfies RouteConfig;
