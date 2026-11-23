@@ -205,7 +205,7 @@ function CartaoPlanejado({
 	const status = feita ? "feito" : passado ? "perdido" : "pendente";
 	return (
 		<div
-			className="grid gap-0.5 rounded-lg border px-2 py-1.5 text-xs"
+			className="grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border px-2 py-1.5 text-xs"
 			style={{
 				borderColor: `color-mix(in oklab, ${COR_TIPO[t.tipo as TipoTreino]} 40%, transparent)`,
 				background: feita
@@ -240,7 +240,7 @@ function CartaoAtividade({ a }: { a: AtividadeDia }) {
 		<Link
 			to={`/corridas/${a.stravaId}`}
 			onClick={(e) => e.stopPropagation()}
-			className="grid gap-0.5 rounded-lg border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50"
+			className="grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50"
 			style={a.caminhada ? { opacity: 0.7 } : undefined}>
 			<div className="flex items-center gap-1.5">
 				<Footprints size={13} className="shrink-0 text-muted-foreground" />
@@ -412,7 +412,7 @@ export default function Treinos() {
 											tabIndex={0}
 											onClick={() => setEditando(dia)}
 											onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setEditando(dia)}
-											className="min-h-32 cursor-pointer border-r border-b p-2 text-left transition-colors hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+											className="min-h-32 min-w-0 cursor-pointer overflow-hidden border-r border-b p-2 text-left transition-colors hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 											aria-label={`${formatarDia(dia, { weekday: "long", day: "numeric", month: "long" })}${t ? `, ${t.titulo}` : ""}`}>
 											<span
 												className={
@@ -422,7 +422,7 @@ export default function Treinos() {
 												}>
 												{formatarDia(dia, { day: "numeric" })}
 											</span>
-											<div className="mt-1.5 grid gap-1">
+											<div className="mt-1.5 grid min-w-0 grid-cols-1 gap-1">
 												{t && t.tipo !== "descanso" && <CartaoPlanejado t={t} feita={feita} passado={passado} />}
 												{t && t.tipo === "descanso" && (
 													<p className="px-1 text-[11px] text-muted-foreground">Descanso</p>
@@ -435,7 +435,7 @@ export default function Treinos() {
 									);
 								})}
 
-								<div className="grid content-start gap-2 border-b p-3 text-xs">
+								<div className="grid min-w-0 grid-cols-1 content-start gap-2 overflow-hidden border-b p-3 text-xs">
 									<div>
 										<p className="flex items-center gap-1.5 font-semibold">
 											<Footprints size={13} className="text-muted-foreground" /> Corrida
