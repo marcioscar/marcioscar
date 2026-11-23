@@ -161,6 +161,12 @@ model TreinoSaude {
     elevacaoGanhoM   Float?
     /// Rota em polyline (precisão 5), reduzida para ~300 pontos
     polyline         String?
+    /// [{ km, distanciaM, tempoSeg, fcMedia }] calculado das amostras do Saúde
+    splits           Json?
+    /// [{ indice, tipo, inicio, fim, distanciaM, tempoSeg, fcMedia }] dos eventos de volta/segmento
+    voltas           Json?
+    /// Eventos crus do HKWorkout (lap, segment, marker, pause...), guardados para conferência
+    eventos          Json?
     createdAt        DateTime @default(now())
     updatedAt        DateTime @updatedAt
 

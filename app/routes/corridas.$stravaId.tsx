@@ -3,9 +3,11 @@ import * as React from "react";
 import { Link } from "react-router";
 import { buscarCorridaPorStravaId } from "~/models/corridas.server";
 import { obterProvaAtiva } from "~/models/provas.server";
+import { buscarTreinoSaudeParaCorrida, type SplitSaude, type VoltaSaude } from "~/models/treino-saude.server";
 import { getMapboxToken } from "~/lib/mapbox.server";
 import { Button } from "~/components/ui/button";
 import { CorridaPaceDesnivelChart } from "~/components/corridas/corrida-pace-desnivel-chart";
+import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import type {
@@ -42,6 +44,23 @@ export async function loader({ params }: Route.LoaderArgs) {
 		throw new Response("Corrida não encontrada", { status: 404 });
 	}
 
+	const saudeBruto = await buscarTreinoSaudeParaCorrida(new Date(corrida.dataInicio));
+	const saude = saudeBruto
+		? {
+				fcMedia: saudeBruto.fcMedia,
+				fcMaxima: saudeBruto.fcMaxima,
+				caloriasKcal: saudeBruto.caloriasKcal,
+				cadenciaMedia: saudeBruto.cadenciaMedia,
+				potenciaMediaW: saudeBruto.potenciaMediaW,
+				passadaM: saudeBruto.passadaM,
+				oscilacaoVerticalCm: saudeBruto.oscilacaoVerticalCm,
+				contatoSoloMs: saudeBruto.contatoSoloMs,
+				elevacaoGanhoM: saudeBruto.elevacaoGanhoM,
+				splits: (saudeBruto.splits as SplitSaude[] | null) ?? null,
+				voltas: (saudeBruto.voltas as VoltaSaude[] | null) ?? null,
+			}
+		: null;
+
 	const distanciaKm = corrida.distanciaMetros / 1000;
 	const paceMedioSegPorKm =
 		distanciaKm > 0 ? Math.round(corrida.tempoMovimentoSeg / distanciaKm) : null;
@@ -61,6 +80,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 			analise: (corrida.analise as AnaliseResult | null) ?? null,
 			analisadaEm: corrida.analisadaEm ? corrida.analisadaEm.toISOString() : null,
 		},
+		saude,
 		mapboxToken: getMapboxToken(),
 		provaAtivaInfo: provaAtiva
 			? {
@@ -111,7 +131,7 @@ const MAPA_PLACEHOLDER =
 	"flex h-[280px] w-full items-center justify-center rounded-md border text-sm text-muted-foreground sm:h-[360px] lg:h-[420px]";
 
 export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, provaAtivaInfo, mapboxToken } = loaderData;
+	const { corrida, provaAtivaInfo, mapboxToken, saude } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
 
@@ -227,6 +247,9 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 					</div>
 				))}
 			</div>
+
+			{/* APPLE WATCH (app Saúde) */}
+			{saude && <CorridaMetricasRelogio metricas={saude} />}
 
 			{/* MAPA */}
 			{corrida.summaryPolyline && (

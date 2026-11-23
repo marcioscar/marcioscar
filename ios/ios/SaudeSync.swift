@@ -117,6 +117,23 @@ final class SaudeSync {
 
         let rota = tipo == .musculacao ? nil : await polylineDaRota(w)
 
+        // detalhes: splits por km, voltas e eventos (só para corrida e caminhada)
+        var splits: [SplitPayload]?
+        var voltas: [VoltaPayload]?
+        var eventos: [EventoPayload]?
+        if tipo == .corrida || tipo == .caminhada {
+            let ev = DetalhesTreino.eventos(w)
+            let pausas = DetalhesTreino.pausas(ev)
+            let amostrasDist = await amostrasDeDistancia(w)
+            let amostrasFC = await amostrasDeFC(w)
+            eventos = ev
+            if !amostrasDist.isEmpty {
+                splits = DetalhesTreino.splits(amostras: amostrasDist, fc: amostrasFC, pausas: pausas)
+                let vs = DetalhesTreino.voltas(eventos: ev, inicio: w.startDate, fim: w.endDate, amostras: amostrasDist, fc: amostrasFC, pausas: pausas)
+                voltas = vs.isEmpty ? nil : vs
+            }
+        }
+
         return TreinoSaudePayload(
             healthId: w.uuid.uuidString,
             tipo: tipo.rawValue,
@@ -134,8 +151,43 @@ final class SaudeSync {
             oscilacaoVerticalCm: media(.runningVerticalOscillation, .meterUnit(with: .centi)),
             contatoSoloMs: media(.runningGroundContactTime, .secondUnit(with: .milli)),
             elevacaoGanhoM: elevacao,
-            polyline: rota
+            polyline: rota,
+            splits: splits,
+            voltas: voltas,
+            eventos: eventos
         )
+    }
+
+    /// Amostras do próprio treino; se a associação não trouxer nada, cai para a janela de tempo da mesma fonte.
+    private func amostras(_ id: HKQuantityTypeIdentifier, _ w: HKWorkout) async -> [HKQuantitySample] {
+        let tipo = HKQuantityType(id)
+        let associado = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: tipo, predicate: HKQuery.predicateForObjects(from: w))],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        if let r = try? await associado.result(for: store), !r.isEmpty { return r }
+
+        let janela = HKQuery.predicateForSamples(withStart: w.startDate, end: w.endDate)
+        let fonte = HKQuery.predicateForObjects(from: [w.sourceRevision.source])
+        let combinado = NSCompoundPredicate(andPredicateWithSubpredicates: [janela, fonte])
+        let alternativa = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: tipo, predicate: combinado)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        return (try? await alternativa.result(for: store)) ?? []
+    }
+
+    private func amostrasDeDistancia(_ w: HKWorkout) async -> [AmostraDistancia] {
+        await amostras(.distanceWalkingRunning, w).map {
+            AmostraDistancia(inicio: $0.startDate, fim: $0.endDate, metros: $0.quantity.doubleValue(for: .meter()))
+        }
+    }
+
+    private func amostrasDeFC(_ w: HKWorkout) async -> [AmostraFC] {
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        return await amostras(.heartRate, w).map {
+            AmostraFC(data: $0.startDate, bpm: $0.quantity.doubleValue(for: bpm))
+        }
     }
 
     private func polylineDaRota(_ w: HKWorkout) async -> String? {
@@ -193,6 +245,9 @@ struct TreinoSaudePayload: Codable {
     var contatoSoloMs: Double?
     var elevacaoGanhoM: Double?
     var polyline: String?
+    var splits: [SplitPayload]?
+    var voltas: [VoltaPayload]?
+    var eventos: [EventoPayload]?
 }
 
 enum Polyline {

@@ -2,6 +2,18 @@ import { db } from '../../db.server'
 
 export type TipoSaude = 'corrida' | 'caminhada' | 'musculacao' | 'outro'
 
+export type SplitSaude = { km: number; distanciaM: number; tempoSeg: number; fcMedia: number | null }
+export type VoltaSaude = {
+	indice: number
+	tipo: string
+	inicio: string
+	fim: string
+	distanciaM: number
+	tempoSeg: number
+	fcMedia: number | null
+}
+export type EventoSaude = { tipo: string; inicio: string; fim: string }
+
 export type TreinoSaudeEntrada = {
 	healthId: string
 	tipo: TipoSaude
@@ -20,6 +32,23 @@ export type TreinoSaudeEntrada = {
 	contatoSoloMs: number | null
 	elevacaoGanhoM: number | null
 	polyline: string | null
+	splits: SplitSaude[] | null
+	voltas: VoltaSaude[] | null
+	eventos: EventoSaude[] | null
+}
+
+function lista<T>(v: unknown, max: number, mapa: (item: Record<string, unknown>) => T | null): T[] | null {
+	if (!Array.isArray(v)) return null
+	const r = v
+		.slice(0, max)
+		.map(i => (i && typeof i === 'object' ? mapa(i as Record<string, unknown>) : null))
+		.filter((i): i is T => i !== null)
+	return r.length > 0 ? r : null
+}
+
+function dataIso(v: unknown): string | null {
+	const d = new Date(String(v))
+	return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 const TIPOS: TipoSaude[] = ['corrida', 'caminhada', 'musculacao', 'outro']
@@ -61,6 +90,29 @@ export function sanearTreinoSaude(bruto: unknown): TreinoSaudeEntrada | null {
 		contatoSoloMs: num(r.contatoSoloMs, 1000),
 		elevacaoGanhoM: num(r.elevacaoGanhoM, 20000),
 		polyline,
+		splits: lista(r.splits, 300, i => {
+			const km = num(i.km, 1000)
+			const distanciaM = num(i.distanciaM, 1_000_000)
+			const tempoSeg = num(i.tempoSeg, 7 * 24 * 3600)
+			return km !== null && distanciaM !== null && tempoSeg !== null
+				? { km, distanciaM, tempoSeg, fcMedia: num(i.fcMedia, 260) }
+				: null
+		}),
+		voltas: lista(r.voltas, 300, i => {
+			const indice = num(i.indice, 1000)
+			const inicio = dataIso(i.inicio)
+			const fim = dataIso(i.fim)
+			const distanciaM = num(i.distanciaM, 1_000_000)
+			const tempoSeg = num(i.tempoSeg, 7 * 24 * 3600)
+			return indice !== null && inicio && fim && distanciaM !== null && tempoSeg !== null
+				? { indice, tipo: String(i.tipo ?? 'volta').slice(0, 20), inicio, fim, distanciaM, tempoSeg, fcMedia: num(i.fcMedia, 260) }
+				: null
+		}),
+		eventos: lista(r.eventos, 300, i => {
+			const inicio = dataIso(i.inicio)
+			const fim = dataIso(i.fim)
+			return inicio && fim ? { tipo: String(i.tipo ?? 'other').slice(0, 40), inicio, fim } : null
+		}),
 	}
 }
 
@@ -69,7 +121,13 @@ export async function gravarTreinosSaude(lista: TreinoSaudeEntrada[]): Promise<{
 	let atualizados = 0
 	for (const t of lista) {
 		const existente = await db.treinoSaude.findUnique({ where: { healthId: t.healthId }, select: { id: true } })
-		const { healthId, ...dados } = t
+		const { healthId, splits, voltas, eventos, ...resto } = t
+		const dados = {
+			...resto,
+			splits: splits ?? undefined,
+			voltas: voltas ?? undefined,
+			eventos: eventos ?? undefined,
+		}
 		if (existente) {
 			await db.treinoSaude.update({ where: { healthId }, data: dados })
 			atualizados++
@@ -94,4 +152,19 @@ export async function listarTreinosSaude(de: Date, ate: Date) {
 		where: { inicio: { gte: de, lte: ate } },
 		orderBy: { inicio: 'asc' },
 	})
+}
+
+/** Treino do app Saúde que corresponde a uma corrida do Strava (começo a até 15 min de diferença). */
+export async function buscarTreinoSaudeParaCorrida(inicio: Date) {
+	const folga = 15 * 60 * 1000
+	const candidatos = await db.treinoSaude.findMany({
+		where: {
+			tipo: { in: ['corrida', 'caminhada'] },
+			inicio: { gte: new Date(inicio.getTime() - folga), lte: new Date(inicio.getTime() + folga) },
+		},
+	})
+	candidatos.sort(
+		(a, b) => Math.abs(a.inicio.getTime() - inicio.getTime()) - Math.abs(b.inicio.getTime() - inicio.getTime()),
+	)
+	return candidatos[0] ?? null
 }
