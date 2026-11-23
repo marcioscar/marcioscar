@@ -1,5 +1,6 @@
 import { db } from "../../db.server";
 import { getInicioSemana } from "~/lib/provaUtils";
+import { calcularCargaTreino, type CargaTreino } from "~/lib/carga-treino";
 
 export type VolumeSemanaItem = {
 	inicioSemana: string;
@@ -90,4 +91,28 @@ export async function obterResumoSemanaAtual(): Promise<ResumoSemanaAtual> {
 		kmSemana: Math.round(kmSemana * 10) / 10,
 		sessoes: corridas,
 	};
+}
+
+/** Carga de treino e relação aguda:crônica dos últimos 7 dias (precisa de 34 dias de histórico). */
+export async function obterCargaTreino(): Promise<CargaTreino> {
+	const dia = 24 * 3600 * 1000;
+	const [corridas, fcMax] = await Promise.all([
+		db.corrida.findMany({
+			where: { dataInicio: { gte: new Date(Date.now() - 40 * dia) } },
+			select: {
+				dataInicio: true,
+				tempoMovimentoSeg: true,
+				frequenciaMedia: true,
+				distanciaMetros: true,
+				elevacaoGanhoMetros: true,
+			},
+		}),
+		db.corrida.aggregate({
+			where: { dataInicio: { gte: new Date(Date.now() - 365 * dia) } },
+			_max: { frequenciaMaxima: true },
+		}),
+	]);
+
+	// sem FC registrada em nenhuma corrida, a referência não importa (usa fração padrão)
+	return calcularCargaTreino(corridas, fcMax._max.frequenciaMaxima ?? 185);
 }

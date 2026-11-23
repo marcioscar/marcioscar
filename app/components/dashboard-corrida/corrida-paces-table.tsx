@@ -11,6 +11,9 @@ import {
 import { classificarZonaPace } from "~/lib/paceZone";
 import type { CorridaResumo } from "~/models/corridas.server";
 import type { AnaliseResult } from "~/types/analise";
+import { ChevronRight } from "lucide-react";
+import { formatarPace, formatarTempo } from "~/lib/formatar-corrida";
+import { RotaMini } from "./rota-mini";
 
 type Props = {
 	corridas: CorridaResumo[];
@@ -72,57 +75,53 @@ export function CorridaPacesTable({ corridas, paceAlvoSeg, fcMaximaReferencia }:
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>Paces recentes</CardTitle>
+				<CardTitle>Histórico</CardTitle>
 				<CardDescription>Últimas {corridas.length} corridas · tipo de sessão (análise quando disponível, senão zona por pace médio vs. pace-alvo)</CardDescription>
 			</CardHeader>
-			<CardContent className="overflow-x-auto">
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="text-xs text-muted-foreground">
-							<th className="pb-2 pr-3 text-left font-medium">Data</th>
-							<th className="pb-2 pr-3 text-left font-medium">Sessão</th>
-							<th className="pb-2 pr-3 text-left font-medium whitespace-nowrap">Distância</th>
-							<th className="pb-2 pr-3 text-left font-medium whitespace-nowrap">Pace</th>
-							<th className="pb-2 text-left font-medium">Tipo de sessão</th>
-						</tr>
-					</thead>
-					<tbody className="divide-y divide-border">
-						{corridas.map((corrida) => {
-							const distKm = corrida.distanciaMetros / 1000;
-							const paceSeg = distKm > 0 ? corrida.tempoMovimentoSeg / distKm : 0;
-							const zona = obterZonaExibida(corrida, paceSeg, paceAlvoSeg);
-							const alerta = zona ? temAlertaFc(corrida, zona, fcMaximaReferencia) : false;
-							const min = Math.floor(paceSeg / 60);
-							const seg = Math.round(paceSeg % 60);
+			<CardContent className="grid gap-2">
+				{corridas.map((corrida) => {
+					const distKm = corrida.distanciaMetros / 1000;
+					const paceSeg = distKm > 0 ? corrida.tempoMovimentoSeg / distKm : 0;
+					const zona = obterZonaExibida(corrida, paceSeg, paceAlvoSeg);
+					const alerta = zona ? temAlertaFc(corrida, zona, fcMaximaReferencia) : false;
 
-							return (
-								<tr key={corrida.stravaId}>
-									<td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-										{new Date(corrida.dataInicio).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-									</td>
-									<td className="py-2 pr-3">
-										<Link to={`/corridas/${corrida.stravaId}`} className="hover:underline">
-											{corrida.nome}
-										</Link>
-									</td>
-									<td className="py-2 pr-3 whitespace-nowrap tabular-nums">{distKm.toFixed(1)}km</td>
-									<td className="py-2 pr-3 whitespace-nowrap font-mono tabular-nums">
-										{min}:{String(seg).padStart(2, "0")}/km
-									</td>
-									<td className="py-2">
-										{zona && (
-											<span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${zona.corClasse}`}>
-												{zona.daAnalise && <HugeiconsIcon icon={AiMagicIcon} className="size-3" />}
-												{zona.label}
-												{alerta && <HugeiconsIcon icon={Alert01Icon} className="size-3" />}
-											</span>
-										)}
-									</td>
-								</tr>
-							);
-						})}
-					</tbody>
-				</table>
+					return (
+						<Link
+							key={corrida.stravaId}
+							to={`/corridas/${corrida.stravaId}`}
+							className="group flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 transition-colors hover:bg-accent/50">
+							<RotaMini
+								polyline={corrida.summaryPolyline}
+								className="h-12 w-[72px] shrink-0 text-paleta-4"
+							/>
+							<div className="min-w-0 flex-1">
+								<p className="truncate text-sm font-semibold">
+									{distKm.toFixed(2).replace(".", ",")} km · {corrida.nome}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{new Date(corrida.dataInicio).toLocaleDateString("pt-BR", {
+										weekday: "long",
+										day: "numeric",
+										month: "short",
+										timeZone: "America/Sao_Paulo",
+									})}
+								</p>
+								<div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs tabular-nums">
+									<span className="rounded-md bg-muted px-1.5 py-0.5">{formatarTempo(corrida.tempoMovimentoSeg)}</span>
+									<span className="rounded-md bg-muted px-1.5 py-0.5">{formatarPace(paceSeg)}</span>
+									{zona && (
+										<span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${zona.corClasse}`}>
+											{zona.daAnalise && <HugeiconsIcon icon={AiMagicIcon} className="size-3" />}
+											{zona.label}
+											{alerta && <HugeiconsIcon icon={Alert01Icon} className="size-3" />}
+										</span>
+									)}
+								</div>
+							</div>
+							<ChevronRight size={18} className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+						</Link>
+					);
+				})}
 			</CardContent>
 		</Card>
 	);

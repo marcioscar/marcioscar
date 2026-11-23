@@ -12,6 +12,7 @@ import { listarUltimasCorridas, type CorridaResumo } from "~/models/corridas.ser
 import {
 	obterTendenciaVolumeSemanal,
 	obterResumoSemanaAtual,
+	obterCargaTreino,
 	type VolumeSemanaItem,
 	type CorridaSemanaAtual,
 } from "~/models/corrida-dashboard.server";
@@ -27,6 +28,9 @@ import { CorridaKpiRow } from "~/components/dashboard-corrida/corrida-kpi-row";
 import { CorridaSessoesSemana } from "~/components/dashboard-corrida/corrida-sessoes-semana";
 import { CorridaVolumeChart } from "~/components/dashboard-corrida/corrida-volume-chart";
 import { CorridaPacesTable } from "~/components/dashboard-corrida/corrida-paces-table";
+import { CorridaCargaTreino } from "~/components/dashboard-corrida/corrida-carga-treino";
+import { CorridaResumoPeriodo } from "~/components/dashboard-corrida/corrida-resumo-periodo";
+import type { CargaTreino } from "~/lib/carga-treino";
 import { CorridaCoachPanel } from "~/components/dashboard-corrida/corrida-coach-panel";
 
 export function meta({}: Route.MetaArgs) {
@@ -78,16 +82,18 @@ type LoaderData = {
 	resumoSemanaAtual: { kmSemana: number; sessoes: CorridaSemanaAtual[] };
 	ultimasCorridas: CorridaResumo[];
 	coachInsight: CoachInsight | null;
+	cargaTreino: CargaTreino;
 };
 
 export async function loader(): Promise<LoaderData> {
 	const provas = await listarProvas();
 	const provaAtiva = provas.find((p) => p.ativa) ?? null;
 
-	const [tendenciaVolume, resumoSemanaAtual, ultimasCorridas] = await Promise.all([
+	const [tendenciaVolume, resumoSemanaAtual, ultimasCorridas, cargaTreino] = await Promise.all([
 		obterTendenciaVolumeSemanal(8),
 		obterResumoSemanaAtual(),
 		listarUltimasCorridas(8),
+		obterCargaTreino(),
 	]);
 
 	let planoSemanaAtual: PlanoSemanaAtual = null;
@@ -138,6 +144,7 @@ export async function loader(): Promise<LoaderData> {
 		resumoSemanaAtual,
 		ultimasCorridas,
 		coachInsight,
+		cargaTreino,
 	};
 }
 
@@ -174,6 +181,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 		resumoSemanaAtual,
 		ultimasCorridas,
 		coachInsight,
+		cargaTreino,
 	} = loaderData;
 
 	const paceAlvoSeg = provaAtiva ? parsePace(provaAtiva.paceAlvo) : null;
@@ -237,6 +245,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 					</p>
 				</div>
 			)}
+
+			<section className="grid items-start gap-4 lg:grid-cols-[1.15fr_1fr]">
+				<CorridaCargaTreino carga={cargaTreino} />
+				<CorridaResumoPeriodo atual={cargaTreino.ultimos7} anterior={cargaTreino.anteriores7} />
+			</section>
 
 			<CorridaVolumeChart dados={tendenciaVolume} />
 
