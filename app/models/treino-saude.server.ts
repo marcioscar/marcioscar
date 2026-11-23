@@ -68,9 +68,39 @@ export function ehSegmentacaoAutomatica(voltas: { inicio?: string; fim?: string;
 	return sobrepostos >= Math.max(2, Math.floor(ordenadas.length / 4))
 }
 
+/**
+ * O relógio não grava o nome das etapas ("Z5", "Descanso"), mas grava a posição de cada uma na
+ * estrutura do treino (`WOIntervalStepKeyPath` = "bloco.repetição.passo"). Com isso e a distância,
+ * dá para nomear: primeiro bloco de 1 passo = aquecimento, último = desaquecimento, passo 0 de
+ * um bloco repetido = esforço, os demais = descanso (trecho curto) ou recuperação.
+ */
+export function rotularEtapas<T extends { tipo: string; metadados: Record<string, string> | null; distanciaM: number; rotulo: string | null }>(voltas: T[]): T[] {
+	if (!voltas.every(v => v.tipo === 'etapa')) return voltas
+	const caminhos = voltas.map(v => (v.metadados?.WOIntervalStepKeyPath ?? '').split('.').map(Number))
+	if (caminhos.some(c => c.length !== 3 || c.some(Number.isNaN))) return voltas
+
+	const passosPorBloco = new Map<number, number>()
+	for (const [b, , passo] of caminhos) passosPorBloco.set(b, Math.max(passosPorBloco.get(b) ?? 0, passo + 1))
+	const blocos = [...passosPorBloco.keys()].sort((a, b) => a - b)
+	const primeiro = blocos[0]
+	const ultimo = blocos[blocos.length - 1]
+
+	return voltas.map((v, i) => {
+		const [b, , passo] = caminhos[i]
+		const passos = passosPorBloco.get(b) ?? 1
+		let rotulo: string
+		if (blocos.length > 1 && b === primeiro && passos === 1) rotulo = 'Aquecimento'
+		else if (blocos.length > 1 && b === ultimo && passos === 1) rotulo = 'Desaquecimento'
+		else if (passos > 1 && passo === 0) rotulo = 'Esforço'
+		else if (passos > 1) rotulo = v.distanciaM < 150 ? 'Descanso' : 'Recuperação'
+		else rotulo = `Etapa ${i + 1}`
+		return { ...v, rotulo }
+	})
+}
+
 function semAutomaticas<T extends { tipo: string; inicio?: string; fim?: string; distanciaM: number }>(v: T[] | null): T[] | null {
 	// etapas gravadas pelo relógio num treino estruturado valem sempre (2 ou mais)
-	if (v && v.length >= 2 && v.every(x => x.tipo === 'etapa')) return v
+	if (v && v.length >= 2 && v.every(x => x.tipo === 'etapa')) return rotularEtapas(v as never) as unknown as T[]
 	// menos de 3 trechos não forma volta de treino: é só o primeiro km e a sobra
 	return v && v.length >= 3 && !ehSegmentacaoAutomatica(v) ? v : null
 }
