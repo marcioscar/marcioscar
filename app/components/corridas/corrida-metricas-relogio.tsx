@@ -5,6 +5,7 @@ type SplitRelogio = { km: number; distanciaM: number; tempoSeg: number; fcMedia:
 type VoltaRelogio = {
 	indice: number;
 	tipo: string;
+	rotulo?: string | null;
 	distanciaM: number;
 	tempoSeg: number;
 	fcMedia: number | null;
@@ -127,7 +128,7 @@ export function CorridaMetricasRelogio({ metricas }: { metricas: MetricasRelogio
 						{voltas.length > 0 && (
 							<Tabela
 								titulo="Voltas do relógio"
-								linhas={voltas.map((v) => ({ chave: `v${v.indice}`, rotulo: String(v.indice), ...v }))}
+								linhas={voltas.map((v) => ({ chave: `v${v.indice}`, ...v, rotulo: v.rotulo || String(v.indice) }))}
 							/>
 						)}
 						{splits.length > 0 && (

@@ -6,6 +6,8 @@ export type SplitSaude = { km: number; distanciaM: number; tempoSeg: number; fcM
 export type VoltaSaude = {
 	indice: number
 	tipo: string
+	rotulo: string | null
+	metadados: Record<string, string> | null
 	inicio: string
 	fim: string
 	distanciaM: number
@@ -44,6 +46,41 @@ function lista<T>(v: unknown, max: number, mapa: (item: Record<string, unknown>)
 		.map(i => (i && typeof i === 'object' ? mapa(i as Record<string, unknown>) : null))
 		.filter((i): i is T => i !== null)
 	return r.length > 0 ? r : null
+}
+
+/**
+ * O Apple Watch grava segmentos automáticos a cada km e a cada milha (duas séries que se sobrepõem).
+ * Eles não são voltas de treino: o km a km já aparece nos splits. Reconhece essa assinatura:
+ * os segmentos formam séries de trechos emendados que se cruzam no tempo (um começa antes
+ * de o outro terminar), o que voltas marcadas à mão nunca fazem.
+ */
+export function ehSegmentacaoAutomatica(voltas: { inicio?: string; fim?: string; distanciaM: number }[]): boolean {
+	const ordenadas = voltas
+		.filter(v => v.inicio && v.fim)
+		.map(v => ({ ini: new Date(v.inicio!).getTime(), fim: new Date(v.fim!).getTime() }))
+		.sort((a, b) => a.ini - b.ini)
+	if (ordenadas.length < 3) return false
+	let sobrepostos = 0
+	for (let i = 1; i < ordenadas.length; i++) {
+		if (ordenadas[i].ini < ordenadas[i - 1].fim - 1000) sobrepostos++
+	}
+	// duas séries paralelas geram muitos cruzamentos; voltas manuais, nenhum
+	return sobrepostos >= Math.max(2, Math.floor(ordenadas.length / 4))
+}
+
+function semAutomaticas<T extends { tipo: string; inicio?: string; fim?: string; distanciaM: number }>(v: T[] | null): T[] | null {
+	// etapas gravadas pelo relógio num treino estruturado valem sempre (2 ou mais)
+	if (v && v.length >= 2 && v.every(x => x.tipo === 'etapa')) return v
+	// menos de 3 trechos não forma volta de treino: é só o primeiro km e a sobra
+	return v && v.length >= 3 && !ehSegmentacaoAutomatica(v) ? v : null
+}
+
+function metadadosSeguros(v: unknown): Record<string, string> | null {
+	if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+	const pares = Object.entries(v as Record<string, unknown>)
+		.slice(0, 12)
+		.map(([k, val]) => [k.slice(0, 60), String(val).slice(0, 80)] as const)
+	return pares.length > 0 ? Object.fromEntries(pares) : null
 }
 
 function dataIso(v: unknown): string | null {
@@ -98,16 +135,26 @@ export function sanearTreinoSaude(bruto: unknown): TreinoSaudeEntrada | null {
 				? { km, distanciaM, tempoSeg, fcMedia: num(i.fcMedia, 260) }
 				: null
 		}),
-		voltas: lista(r.voltas, 300, i => {
+		voltas: semAutomaticas(lista(r.voltas, 300, i => {
 			const indice = num(i.indice, 1000)
 			const inicio = dataIso(i.inicio)
 			const fim = dataIso(i.fim)
 			const distanciaM = num(i.distanciaM, 1_000_000)
 			const tempoSeg = num(i.tempoSeg, 7 * 24 * 3600)
 			return indice !== null && inicio && fim && distanciaM !== null && tempoSeg !== null
-				? { indice, tipo: String(i.tipo ?? 'volta').slice(0, 20), inicio, fim, distanciaM, tempoSeg, fcMedia: num(i.fcMedia, 260) }
+				? {
+						indice,
+						tipo: String(i.tipo ?? 'volta').slice(0, 20),
+						rotulo: typeof i.rotulo === 'string' && i.rotulo ? i.rotulo.slice(0, 40) : null,
+						metadados: metadadosSeguros(i.metadados),
+						inicio,
+						fim,
+						distanciaM,
+						tempoSeg,
+						fcMedia: num(i.fcMedia, 260),
+					}
 				: null
-		}),
+		})),
 		eventos: lista(r.eventos, 300, i => {
 			const inicio = dataIso(i.inicio)
 			const fim = dataIso(i.fim)
@@ -125,7 +172,8 @@ export async function gravarTreinosSaude(lista: TreinoSaudeEntrada[]): Promise<{
 		const dados = {
 			...resto,
 			splits: splits ?? undefined,
-			voltas: voltas ?? undefined,
+			// ao reenviar, voltas ausentes (ex.: eram só segmentos automáticos) limpam o valor antigo
+			voltas: voltas ?? null,
 			eventos: eventos ?? undefined,
 		}
 		if (existente) {

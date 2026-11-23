@@ -129,7 +129,11 @@ final class SaudeSync {
             eventos = ev
             if !amostrasDist.isEmpty {
                 splits = DetalhesTreino.splits(amostras: amostrasDist, fc: amostrasFC, pausas: pausas)
-                let vs = DetalhesTreino.voltas(eventos: ev, inicio: w.startDate, fim: w.endDate, amostras: amostrasDist, fc: amostrasFC, pausas: pausas)
+                // etapas gravadas pelo relógio (treino estruturado) têm prioridade; senão, segmentos/voltas dos eventos
+                var vs = DetalhesTreino.voltasDeAtividades(w, amostras: amostrasDist, fc: amostrasFC)
+                if vs.isEmpty {
+                    vs = DetalhesTreino.voltas(eventos: ev, inicio: w.startDate, fim: w.endDate, amostras: amostrasDist, fc: amostrasFC, pausas: pausas)
+                }
                 voltas = vs.isEmpty ? nil : vs
             }
         }

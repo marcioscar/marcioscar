@@ -13,7 +13,12 @@ struct SplitPayload: Codable {
 
 struct VoltaPayload: Codable {
     var indice: Int
+    /// "etapa" (atividade do HKWorkout, ex.: etapas de um treino estruturado), "segmento" ou "volta"
     var tipo: String
+    /// Nome da etapa quando o relógio grava um (ex.: "Z5", "Descanso")
+    var rotulo: String?
+    /// Metadados crus da atividade, para conferência
+    var metadados: [String: String]?
     var inicio: Date
     var fim: Date
     var distanciaM: Double
@@ -141,6 +146,42 @@ enum DetalhesTreino {
         return r
     }
 
+    /// Etapas de treino estruturado: cada HKWorkoutActivity é um trecho (aquecimento, tiro, descanso...).
+    static func voltasDeAtividades(_ w: HKWorkout, amostras: [AmostraDistancia], fc: [AmostraFC]) -> [VoltaPayload] {
+        let atividades = w.workoutActivities.sorted { $0.startDate < $1.startDate }
+        guard atividades.count > 1 else { return [] }
+
+        return atividades.enumerated().map { i, a in
+            let fim = a.endDate ?? w.endDate
+            let meta = (a.metadata ?? [:]).reduce(into: [String: String]()) { r, kv in
+                let valor = (kv.value as? HKQuantity)?.description ?? "\(kv.value)"
+                r[String(kv.key.prefix(60))] = String(valor.prefix(80))
+            }
+            return VoltaPayload(
+                indice: i + 1,
+                tipo: "etapa",
+                rotulo: rotulo(de: meta),
+                metadados: meta.isEmpty ? nil : meta,
+                inicio: a.startDate,
+                fim: fim,
+                distanciaM: metros(entre: a.startDate, e: fim, amostras: amostras),
+                tempoSeg: a.duration,
+                fcMedia: fcMedia(entre: a.startDate, e: fim, fc: fc)
+            )
+        }
+    }
+
+    /// Escolhe do metadado um nome curto para a etapa (chave com name/title/label/step/zone).
+    static func rotulo(de meta: [String: String]) -> String? {
+        let prioridade = ["name", "title", "label", "step", "zone", "purpose"]
+        for chave in prioridade {
+            if let kv = meta.first(where: { $0.key.lowercased().contains(chave) }), kv.value.count <= 30 {
+                return kv.value
+            }
+        }
+        return nil
+    }
+
     /// Voltas: segmentos (com início e fim) ou, se houver só marcas de volta, os trechos entre elas.
     static func voltas(eventos: [EventoPayload], inicio: Date, fim: Date, amostras: [AmostraDistancia], fc: [AmostraFC], pausas: [DateInterval]) -> [VoltaPayload] {
         var trechos: [(String, Date, Date)] = []
@@ -162,6 +203,8 @@ enum DetalhesTreino {
             VoltaPayload(
                 indice: i + 1,
                 tipo: t.0,
+                rotulo: nil,
+                metadados: nil,
                 inicio: t.1,
                 fim: t.2,
                 distanciaM: metros(entre: t.1, e: t.2, amostras: amostras),
