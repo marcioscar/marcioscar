@@ -1,372 +1,524 @@
-import SwiftUI
 import HealthKit
+import SwiftUI
 import WorkoutKit
 
+private let ptBR = Locale(identifier: "pt_BR")
+
 struct ContentView: View {
-    @State private var sessoes: [Sessao] = []
-    @State private var infoSemana: RespostaSemana?
-    @State private var carregando = false
-    @State private var erro: String?
+    @State private var store = TreinosStore()
+    @State private var detalhe: Sessao?
     @State private var mostrarAjustes = false
-    @State private var selecionadaId: String?
-    @State private var agendadas: Set<UUID> = []
-    @State private var mensagem: String?
-    @State private var enviando = false
     @State private var planoPrevia = WorkoutPlan(.custom(CustomWorkout(activity: .running, location: .outdoor, displayName: "")))
     @State private var mostrarPrevia = false
 
-    private var calendario: Calendar {
-        var c = Calendar(identifier: .gregorian)
-        c.firstWeekday = 2
-        c.locale = Locale(identifier: "pt_BR")
-        return c
-    }
-
-    private var diasDaSemana: [Date] {
-        let inicio = calendario.dateInterval(of: .weekOfYear, for: Date())!.start
-        return (0..<7).map { calendario.date(byAdding: .day, value: $0, to: inicio)! }
-    }
-
-    private func sessao(em dia: Date) -> Sessao? {
-        sessoes.first { calendario.isDate($0.dataComoDate, inSameDayAs: dia) }
-    }
-
-    private var selecionada: Sessao? {
-        sessoes.first { $0.id == selecionadaId }
-    }
-
-    private var diaSelecionado: Date {
-        selecionada?.dataComoDate ?? diasDaSemana.first { calendario.isDateInToday($0) } ?? Date()
-    }
-
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    faixaSemana
-                    if let erro {
-                        Label(erro, systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                    } else if sessoes.isEmpty && !carregando {
-                        Text(infoSemana?.aviso ?? "Nenhum treino planejado para esta semana.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    detalheDoDia
-                    if !sessoes.isEmpty { listaDaSemana }
-                    if let mensagem {
-                        Text(mensagem)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+        TabView {
+            NavigationStack {
+                HojeView(store: store, abrir: { detalhe = $0 }, ajustes: { mostrarAjustes = true })
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Treinos da semana")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { mostrarAjustes = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("Ajustes")
-                }
+            .tabItem { Label("Hoje", systemImage: "clock") }
+
+            NavigationStack {
+                SemanaView(store: store, abrir: { detalhe = $0 }, ajustes: { mostrarAjustes = true })
             }
-            .refreshable { await carregarSemana() }
+            .tabItem { Label("Semana", systemImage: "calendar") }
+        }
+        .tint(Tema.texto)
+        .preferredColorScheme(.light)
+        .sheet(item: $detalhe) { s in
+            DetalheView(store: store, sessao: s) {
+                planoPrevia = ConstrutorWorkout.plano(para: s)
+                mostrarPrevia = true
+            }
         }
         .sheet(isPresented: $mostrarAjustes) {
-            AjustesView { await carregarSemana() }
+            AjustesView { await store.carregar() }
         }
         .workoutPreview(planoPrevia, isPresented: $mostrarPrevia)
         .task {
             if !Servidor.configurado { mostrarAjustes = true }
-            await carregarSemana()
-            await atualizarAgendadas()
+            await store.carregar()
         }
     }
+}
 
-    // MARK: calendário
+// MARK: - Hoje
 
-    private var faixaSemana: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(tituloSemana)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                ForEach(diasDaSemana, id: \.self) { dia in
-                    let s = sessao(em: dia)
-                    let escolhido = calendario.isDate(dia, inSameDayAs: diaSelecionado)
-                    let hoje = calendario.isDateInToday(dia)
-                    Button {
-                        if let s { selecionadaId = s.id } else { selecionadaId = nil }
-                        mensagem = nil
-                    } label: {
-                        VStack(spacing: 6) {
-                            Text(dia.formatted(.dateTime.weekday(.narrow).locale(Locale(identifier: "pt_BR"))).uppercased())
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(escolhido ? .white.opacity(0.85) : .secondary)
-                            Text(dia.formatted(.dateTime.day()))
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(escolhido ? .white : .primary)
-                            Circle()
-                                .fill(s.map { corPrincipal($0) } ?? .clear)
-                                .overlay(Circle().stroke(escolhido ? .white.opacity(0.6) : .clear, lineWidth: 1))
-                                .frame(width: 6, height: 6)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(escolhido ? Color.accentColor : Color(.secondarySystemGroupedBackground))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(hoje && !escolhido ? Color.accentColor : .clear, lineWidth: 1.5)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(dia.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "pt_BR"))) + (s.map { ", " + $0.titulo } ?? ", sem treino"))
+struct HojeView: View {
+    var store: TreinosStore
+    var abrir: (Sessao) -> Void
+    var ajustes: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                cabecalho
+                avisos
+                if let s = store.sessaoHoje {
+                    CartaoHoje(store: store, sessao: s, abrir: abrir)
+                } else {
+                    DiaLivre(proximo: store.restoDaSemana.first, abrir: abrir)
                 }
+                if !store.restoDaSemana.isEmpty { restoDaSemana }
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
         }
+        .background(Tema.fundo)
+        .refreshable { await store.carregar() }
+        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var tituloSemana: String {
-        guard let ini = diasDaSemana.first, let fim = diasDaSemana.last else { return "" }
-        let f = Date.FormatStyle().day().month(.wide).locale(Locale(identifier: "pt_BR"))
-        return "\(ini.formatted(.dateTime.day())) a \(fim.formatted(f))"
+    private var cabecalho: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Date().formatted(.dateTime.weekday(.wide).day().month(.wide).locale(ptBR)).capitalized)
+                    .font(.subheadline)
+                    .foregroundStyle(Tema.textoSuave)
+                Text("Hoje")
+                    .font(.system(size: 40, weight: .heavy))
+                    .foregroundStyle(Tema.texto)
+            }
+            Spacer()
+            Button(action: ajustes) {
+                Image(systemName: "gearshape")
+                    .font(.title3)
+                    .foregroundStyle(Tema.texto)
+                    .frame(width: 46, height: 46)
+                    .background(Tema.cartao, in: Circle())
+                    .overlay(Circle().stroke(Tema.linha, lineWidth: 1))
+            }
+            .accessibilityLabel("Ajustes")
+        }
+        .padding(.top, 8)
     }
 
-    private func corPrincipal(_ s: Sessao) -> Color {
-        let zonas = s.blocos.flatMap(\.etapas).filter { $0.papel == .trabalho }.compactMap(\.zona)
-        return (zonas.max { $0.rawValue < $1.rawValue } ?? .z2).cor
-    }
-
-    // MARK: detalhe do dia
-
-    @ViewBuilder
-    private var detalheDoDia: some View {
-        if let s = selecionada {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    Image(systemName: s.tipo.icone)
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .frame(width: 48, height: 48)
-                        .background(corPrincipal(s).gradient, in: RoundedRectangle(cornerRadius: 12))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(s.titulo).font(.headline)
-                        Text("\(s.tipo.rotulo) · \(s.resumo) · \(s.dataComoDate.formatted(.dateTime.weekday(.wide).locale(Locale(identifier: "pt_BR"))))")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    if agendadas.contains(ConstrutorWorkout.uuid(para: s)) {
-                        Label("No relógio", systemImage: "applewatch.watchface")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.green)
-                    }
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 10) {
-                    if let a = s.aquecimento { LinhaEtapa(etapa: a) }
-                    ForEach(Array(s.blocos.enumerated()), id: \.offset) { _, b in
-                        if b.repeticoes > 1 {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("\(b.repeticoes) ×").font(.subheadline.weight(.semibold))
-                                ForEach(Array(b.etapas.enumerated()), id: \.offset) { _, e in LinhaEtapa(etapa: e) }
-                            }
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
-                        } else {
-                            ForEach(Array(b.etapas.enumerated()), id: \.offset) { _, e in LinhaEtapa(etapa: e) }
-                        }
-                    }
-                    if let d = s.desaquecimento { LinhaEtapa(etapa: d) }
-                }
-
-                HStack(spacing: 10) {
-                    Button {
-                        planoPrevia = ConstrutorWorkout.plano(para: s)
-                        mostrarPrevia = true
-                    } label: {
-                        Label("Prévia", systemImage: "eye").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        Task { await enviar([s]) }
-                    } label: {
-                        Label(agendadas.contains(ConstrutorWorkout.uuid(para: s)) ? "Reenviar" : "Enviar para o relógio", systemImage: "applewatch")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(enviando)
-                }
-                .controlSize(.large)
+    @ViewBuilder private var avisos: some View {
+        if let erro = store.erro {
+            Label(erro, systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote)
+                .foregroundStyle(Color.orange)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+        }
+        if let p = store.info?.prova, let sem = store.info?.semana, sem.numero > 0 {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(p.nome).font(.headline).foregroundStyle(Tema.texto)
+                ProgressView(value: Double(sem.numero), total: Double(max(sem.totalSemanas, 1)))
+                    .tint(Tema.lima)
+                Text("Semana \(sem.numero) de \(sem.totalSemanas) · \(sem.fase)")
+                    .font(.subheadline)
+                    .foregroundStyle(Tema.textoSuave)
             }
             .padding(16)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
-        } else {
-            VStack(spacing: 8) {
-                Image(systemName: "moon.zzz").font(.largeTitle).foregroundStyle(.secondary)
-                Text("Dia de descanso").font(.headline)
-                Text("Sem treino planejado para este dia.").font(.subheadline).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(28)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+            .cartao()
+        }
+        if let msg = store.mensagem {
+            Text(msg)
+                .font(.footnote)
+                .foregroundStyle(Tema.textoSuave)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .multilineTextAlignment(.center)
         }
     }
 
-    // MARK: lista da semana
-
-    private var listaDaSemana: some View {
+    private var restoDaSemana: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Semana").font(.title3.bold())
+            HStack(alignment: .firstTextBaseline) {
+                Text("Resto da semana").font(.title3.bold()).foregroundStyle(Tema.texto)
                 Spacer()
+                Text(String(format: "%.0f km", store.kmDaSemana))
+                    .font(.subheadline)
+                    .foregroundStyle(Tema.textoSuave)
+            }
+            VStack(spacing: 8) {
+                ForEach(store.restoDaSemana) { s in LinhaDia(store: store, sessao: s) { abrir(s) } }
+            }
+        }
+    }
+}
+
+struct CartaoHoje: View {
+    var store: TreinosStore
+    let sessao: Sessao
+    var abrir: (Sessao) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Selo(texto: sessao.tipo.rotulo, cor: sessao.tipo.cor)
+                Text("\(sessao.kmTexto) · \(sessao.duracaoTexto)")
+                    .font(.subheadline)
+                    .foregroundStyle(Tema.textoSuave)
+                Spacer()
+                if store.estaNoRelogio(sessao) {
+                    Label("No relógio", systemImage: "applewatch.watchface")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Tema.aqua)
+                }
+            }
+
+            Text(sessao.blocos.first.map { $0.repeticoes > 1 } == true ? (sessao.resumoTrabalho ?? sessao.titulo) : sessao.titulo)
+                .font(.system(size: 34, weight: .heavy))
+                .foregroundStyle(Tema.texto)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let pace = sessao.paceTrabalho {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pace").font(.subheadline).foregroundStyle(Tema.textoSuave)
+                    Text("\(pace) /km").font(.title3.weight(.bold)).foregroundStyle(Tema.texto).monospacedDigit()
+                }
+            }
+
+            GraficoEstrutura(sessao: sessao)
+
+            HStack(spacing: 10) {
                 Button {
-                    Task { await enviar(sessoes) }
+                    Task { await store.enviar([sessao]) }
                 } label: {
-                    Label("Enviar semana", systemImage: "applewatch")
+                    Text(store.estaNoRelogio(sessao) ? "Reenviar" : "Enviar para o relógio")
                 }
-                .buttonStyle(.bordered)
-                .disabled(enviando)
+                .buttonStyle(BotaoPrincipal())
+                .disabled(store.enviando)
+
+                Button("Detalhes") { abrir(sessao) }
+                    .buttonStyle(BotaoSecundario())
+                    .frame(maxWidth: 130)
             }
-            VStack(spacing: 0) {
-                ForEach(Array(sessoes.enumerated()), id: \.element.id) { i, s in
-                    Button {
-                        selecionadaId = s.id
-                        mensagem = nil
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: s.tipo.icone)
-                                .foregroundStyle(corPrincipal(s))
-                                .frame(width: 26)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(s.titulo).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-                                Text("\(s.dataComoDate.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(Locale(identifier: "pt_BR")))) · \(s.resumo)")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if agendadas.contains(ConstrutorWorkout.uuid(para: s)) {
-                                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                            }
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 14)
+        }
+        .padding(18)
+        .cartao(raio: 24)
+    }
+}
+
+struct DiaLivre: View {
+    let proximo: Sessao?
+    var abrir: (Sessao) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "moon.zzz.fill").font(.title).foregroundStyle(Tema.cinzaPausa)
+            Text("Dia livre").font(.title2.bold()).foregroundStyle(Tema.texto)
+            if let proximo {
+                Text("Próximo: \(proximo.titulo) · \(proximo.dataComoDate.formatted(.dateTime.weekday(.wide).locale(ptBR)))")
+                    .font(.subheadline).foregroundStyle(Tema.textoSuave)
+                Button("Ver treino") { abrir(proximo) }.buttonStyle(BotaoSecundario())
+            } else {
+                Text("Nenhum treino planejado. Monte a semana no site, em Treinos.")
+                    .font(.subheadline).foregroundStyle(Tema.textoSuave)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cartao(raio: 24)
+    }
+}
+
+struct LinhaDia: View {
+    var store: TreinosStore
+    let sessao: Sessao
+    var acao: () -> Void
+
+    var body: some View {
+        Button(action: acao) {
+            HStack(spacing: 12) {
+                Text(sessao.dataComoDate.formatted(.dateTime.weekday(.abbreviated).locale(ptBR)).capitalized.replacingOccurrences(of: ".", with: ""))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Tema.textoSuave)
+                    .frame(width: 38, alignment: .leading)
+                Circle().fill(sessao.tipo.cor).frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(sessao.titulo).font(.body.weight(.semibold)).foregroundStyle(Tema.texto).lineLimit(1)
+                    Text(sessao.tipo.rotulo).font(.caption).foregroundStyle(Tema.textoSuave)
+                }
+                Spacer(minLength: 8)
+                if store.estaNoRelogio(sessao) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Tema.aqua)
+                }
+                Text(sessao.kmTexto).font(.subheadline.weight(.medium)).foregroundStyle(Tema.texto).monospacedDigit()
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .cartao(raio: 16)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Semana
+
+struct SemanaView: View {
+    var store: TreinosStore
+    var abrir: (Sessao) -> Void
+    var ajustes: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(periodo).font(.subheadline).foregroundStyle(Tema.textoSuave)
+                        Text("Semana").font(.system(size: 40, weight: .heavy)).foregroundStyle(Tema.texto)
                     }
-                    .buttonStyle(.plain)
-                    if i < sessoes.count - 1 { Divider().padding(.leading, 52) }
+                    Spacer()
+                    Button(action: ajustes) {
+                        Image(systemName: "gearshape")
+                            .font(.title3)
+                            .foregroundStyle(Tema.texto)
+                            .frame(width: 46, height: 46)
+                            .background(Tema.cartao, in: Circle())
+                            .overlay(Circle().stroke(Tema.linha, lineWidth: 1))
+                    }
+                    .accessibilityLabel("Ajustes")
+                }
+                .padding(.top, 8)
+
+                HStack {
+                    Text("\(store.sessoes.count) treinos · \(String(format: "%.0f", store.kmDaSemana)) km")
+                        .font(.subheadline).foregroundStyle(Tema.textoSuave)
+                    Spacer()
+                    Button {
+                        Task { await store.enviar(store.sessoes) }
+                    } label: {
+                        Label("Enviar semana", systemImage: "applewatch").font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Tema.texto)
+                    .disabled(store.enviando || store.sessoes.isEmpty)
+                }
+
+                if let msg = store.mensagem {
+                    Text(msg).font(.footnote).foregroundStyle(Tema.textoSuave)
+                }
+
+                VStack(spacing: 8) {
+                    ForEach(store.diasDaSemana, id: \.self) { dia in
+                        if let s = store.sessao(em: dia) {
+                            DiaDaSemana(dia: dia) { LinhaCompacta(store: store, sessao: s) { abrir(s) } }
+                        } else {
+                            DiaDaSemana(dia: dia) {
+                                HStack {
+                                    Circle().fill(Tema.cinzaPausa).frame(width: 10, height: 10)
+                                    Text("Descanso").font(.body.weight(.medium)).foregroundStyle(Tema.textoSuave)
+                                    Spacer()
+                                    Text("—").foregroundStyle(Tema.textoSuave)
+                                }
+                                .padding(.vertical, 14)
+                                .padding(.horizontal, 16)
+                                .cartao(raio: 16)
+                            }
+                        }
+                    }
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
         }
+        .background(Tema.fundo)
+        .refreshable { await store.carregar() }
+        .toolbar(.hidden, for: .navigationBar)
     }
 
-    // MARK: dados do site
+    private var periodo: String {
+        guard let a = store.diasDaSemana.first, let b = store.diasDaSemana.last else { return "" }
+        return "\(a.formatted(.dateTime.day().locale(ptBR))) a \(b.formatted(.dateTime.day().month(.wide).locale(ptBR)))"
+    }
+}
 
-    private func carregarSemana() async {
-        carregando = true
-        defer { carregando = false }
-        do {
-            let r = try await Servidor.buscarSemana()
-            infoSemana = r
-            sessoes = r.sessoes.sorted { $0.data < $1.data }
-            erro = nil
-            let hoje = Calendar.current.startOfDay(for: Date())
-            if selecionada == nil {
-                selecionadaId = (sessao(em: Date()) ?? sessoes.first { $0.dataComoDate >= hoje } ?? sessoes.first)?.id
+struct DiaDaSemana<Conteudo: View>: View {
+    let dia: Date
+    @ViewBuilder var conteudo: () -> Conteudo
+
+    var body: some View {
+        let hoje = Calendar.current.isDateInToday(dia)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(spacing: 0) {
+                Text(dia.formatted(.dateTime.weekday(.abbreviated).locale(ptBR)).uppercased().replacingOccurrences(of: ".", with: ""))
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Tema.textoSuave)
+                Text(dia.formatted(.dateTime.day()))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Tema.texto)
             }
-        } catch {
-            erro = error.localizedDescription
+            .frame(width: 40)
+            conteudo()
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(hoje ? Tema.texto : .clear, lineWidth: 1.5)
+                )
         }
     }
+}
 
-    // MARK: envio
+struct LinhaCompacta: View {
+    var store: TreinosStore
+    let sessao: Sessao
+    var acao: () -> Void
 
-    private func atualizarAgendadas() async {
-        guard WorkoutScheduler.isSupported else { return }
-        let lista = await WorkoutScheduler.shared.scheduledWorkouts
-        agendadas = Set(lista.map(\.plan.id))
+    var body: some View {
+        Button(action: acao) {
+            HStack(spacing: 12) {
+                Circle().fill(sessao.tipo.cor).frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(sessao.titulo).font(.body.weight(.semibold)).foregroundStyle(Tema.texto).lineLimit(1)
+                    Text([sessao.tipo.rotulo, sessao.paceTrabalho.map { "\($0) /km" }].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(Tema.textoSuave).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if store.estaNoRelogio(sessao) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Tema.aqua)
+                }
+                Text(sessao.kmTexto).font(.subheadline.weight(.medium)).foregroundStyle(Tema.texto).monospacedDigit()
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .cartao(raio: 16)
+        }
+        .buttonStyle(.plain)
     }
+}
 
-    private func enviar(_ todas: [Sessao]) async {
-        // dias que já passaram não entram (o relógio não agenda no passado)
-        let hoje = Calendar.current.startOfDay(for: Date())
-        let lista = todas.filter { $0.dataComoDate >= hoje }
-        guard !lista.isEmpty else {
-            mensagem = "Esses treinos já passaram."
-            return
-        }
-        enviando = true
-        defer { enviando = false }
+// MARK: - Detalhe
 
-        let estado = await WorkoutScheduler.shared.requestAuthorization()
-        guard estado == .authorized else {
-            mensagem = "Sem permissão para agendar treinos. Libere em Ajustes > Saúde > Acesso a dados e dispositivos."
-            return
-        }
+struct DetalheView: View {
+    @Environment(\.dismiss) private var dismiss
+    var store: TreinosStore
+    let sessao: Sessao
+    var previa: () -> Void
 
-        // remove versões antigas dessas sessões (mesmo id) antes de agendar de novo
-        let existentes = await WorkoutScheduler.shared.scheduledWorkouts
-        let ids = Set(lista.map(ConstrutorWorkout.uuid(para:)))
-        for e in existentes where ids.contains(e.plan.id) {
-            await WorkoutScheduler.shared.remove(e.plan, at: e.date)
-        }
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Text(sessao.dataComoDate.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(ptBR)).capitalized)
+                            .font(.subheadline).foregroundStyle(Tema.textoSuave)
+                        Spacer()
+                        Button("Fechar") { dismiss() }.foregroundStyle(Tema.texto)
+                    }
 
-        for s in lista {
-            await WorkoutScheduler.shared.schedule(ConstrutorWorkout.plano(para: s), at: ConstrutorWorkout.componentes(para: s))
+                    Selo(texto: sessao.tipo.rotulo, cor: sessao.tipo.cor)
+                    Text(sessao.titulo)
+                        .font(.system(size: 32, weight: .heavy))
+                        .foregroundStyle(Tema.texto)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let obs = sessao.observacao, !obs.isEmpty {
+                        Text(obs).font(.body).foregroundStyle(Tema.textoSuave)
+                    }
+
+                    HStack(spacing: 10) {
+                        Metrica(titulo: "Distância", valor: sessao.kmTexto)
+                        Metrica(titulo: "Duração", valor: sessao.duracaoTexto)
+                        Metrica(titulo: "Esforço", valor: sessao.esforco)
+                    }
+
+                    GraficoEstrutura(sessao: sessao, altura: 84)
+
+                    VStack(spacing: 10) {
+                        if let a = sessao.aquecimento { LinhaEtapa(etapa: a) }
+                        ForEach(Array(sessao.blocos.enumerated()), id: \.offset) { _, b in
+                            if b.repeticoes > 1 {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("REPETIR \(b.repeticoes)×")
+                                        .font(.caption.weight(.heavy))
+                                        .foregroundStyle(Tema.laranja)
+                                    ForEach(Array(b.etapas.enumerated()), id: \.offset) { _, e in LinhaEtapa(etapa: e, semCartao: true) }
+                                }
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Tema.laranja.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Tema.laranja.opacity(0.35), lineWidth: 1))
+                            } else {
+                                ForEach(Array(b.etapas.enumerated()), id: \.offset) { _, e in LinhaEtapa(etapa: e) }
+                            }
+                        }
+                        if let d = sessao.desaquecimento { LinhaEtapa(etapa: d) }
+                    }
+                }
+                .padding(20)
+            }
+
+            VStack(spacing: 8) {
+                if let msg = store.mensagem {
+                    Text(msg).font(.footnote).foregroundStyle(Tema.textoSuave).multilineTextAlignment(.center)
+                }
+                HStack(spacing: 10) {
+                    Button("Prévia", action: previa)
+                        .buttonStyle(BotaoSecundario())
+                        .frame(maxWidth: 120)
+                    Button {
+                        Task { await store.enviar([sessao]) }
+                    } label: {
+                        Text(store.estaNoRelogio(sessao) ? "Reenviar" : "Enviar para o relógio")
+                    }
+                    .buttonStyle(BotaoPrincipal())
+                    .disabled(store.enviando)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            .background(Tema.fundo)
+            .overlay(alignment: .top) { Divider() }
         }
-        await atualizarAgendadas()
-        mensagem = lista.count == 1
-            ? "“\(lista[0].titulo)” enviado. Abra o app Treino no Apple Watch."
-            : "\(lista.count) treinos enviados para o relógio."
+        .background(Tema.fundo)
+        .preferredColorScheme(.light)
+    }
+}
+
+struct Metrica: View {
+    let titulo: String
+    let valor: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(titulo).font(.caption).foregroundStyle(Tema.textoSuave)
+            Text(valor).font(.headline).foregroundStyle(Tema.texto).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cartao(raio: 14)
     }
 }
 
 struct LinhaEtapa: View {
     let etapa: Etapa
+    var semCartao = false
+
+    private var nome: String {
+        switch etapa.papel {
+        case .trabalho: "Esforço"
+        default: etapa.papel.rotulo
+        }
+    }
 
     var body: some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(etapa.zona?.cor ?? .gray)
-                .frame(width: 4, height: 34)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(etapa.papel.rotulo).font(.subheadline.weight(.medium))
-                Text(etapa.descricaoMeta).font(.caption).foregroundStyle(.secondary)
+        let conteudo = HStack(spacing: 12) {
+            Circle().fill(etapa.papel.cor).frame(width: 12, height: 12)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(nome).font(.body.weight(.semibold)).foregroundStyle(Tema.texto)
+                Text(etapa.descricaoMeta).font(.subheadline).foregroundStyle(Tema.textoSuave)
             }
             Spacer(minLength: 8)
-            if let z = etapa.zona {
+            if let p = etapa.textoPace {
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text("Z\(z.rawValue) · \(z.nome)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(z.cor)
-                    if let p = etapa.textoPace {
-                        Text("\(p) /km").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                    Text("\(p) /km").font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto).monospacedDigit()
+                    if let z = etapa.zona {
+                        Text("Z\(z.rawValue) · \(z.nome)").font(.caption).foregroundStyle(Tema.textoSuave)
                     }
                 }
             }
         }
+        if semCartao {
+            conteudo
+        } else {
+            conteudo.padding(16).cartao(raio: 16)
+        }
     }
 }
 
-#Preview {
-    ContentView()
-}
-
+// MARK: - Ajustes
 
 struct AjustesView: View {
     @Environment(\.dismiss) private var dismiss
@@ -419,6 +571,7 @@ struct AjustesView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Fechar") { dismiss() } }
             }
         }
+        .preferredColorScheme(.light)
     }
 
     private func salvarETestar() async {
@@ -436,4 +589,8 @@ struct AjustesView: View {
             resultado = error.localizedDescription
         }
     }
+}
+
+#Preview {
+    ContentView()
 }

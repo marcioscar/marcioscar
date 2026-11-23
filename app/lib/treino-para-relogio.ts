@@ -23,7 +23,8 @@ export type SessaoRelogio = {
 	data: string
 	titulo: string
 	tipo: 'leve' | 'limiar' | 'tiros' | 'longao' | 'prova'
-	origem: 'canova' | 'treinador'
+	origem: 'canova' | 'treinador' | 'manual'
+	observacao?: string | null
 	aquecimento: EtapaRelogio | null
 	blocos: { repeticoes: number; etapas: EtapaRelogio[] }[]
 	desaquecimento: EtapaRelogio | null

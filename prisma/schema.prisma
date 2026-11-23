@@ -117,6 +117,26 @@ model TreinoTreinador {
     @@unique([provaId, semana])
 }
 
+/// Treino montado à mão (sem prova-alvo): um por dia. Vai para o app do Apple Watch.
+model TreinoManual {
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    /// yyyy-MM-dd
+    data           String
+    titulo         String
+    /// descanso | leve | limiar | tiros | longao | prova
+    tipo           String
+    observacao     String?
+    /// Etapa (ver app/lib/treino-para-relogio.ts → EtapaRelogio)
+    aquecimento    Json?
+    /// [{ repeticoes, etapas: Etapa[] }]
+    blocos         Json
+    desaquecimento Json?
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    @@index([data])
+}
+
 model biblioteca {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String

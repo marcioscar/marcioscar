@@ -2,7 +2,8 @@ import { timingSafeEqual } from 'node:crypto'
 import type { Route } from './+types/api.treino-semana'
 import { DAYS_OF_WEEK } from '~/lib/canovaPlanner'
 import { chaveDia } from '~/lib/carga-treino'
-import { converterSessao } from '~/lib/treino-para-relogio'
+import { converterSessao, type SessaoRelogio } from '~/lib/treino-para-relogio'
+import { listarTreinosManuais } from '~/models/treino-manual.server'
 import { montarPlanoSemanaAtual } from '~/models/plano-semana.server'
 import { listarProvas } from '~/models/provas.server'
 
@@ -36,40 +37,57 @@ export async function loader({ request }: Route.LoaderArgs) {
 		return Response.json({ error: 'Token inválido.' }, { status: 401, headers: SEM_CACHE })
 	}
 
-	const provas = await listarProvas()
-	const prova = provas.find(p => p.ativa)
-	if (!prova) {
-		return Response.json({ sessoes: [], aviso: 'Nenhuma prova ativa cadastrada.' }, { headers: SEM_CACHE })
-	}
-
-	const { plano } = await montarPlanoSemanaAtual(prova)
-	if (!plano) {
-		return Response.json(
-			{ sessoes: [], aviso: 'Sem plano para a semana atual (fora do período do plano).' },
-			{ headers: SEM_CACHE },
-		)
-	}
-
 	// segunda-feira da semana corrente, no fuso de São Paulo
 	const hoje = chaveDia(new Date())
 	const dow = new Date(`${hoje}T12:00:00Z`).getUTCDay() // 0=Dom
 	const segunda = somarDias(hoje, -((dow + 6) % 7))
+	const fim = somarDias(segunda, 6)
 
-	const sessoes = plano.sessions.map(s =>
-		converterSessao(s, prova.paceAlvo, somarDias(segunda, DAYS_OF_WEEK.indexOf(s.day))),
-	)
+	// Treinos montados à mão têm prioridade; "descanso" manual também tira o treino do plano da prova.
+	const manuais = await listarTreinosManuais(segunda, fim)
+	const manualPorDia = new Map(manuais.map(t => [t.data, t]))
+
+	const provas = await listarProvas()
+	const prova = provas.find(p => p.ativa)
+	const montado = prova ? await montarPlanoSemanaAtual(prova) : null
+	const plano = montado?.plano ?? null
+
+	const sessoes: SessaoRelogio[] = []
+	for (let i = 0; i < 7; i++) {
+		const data = somarDias(segunda, i)
+		const manual = manualPorDia.get(data)
+		if (manual) {
+			if (manual.tipo !== 'descanso') {
+				sessoes.push({
+					id: `manual-${data}`,
+					data,
+					titulo: manual.titulo,
+					tipo: manual.tipo,
+					origem: 'manual',
+					observacao: manual.observacao,
+					aquecimento: manual.aquecimento,
+					blocos: manual.blocos,
+					desaquecimento: manual.desaquecimento,
+				})
+			}
+			continue
+		}
+		const doPlano = plano?.sessions.find(s => DAYS_OF_WEEK.indexOf(s.day) === i)
+		if (doPlano && prova) sessoes.push(converterSessao(doPlano, prova.paceAlvo, data))
+	}
 
 	return Response.json(
 		{
 			semana: {
 				inicio: segunda,
-				fim: somarDias(segunda, 6),
-				numero: plano.numero,
-				totalSemanas: plano.totalSemanas,
-				fase: plano.fase,
+				fim,
+				numero: plano?.numero ?? 0,
+				totalSemanas: plano?.totalSemanas ?? 0,
+				fase: plano?.fase ?? 'Manual',
 			},
-			prova: { nome: prova.nome, paceAlvo: prova.paceAlvo },
+			prova: prova ? { nome: prova.nome, paceAlvo: prova.paceAlvo } : null,
 			sessoes,
+			aviso: sessoes.length === 0 ? 'Nenhum treino nesta semana. Monte em Treinos no site.' : null,
 		},
 		{ headers: SEM_CACHE },
 	)

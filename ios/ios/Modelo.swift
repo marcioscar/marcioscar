@@ -141,6 +141,8 @@ struct Sessao: Codable, Identifiable, Hashable {
     var data: String
     var titulo: String
     var tipo: TipoSessao
+    /// Observação livre (opcional)
+    var observacao: String?
     /// "canova" (gerado pelo plano) ou "treinador" (prescrito por ele)
     var origem: String?
     var aquecimento: Etapa?
