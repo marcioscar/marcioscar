@@ -36,6 +36,7 @@ final class SaudeSync {
     }
 
     private var tarefa: Task<Void, Never>?
+    @ObservationIgnored private var ultimaAutomatica: Date?
     /// treinos da última listagem (para buscar a rota da miniatura sem nova consulta)
     @ObservationIgnored var workoutsPorId: [String: HKWorkout] = [:]
     @ObservationIgnored var miniaturas: [String: [CLLocationCoordinate2D]] = [:]
@@ -73,6 +74,20 @@ final class SaudeSync {
     func iniciar(_ escopo: Escopo) {
         guard !rodando else { return }
         tarefa = Task { await executar(escopo) }
+    }
+
+    /// "Atualizar o site sozinho" (ligado por padrão; dá para desligar em Ajustes).
+    static var sincronizacaoAutomaticaLigada: Bool {
+        UserDefaults.standard.object(forKey: "autoSincronizarSite") as? Bool ?? true
+    }
+
+    /// Ao abrir ou voltar ao app: envia ao site os treinos novos do Saúde.
+    /// No máximo uma vez a cada 10 minutos, e só com o site configurado e sem outra sincronização em andamento.
+    func sincronizarAoAbrir() {
+        guard Self.sincronizacaoAutomaticaLigada, Servidor.configurado, !rodando else { return }
+        if let ultima = ultimaAutomatica, Date().timeIntervalSince(ultima) < 600 { return }
+        ultimaAutomatica = Date()
+        iniciar(.novos)
     }
 
     func cancelar() {

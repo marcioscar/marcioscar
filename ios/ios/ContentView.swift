@@ -44,11 +44,15 @@ struct ContentView: View {
         }
         .task {
             if !Servidor.configurado { mostrarAjustes = true }
+            saude.sincronizarAoAbrir()
             await store.carregar()
         }
         // ao voltar para o app, busca de novo o planejado no site (e o que já está no relógio)
         .onChange(of: fase) { _, nova in
-            if nova == .active, Servidor.configurado { Task { await store.carregar() } }
+            if nova == .active, Servidor.configurado {
+                saude.sincronizarAoAbrir()
+                Task { await store.carregar() }
+            }
         }
     }
 }
@@ -564,6 +568,7 @@ struct AjustesView: View {
     @State private var anoEscolhido = Calendar.current.component(.year, from: Date())
     @State private var limpo = false
     @AppStorage("autoEnvioRelogio") private var envioAutomatico = true
+    @AppStorage("autoSincronizarSite") private var sincAutomatica = true
     @State private var endereco = Servidor.endereco
     @State private var token = Servidor.token ?? ""
     @State private var testando = false
@@ -608,6 +613,11 @@ struct AjustesView: View {
                     Toggle("Enviar corridas ao relógio sozinho", isOn: $envioAutomatico)
                 } footer: {
                     Text("Ao abrir o app, as corridas planejadas de hoje em diante que ainda não estão no relógio (ou que mudaram no site) são enviadas. Musculação não entra: você escolhe na hora.")
+                }
+                Section {
+                    Toggle("Atualizar o site sozinho", isOn: $sincAutomatica)
+                } footer: {
+                    Text("Ao abrir o app, os treinos novos do app Saúde são enviados ao site (no máximo uma vez a cada 10 minutos). O calendário, o painel e a carga de treino do site passam a refletir o que você treinou.")
                 }
                 Section {
                     Button("Sincronizar só os novos") { saude.iniciar(.novos) }
