@@ -9,8 +9,6 @@ struct ContentView: View {
     @State private var saude = SaudeSync()
     @State private var detalhe: Sessao?
     @State private var mostrarAjustes = false
-    @State private var planoPrevia = WorkoutPlan(.custom(CustomWorkout(activity: .running, location: .outdoor, displayName: "")))
-    @State private var mostrarPrevia = false
 
     var body: some View {
         TabView {
@@ -27,15 +25,11 @@ struct ContentView: View {
         .tint(Tema.texto)
         .preferredColorScheme(.light)
         .sheet(item: $detalhe) { s in
-            DetalheView(store: store, sessao: s) {
-                planoPrevia = ConstrutorWorkout.plano(para: s)
-                mostrarPrevia = true
-            }
+            DetalheView(store: store, sessao: s)
         }
         .sheet(isPresented: $mostrarAjustes) {
             AjustesView(aoSalvar: { await store.carregar() }, aoLimpar: { await store.limparRelogio() }, saude: saude)
         }
-        .workoutPreview(planoPrevia, isPresented: $mostrarPrevia)
         .task {
             if !Servidor.configurado { mostrarAjustes = true }
             await store.carregar()
@@ -394,7 +388,10 @@ struct DetalheView: View {
     @Environment(\.dismiss) private var dismiss
     var store: TreinosStore
     let sessao: Sessao
-    var previa: () -> Void
+    // A prévia do WorkoutKit precisa ser apresentada pela mesma folha que a abre; presa à tela raiz
+    // ela ficava por baixo da folha de detalhe e o "X" não voltava para a tela inicial.
+    @State private var planoPrevia: WorkoutPlan?
+    @State private var mostrarPrevia = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -454,7 +451,10 @@ struct DetalheView: View {
                     Text(msg).font(.footnote).foregroundStyle(Tema.textoSuave).multilineTextAlignment(.center)
                 }
                 HStack(spacing: 10) {
-                    Button("Prévia", action: previa)
+                    Button("Prévia") {
+                        planoPrevia = ConstrutorWorkout.plano(para: sessao)
+                        mostrarPrevia = true
+                    }
                         .buttonStyle(BotaoSecundario())
                         .frame(maxWidth: 120)
                     Button {
@@ -474,6 +474,7 @@ struct DetalheView: View {
         }
         .background(Tema.fundo)
         .preferredColorScheme(.light)
+        .workoutPreview(planoPrevia ?? ConstrutorWorkout.plano(para: sessao), isPresented: $mostrarPrevia)
     }
 }
 
