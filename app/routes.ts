@@ -16,6 +16,7 @@ export default [
   route("api/interpretar-treino", "routes/api.interpretar-treino.ts"),
   route("api/buscar-splits", "routes/api.buscar-splits.ts"),
   route("api/fotos-corrida", "routes/api.fotos-corrida.ts"),
+  route("api/rota-completa", "routes/api.rota-completa.ts"),
   route("api/treino-semana", "routes/api.treino-semana.ts"),
   route("api/saude-treinos", "routes/api.saude-treinos.ts"),
   route("robots.txt", "routes/robots.ts"),

@@ -5,6 +5,8 @@ import { buscarCorridaPorStravaId } from "~/models/corridas.server";
 import { obterProvaAtiva } from "~/models/provas.server";
 import { buscarTreinoSaudeParaCorrida, type SplitSaude, type VoltaSaude } from "~/models/treino-saude.server";
 import { getMapboxToken } from "~/lib/mapbox.server";
+import { db } from "../../db.server";
+import type { RotaDetalhada } from "~/types/rota";
 import { Button } from "~/components/ui/button";
 import { CorridaPaceDesnivelChart } from "~/components/corridas/corrida-pace-desnivel-chart";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
@@ -61,6 +63,10 @@ export async function loader({ params }: Route.LoaderArgs) {
 			}
 		: null;
 
+	const rotaCompletaBruta = (
+		await db.corrida.findUnique({ where: { stravaId }, select: { rotaCompleta: true } })
+	)?.rotaCompleta;
+
 	const distanciaKm = corrida.distanciaMetros / 1000;
 	const paceMedioSegPorKm =
 		distanciaKm > 0 ? Math.round(corrida.tempoMovimentoSeg / distanciaKm) : null;
@@ -75,6 +81,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 			paceMedioSegPorKm,
 			dataInicio: new Date(corrida.dataInicio).toISOString(),
 			summaryPolyline: corrida.summaryPolyline,
+			rotaCompleta: (rotaCompletaBruta as RotaDetalhada | null) ?? null,
 			splits: (corrida.splits as SplitMetric[] | null) ?? null,
 			laps: (corrida.laps as LapData[] | null) ?? null,
 			analise: (corrida.analise as AnaliseResult | null) ?? null,
@@ -134,6 +141,26 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 	const { corrida, provaAtivaInfo, mapboxToken, saude } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
+
+	// rota em alta resolução: vem do banco ou, se ainda não houver, é buscada no Strava uma vez
+	const [rotaDetalhada, setRotaDetalhada] = React.useState<RotaDetalhada | null>(corrida.rotaCompleta);
+	React.useEffect(() => {
+		if (rotaDetalhada || !corrida.summaryPolyline) return;
+		let cancelado = false;
+		fetch("/api/rota-completa", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ stravaId: corrida.stravaId }),
+		})
+			.then((r) => (r.ok ? r.json() : null))
+			.then((d: { rota?: RotaDetalhada | null } | null) => {
+				if (!cancelado && d?.rota) setRotaDetalhada(d.rota);
+			})
+			.catch(() => {});
+		return () => {
+			cancelado = true;
+		};
+	}, [corrida.stravaId, corrida.summaryPolyline, rotaDetalhada]);
 
 	const [analise, setAnalise] = React.useState<AnaliseResult | null>(corrida.analise);
 	const [splits, setSplits] = React.useState<SplitMetric[] | null>(corrida.splits);
@@ -261,6 +288,7 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 								polyline={corrida.summaryPolyline}
 								distanciaMetros={corrida.distanciaMetros}
 								splits={splits}
+								detalhe={rotaDetalhada}
 							/>
 						</React.Suspense>
 					) : (

@@ -29,6 +29,8 @@ model Corrida {
     /// Detalhes que só o endpoint de atividade do Strava devolve (não vêm na listagem)
     calorias            Int?
     temperaturaMedia    Float?
+    /// Rota em alta resolução (polyline + altitude/velocidade/FC por ponto), buscada sob demanda no Strava
+    rotaCompleta        Json?
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 
@@ -170,6 +172,8 @@ model TreinoSaude {
     /// Análise por IA (mesmo formato de Corrida.analise)
     analise          Json?
     analisadaEm      DateTime?
+    /// Vetores alinhados à polyline: { alt, vel, fc }
+    rota             Json?
     createdAt        DateTime @default(now())
     updatedAt        DateTime @updatedAt
 

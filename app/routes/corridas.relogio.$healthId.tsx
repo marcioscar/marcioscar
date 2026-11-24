@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
 import { AnaliseIaRelogio } from "~/components/corridas/analise-ia-relogio";
 import type { AnaliseResult } from "~/types/analise";
+import type { RotaDetalhada } from "~/types/rota";
 import { formatarPace, formatarTempo } from "~/lib/formatar-corrida";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
@@ -64,13 +65,16 @@ export async function loader({ params }: Route.LoaderArgs) {
 		analise: (t.analise as AnaliseResult | null) ?? null,
 		analisadaEm: t.analisadaEm ? t.analisadaEm.toISOString() : null,
 		healthId: t.healthId,
+		detalhe: t.polyline
+			? ({ polyline: t.polyline, ...((t.rota as Record<string, number[]> | null) ?? {}) } as RotaDetalhada)
+			: null,
 		planejado: plano ? { titulo: plano.titulo, texto: textoPrescrito(plano) } : null,
 		mapboxToken: getMapboxToken(),
 	};
 }
 
 export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado } = loaderData;
+	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado, detalhe } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
 
@@ -128,6 +132,7 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 								polyline={corrida.summaryPolyline}
 								distanciaMetros={corrida.distanciaMetros}
 								splits={corrida.splits}
+								detalhe={detalhe}
 							/>
 						</React.Suspense>
 					) : (

@@ -40,3 +40,28 @@ function decodeSignedValue(
   const value = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
   return { value, nextIndex: index };
 }
+
+function codificarValor(valor: number): string {
+  let n = valor < 0 ? ~(valor << 1) : valor << 1;
+  let saida = "";
+  while (n >= 0x20) {
+    saida += String.fromCharCode((0x20 | (n & 0x1f)) + 63);
+    n >>= 5;
+  }
+  return saida + String.fromCharCode(n + 63);
+}
+
+/** Google Encoded Polyline (precisão 5) de pontos [lat, lng]. */
+export function encodePolyline(pontos: [number, number][]): string {
+  let lat = 0;
+  let lng = 0;
+  let saida = "";
+  for (const [la, ln] of pontos) {
+    const a = Math.round(la * 1e5);
+    const b = Math.round(ln * 1e5);
+    saida += codificarValor(a - lat) + codificarValor(b - lng);
+    lat = a;
+    lng = b;
+  }
+  return saida;
+}

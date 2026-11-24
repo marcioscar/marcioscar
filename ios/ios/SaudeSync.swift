@@ -23,7 +23,7 @@ final class SaudeSync {
     }
 
     private let store = HKHealthStore()
-    private let tamanhoLote = 25
+    private let tamanhoLote = 8
 
     // MARK: tipos lidos
 
@@ -115,7 +115,8 @@ final class SaudeSync {
         let passos = soma(.stepCount, .count())
         let elevacao = (w.metadata?[HKMetadataKeyElevationAscended] as? HKQuantity)?.doubleValue(for: .meter())
 
-        let rota = tipo == .musculacao ? nil : await polylineDaRota(w)
+        let amostrasFCRota = tipo == .musculacao ? [] : await amostrasDeFC(w)
+        let rotaCompleta = tipo == .musculacao ? nil : await rotaDoTreino(w, fc: amostrasFCRota)
 
         // detalhes: splits por km, voltas e eventos (só para corrida e caminhada)
         var splits: [SplitPayload]?
@@ -125,7 +126,7 @@ final class SaudeSync {
             let ev = DetalhesTreino.eventos(w)
             let pausas = DetalhesTreino.pausas(ev)
             let amostrasDist = await amostrasDeDistancia(w)
-            let amostrasFC = await amostrasDeFC(w)
+            let amostrasFC = amostrasFCRota
             eventos = ev
             if !amostrasDist.isEmpty {
                 splits = DetalhesTreino.splits(amostras: amostrasDist, fc: amostrasFC, pausas: pausas)
@@ -155,7 +156,8 @@ final class SaudeSync {
             oscilacaoVerticalCm: media(.runningVerticalOscillation, .meterUnit(with: .centi)),
             contatoSoloMs: media(.runningGroundContactTime, .secondUnit(with: .milli)),
             elevacaoGanhoM: elevacao,
-            polyline: rota,
+            polyline: rotaCompleta?.polyline,
+            rota: rotaCompleta?.vetores,
             splits: splits,
             voltas: voltas,
             eventos: eventos
@@ -194,21 +196,49 @@ final class SaudeSync {
         }
     }
 
-    private func polylineDaRota(_ w: HKWorkout) async -> String? {
+    private static let maxPontosRota = 1500
+
+    /// Rota do treino com até `maxPontosRota` pontos, junto com altitude, velocidade e FC de cada ponto.
+    private func rotaDoTreino(_ w: HKWorkout, fc: [AmostraFC]) async -> (polyline: String, vetores: RotaPayload)? {
         do {
             let descritor = HKAnchoredObjectQueryDescriptor(
                 predicates: [.workoutRoute(HKQuery.predicateForObjects(from: w))],
                 anchor: nil
             )
             let resultado = try await descritor.result(for: store)
-            var pontos: [CLLocationCoordinate2D] = []
+            var locais: [CLLocation] = []
             for rota in resultado.addedSamples {
                 for try await loc in HKWorkoutRouteQueryDescriptor(rota).results(for: store) {
-                    pontos.append(loc.coordinate)
+                    locais.append(loc)
                 }
             }
-            guard pontos.count >= 2 else { return nil }
-            return Polyline.codificar(Polyline.reduzir(pontos, maximo: 300))
+            guard locais.count >= 2 else { return nil }
+            locais.sort { $0.timestamp < $1.timestamp }
+
+            // pontos igualmente espaçados (sempre com o primeiro e o último)
+            let n = locais.count
+            let alvo = min(n, Self.maxPontosRota)
+            let indices = (0..<alvo).map { alvo > 1 ? Int((Double($0) * Double(n - 1) / Double(alvo - 1)).rounded()) : 0 }
+            let escolhidos = indices.map { locais[$0] }
+
+            // FC mais próxima no tempo de cada ponto (as amostras estão em ordem)
+            let fcOrdenado = fc.sorted { $0.data < $1.data }
+            var j = 0
+            let fcPorPonto: [Double]? = fcOrdenado.isEmpty ? nil : escolhidos.map { loc in
+                while j + 1 < fcOrdenado.count,
+                      abs(fcOrdenado[j + 1].data.timeIntervalSince(loc.timestamp)) <= abs(fcOrdenado[j].data.timeIntervalSince(loc.timestamp)) {
+                    j += 1
+                }
+                return fcOrdenado[j].bpm.rounded()
+            }
+
+            let coords = escolhidos.map { $0.coordinate }
+            let vetores = RotaPayload(
+                alt: escolhidos.map { ($0.altitude * 10).rounded() / 10 },
+                vel: escolhidos.map { max($0.speed, 0) }.map { ($0 * 100).rounded() / 100 },
+                fc: fcPorPonto
+            )
+            return (Polyline.codificar(coords), vetores)
         } catch {
             return nil
         }
@@ -225,6 +255,12 @@ final class SaudeSync {
         default: (.outro, "other(\(t.rawValue))")
         }
     }
+}
+
+struct RotaPayload: Codable {
+    var alt: [Double]?
+    var vel: [Double]?
+    var fc: [Double]?
 }
 
 enum TipoSaude: String, Codable {
@@ -249,6 +285,8 @@ struct TreinoSaudePayload: Codable {
     var contatoSoloMs: Double?
     var elevacaoGanhoM: Double?
     var polyline: String?
+    /// vetores alinhados aos pontos da polyline
+    var rota: RotaPayload?
     var splits: [SplitPayload]?
     var voltas: [VoltaPayload]?
     var eventos: [EventoPayload]?

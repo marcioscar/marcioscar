@@ -42,6 +42,7 @@ export type TreinoSaudeEntrada = {
 	contatoSoloMs: number | null
 	elevacaoGanhoM: number | null
 	polyline: string | null
+	rota: { alt?: number[]; vel?: number[]; fc?: number[] } | null
 	splits: SplitSaude[] | null
 	voltas: VoltaSaude[] | null
 	eventos: EventoSaude[] | null
@@ -113,6 +114,21 @@ function semAutomaticas<T extends { tipo: string; inicio?: string; fim?: string;
 	return v && v.length >= 3 && !ehSegmentacaoAutomatica(v) ? v : null
 }
 
+function vetor(v: unknown, max: number): number[] | undefined {
+	if (!Array.isArray(v) || v.length === 0 || v.length > 3000) return undefined
+	const r = v.map(Number)
+	return r.every(n => Number.isFinite(n) && Math.abs(n) <= max) ? r : undefined
+}
+
+function rotaSegura(v: unknown): { alt?: number[]; vel?: number[]; fc?: number[] } | null {
+	if (!v || typeof v !== 'object') return null
+	const r = v as Record<string, unknown>
+	const alt = vetor(r.alt, 9000)
+	const vel = vetor(r.vel, 50)
+	const fc = vetor(r.fc, 260)
+	return alt || vel || fc ? { ...(alt ? { alt } : {}), ...(vel ? { vel } : {}), ...(fc ? { fc } : {}) } : null
+}
+
 function metadadosSeguros(v: unknown): Record<string, string> | null {
 	if (!v || typeof v !== 'object' || Array.isArray(v)) return null
 	const pares = Object.entries(v as Record<string, unknown>)
@@ -145,7 +161,7 @@ export function sanearTreinoSaude(bruto: unknown): TreinoSaudeEntrada | null {
 	const duracao = num(r.duracaoSeg, 7 * 24 * 3600)
 	if (duracao === null) return null
 	const tipo = TIPOS.includes(r.tipo as TipoSaude) ? (r.tipo as TipoSaude) : 'outro'
-	const polyline = typeof r.polyline === 'string' && r.polyline.length <= 20000 ? r.polyline : null
+	const polyline = typeof r.polyline === 'string' && r.polyline.length <= 60000 ? r.polyline : null
 
 	return {
 		healthId,
@@ -165,6 +181,7 @@ export function sanearTreinoSaude(bruto: unknown): TreinoSaudeEntrada | null {
 		contatoSoloMs: num(r.contatoSoloMs, 1000),
 		elevacaoGanhoM: num(r.elevacaoGanhoM, 20000),
 		polyline,
+		rota: rotaSegura(r.rota),
 		splits: lista(r.splits, 300, i => {
 			const km = num(i.km, 1000)
 			const distanciaM = num(i.distanciaM, 1_000_000)
@@ -211,9 +228,10 @@ export async function gravarTreinosSaude(lista: TreinoSaudeEntrada[]): Promise<{
 	let atualizados = 0
 	for (const t of lista) {
 		const existente = await db.treinoSaude.findUnique({ where: { healthId: t.healthId }, select: { id: true } })
-		const { healthId, splits, voltas, eventos, ...resto } = t
+		const { healthId, splits, voltas, eventos, rota, ...resto } = t
 		const dados = {
 			...resto,
+			rota: rota ?? undefined,
 			splits: splits ?? undefined,
 			// ao reenviar, voltas ausentes (ex.: eram só segmentos automáticos) limpam o valor antigo
 			voltas: voltas ?? null,

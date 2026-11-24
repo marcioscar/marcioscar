@@ -167,3 +167,32 @@ export async function buscarCorridasStrava(
 
   return corridas;
 }
+
+export type StreamsAtividade = {
+  latlng: [number, number][];
+  altitude: number[] | null;
+  velocity: number[] | null;
+  heartrate: number[] | null;
+};
+
+/** Pontos de GPS e sensores da atividade, um por segundo (ou por ponto gravado). */
+export async function buscarStreamsAtividade(stravaId: number): Promise<StreamsAtividade> {
+  const token = await getAccessToken();
+  const chaves = "latlng,altitude,velocity_smooth,heartrate";
+  const url = `${STRAVA_ACTIVITY_ENDPOINT}/${stravaId}/streams?keys=${chaves}&key_by_type=true`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) {
+    throw new Error(`Strava streams da atividade ${stravaId} falhou: ${response.status}`);
+  }
+  const corpo = (await response.json()) as Record<string, { data?: unknown[] } | undefined>;
+  const serie = <T,>(chave: string): T[] | null => {
+    const d = corpo[chave]?.data;
+    return Array.isArray(d) && d.length > 0 ? (d as T[]) : null;
+  };
+  return {
+    latlng: serie<[number, number]>("latlng") ?? [],
+    altitude: serie<number>("altitude"),
+    velocity: serie<number>("velocity_smooth"),
+    heartrate: serie<number>("heartrate"),
+  };
+}
