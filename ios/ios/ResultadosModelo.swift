@@ -17,10 +17,35 @@ struct ResumoCorrida: Codable, Identifiable, Hashable {
     /// símbolo SF do tipo de treino
     var icone: String? = nil
 
+    var elevacaoM: Double? = nil
+    var caloriasKcal: Double? = nil
+
     var ehCorrida: Bool { (tipo ?? "corrida") == "corrida" }
+
+    /// Faixa de distância das corridas, para o filtro (meia, maratona...).
+    var categoria: CategoriaCorrida {
+        let km = distanciaM / 1000
+        switch km {
+        case ..<10: return .curta
+        case 10..<20: return .media
+        case 20..<23: return .meia
+        case 23..<40: return .longa
+        default: return .maratona
+        }
+    }
     var temPace: Bool { tipo == nil || tipo == "corrida" || tipo == "caminhada" }
 
     var data: Date { ISO8601DateFormatter.comFracao.date(from: dataInicio) ?? ISO8601DateFormatter().date(from: dataInicio) ?? Date() }
+}
+
+enum CategoriaCorrida: String, CaseIterable, Identifiable {
+    case todas = "Todas"
+    case curta = "Até 10 km"
+    case media = "10–20 km"
+    case meia = "Meia"
+    case longa = "23–40 km"
+    case maratona = "Maratona"
+    var id: String { rawValue }
 }
 
 struct ListaCorridas: Codable { var corridas: [ResumoCorrida] }
@@ -191,4 +216,11 @@ func formatarDuracao(_ seg: Double) -> String {
     let t = Int(seg.rounded())
     let h = t / 3600, m = (t % 3600) / 60, s = t % 60
     return h > 0 ? "\(h):" + String(format: "%02d:%02d", m, s) : "\(m):" + String(format: "%02d", s)
+}
+
+/// Tempo total para somas: "12 h 40 min" (ou "45 min").
+func formatarDuracaoLonga(_ seg: Double) -> String {
+    let t = Int(seg.rounded())
+    let h = t / 3600, m = (t % 3600) / 60
+    return h > 0 ? "\(h) h \(String(format: "%02d", m)) min" : "\(m) min"
 }

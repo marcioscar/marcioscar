@@ -13,6 +13,7 @@ enum FiltroTreino: String, CaseIterable, Identifiable {
     case forca = "Força"
     case outro = "Outros"
     var id: String { rawValue }
+    var rotulo: String { rawValue }
     var chave: String? {
         switch self {
         case .todos: nil
@@ -24,20 +25,125 @@ enum FiltroTreino: String, CaseIterable, Identifiable {
     }
 }
 
+enum PeriodoResultados: String, CaseIterable, Identifiable {
+    case semana = "Semana"
+    case mes = "Mês"
+    case ano = "Ano"
+    var id: String { rawValue }
+}
+
+/// Totais do que está na tela (já com os filtros aplicados).
+struct TotaisResultados {
+    var treinos = 0
+    var distanciaKm = 0.0
+    var tempoSeg = 0.0
+    var subidaM = 0.0
+    var caloriasKcal = 0.0
+    /// treinos que entraram na soma de distância (corridas, ou o tipo escolhido no filtro)
+    var comDistancia = 0
+
+    var paceSegKm: Double? { distanciaKm > 0.2 ? tempoDistanciaSeg / distanciaKm : nil }
+    var tempoDistanciaSeg = 0.0
+}
+
 @Observable
 @MainActor
 final class ResultadosStore {
     var treinos: [ResumoCorrida] = []
+    var periodo: PeriodoResultados = .mes
     var ano = Calendar.current.component(.year, from: Date())
+    /// primeiro dia do mês mostrado
+    var mesRef: Date = ResultadosStore.inicioDoMes(Date())
+    /// segunda-feira da semana mostrada
+    var semanaRef: Date = ResultadosStore.inicioDaSemana(Date())
     var filtro: FiltroTreino = .todos
+    var categoria: CategoriaCorrida = .todas
     var carregando = false
     var erro: String?
     /// tipo de sessão da análise por IA, quando a corrida já está no site
     var tiposDoSite: [String: String] = [:]
 
+    static var calendario: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.firstWeekday = 2
+        c.locale = Locale(identifier: "pt_BR")
+        c.timeZone = .current
+        return c
+    }
+
+    static func inicioDoMes(_ d: Date) -> Date { calendario.dateInterval(of: .month, for: d)!.start }
+    static func inicioDaSemana(_ d: Date) -> Date { calendario.dateInterval(of: .weekOfYear, for: d)!.start }
+
+    /// intervalo de datas do período escolhido
+    var intervalo: (de: Date, ate: Date) {
+        let c = Self.calendario
+        switch periodo {
+        case .semana: return (semanaRef, c.date(byAdding: .day, value: 7, to: semanaRef)!)
+        case .mes: return (mesRef, c.date(byAdding: .month, value: 1, to: mesRef)!)
+        case .ano:
+            let de = c.date(from: DateComponents(year: ano, month: 1, day: 1))!
+            return (de, c.date(from: DateComponents(year: ano + 1, month: 1, day: 1))!)
+        }
+    }
+
+    /// muda a chave quando algo que exige nova leitura do Saúde muda
+    var chave: String { "\(periodo.rawValue)-\(intervalo.de.timeIntervalSince1970)" }
+
+    var tituloDoPeriodo: String {
+        let loc = Locale(identifier: "pt_BR")
+        switch periodo {
+        case .semana:
+            let fim = Self.calendario.date(byAdding: .day, value: 6, to: semanaRef)!
+            let a = semanaRef.formatted(.dateTime.day().locale(loc))
+            let b = fim.formatted(.dateTime.day().month(.abbreviated).locale(loc)).replacingOccurrences(of: ".", with: "")
+            return "\(a) a \(b)"
+        case .mes: return mesRef.formatted(.dateTime.month(.wide).year().locale(loc)).capitalized
+        case .ano: return String(ano)
+        }
+    }
+
+    func mover(_ passo: Int) {
+        let c = Self.calendario
+        switch periodo {
+        case .semana: semanaRef = c.date(byAdding: .day, value: 7 * passo, to: semanaRef)!
+        case .mes: mesRef = c.date(byAdding: .month, value: passo, to: mesRef)!
+        case .ano: ano += passo
+        }
+    }
+
+    /// só avança até o período atual
+    var podeAvancar: Bool { intervalo.ate <= Date() }
+
     var visiveis: [ResumoCorrida] {
-        guard let chave = filtro.chave else { return treinos }
-        return treinos.filter { ($0.tipo ?? "corrida") == chave }
+        treinos.filter { t in
+            if let chave = filtro.chave, (t.tipo ?? "corrida") != chave { return false }
+            if filtro == .corrida, categoria != .todas, t.categoria != categoria { return false }
+            return true
+        }
+    }
+
+    /// quantas corridas há em cada faixa de distância (para mostrar nos botões)
+    func contagem(_ cat: CategoriaCorrida) -> Int {
+        let corridas = treinos.filter { ($0.tipo ?? "corrida") == "corrida" }
+        return cat == .todas ? corridas.count : corridas.filter { $0.categoria == cat }.count
+    }
+
+    var totais: TotaisResultados {
+        var t = TotaisResultados()
+        // distância e pace contam as corridas (com o filtro "Todos") ou o tipo escolhido
+        let tipoDistancia = filtro.chave ?? "corrida"
+        for x in visiveis {
+            t.treinos += 1
+            t.tempoSeg += x.tempoSeg
+            t.caloriasKcal += x.caloriasKcal ?? 0
+            if (x.tipo ?? "corrida") == tipoDistancia, x.distanciaM > 0 {
+                t.distanciaKm += x.distanciaM / 1000
+                t.tempoDistanciaSeg += x.tempoSeg
+                t.subidaM += x.elevacaoM ?? 0
+                t.comDistancia += 1
+            }
+        }
+        return t
     }
 
     /// Treinos agrupados por mês, mais recente primeiro.
@@ -55,7 +161,8 @@ final class ResultadosStore {
         defer { carregando = false }
         if saude.anosDisponiveis.isEmpty { await saude.carregarAnos() }
         do {
-            treinos = try await saude.listarTreinos(ano: ano)
+            let i = intervalo
+            treinos = try await saude.listarTreinos(de: i.de, ate: i.ate)
             erro = nil
         } catch {
             erro = error.localizedDescription
@@ -93,25 +200,9 @@ struct ResultadosView: View {
                 }
                 .padding(.top, 8)
 
-                resumoDoPeriodo
-
-                // filtros por tipo de treino
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(FiltroTreino.allCases) { f in
-                            Button { store.filtro = f } label: {
-                                Text(f.rawValue)
-                                    .font(.subheadline.weight(.medium))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 7)
-                                    .foregroundStyle(store.filtro == f ? Color.white : Tema.texto)
-                                    .background(store.filtro == f ? Tema.texto : Tema.cartao, in: Capsule())
-                                    .overlay(Capsule().stroke(Tema.linha, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
+                seletorDePeriodo
+                totalizadores
+                filtros
 
                 if let erro = store.erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill")
@@ -125,7 +216,7 @@ struct ResultadosView: View {
                 if store.carregando && store.treinos.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(.top, 30) }
 
                 ForEach(store.porMes, id: \.titulo) { grupo in
-                    Text(grupo.titulo).font(.title3.bold()).foregroundStyle(Tema.texto).padding(.top, 8)
+                    if store.periodo == .ano { Text(grupo.titulo).font(.title3.bold()).foregroundStyle(Tema.texto).padding(.top, 8) }
                     ForEach(grupo.itens) { t in
                         NavigationLink(value: t) {
                             LinhaTreino(treino: t, saude: saude, tipoSessao: store.tiposDoSite[t.id.uppercased()])
@@ -135,7 +226,7 @@ struct ResultadosView: View {
                 }
 
                 if store.visiveis.isEmpty && !store.carregando && store.erro == nil {
-                    Text("Nenhum treino de \(String(store.ano)) neste filtro.")
+                    Text("Nenhum treino neste período e filtro.")
                         .font(.footnote).foregroundStyle(Tema.textoSuave)
                 }
             }
@@ -146,27 +237,103 @@ struct ResultadosView: View {
         .refreshable { await store.carregar(saude: saude) }
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0, saude: saude) }
-        .task(id: store.ano) { await store.carregar(saude: saude) }
+        .task(id: store.chave) { await store.carregar(saude: saude) }
     }
 
-    /// Ano, quantos treinos e quanto correu.
-    private var resumoDoPeriodo: some View {
-        let corridas = store.treinos.filter { ($0.tipo ?? "corrida") == "corrida" }
-        let km = corridas.reduce(0) { $0 + $1.distanciaM } / 1000
-        return HStack(spacing: 10) {
-            if saude.anosDisponiveis.count > 1 {
-                Picker("Ano", selection: $store.ano) {
-                    ForEach(saude.anosDisponiveis, id: \.self) { Text(String($0)).tag($0) }
-                }
-                .pickerStyle(.menu)
-                .tint(Tema.texto)
-            } else {
-                Text(String(store.ano)).font(.headline).foregroundStyle(Tema.texto)
+    // MARK: período
+
+    private var seletorDePeriodo: some View {
+        VStack(spacing: 10) {
+            Picker("Período", selection: $store.periodo) {
+                ForEach(PeriodoResultados.allCases) { Text($0.rawValue).tag($0) }
             }
-            Spacer()
-            Text("\(store.treinos.count) treinos · \(corridas.count) corridas · \(String(format: "%.0f", km)) km")
-                .font(.subheadline).foregroundStyle(Tema.textoSuave)
+            .pickerStyle(.segmented)
+
+            HStack {
+                Button { store.mover(-1) } label: {
+                    Image(systemName: "chevron.left").frame(width: 40, height: 36)
+                }
+                .accessibilityLabel("Período anterior")
+                Spacer()
+                if store.periodo == .ano && saude.anosDisponiveis.count > 1 {
+                    Picker("Ano", selection: $store.ano) {
+                        ForEach(saude.anosDisponiveis, id: \.self) { Text(String($0)).tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(Tema.texto)
+                } else {
+                    Text(store.tituloDoPeriodo).font(.headline).foregroundStyle(Tema.texto)
+                }
+                Spacer()
+                Button { store.mover(1) } label: {
+                    Image(systemName: "chevron.right").frame(width: 40, height: 36)
+                }
+                .disabled(!store.podeAvancar)
+                .accessibilityLabel("Próximo período")
+            }
+            .foregroundStyle(Tema.texto)
         }
+    }
+
+    // MARK: totalizadores
+
+    private var totalizadores: some View {
+        let t = store.totais
+        let tipoRotulo = store.filtro == .todos ? "corridas" : store.filtro.rotulo.lowercased()
+        return VStack(alignment: .leading, spacing: 10) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                Metrica(titulo: "Treinos", valor: "\(t.treinos)")
+                Metrica(titulo: "Tempo", valor: formatarDuracaoLonga(t.tempoSeg))
+                if t.comDistancia > 0 {
+                    Metrica(titulo: "Distância (\(tipoRotulo))", valor: String(format: "%.1f km", t.distanciaKm).replacingOccurrences(of: ".", with: ","))
+                    Metrica(titulo: "Pace médio", valor: "\(formatarPace(t.paceSegKm)) /km")
+                    if t.subidaM > 0 { Metrica(titulo: "Subida", valor: "\(Int(t.subidaM.rounded())) m") }
+                    if store.filtro == .todos { Metrica(titulo: "Corridas", valor: "\(t.comDistancia)") }
+                } else if t.caloriasKcal > 0 {
+                    Metrica(titulo: "Calorias ativas", valor: "\(Int(t.caloriasKcal.rounded())) kcal")
+                }
+            }
+        }
+    }
+
+    // MARK: filtros
+
+    private var filtros: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(FiltroTreino.allCases) { f in
+                        ficha(f.rotulo, ativo: store.filtro == f) {
+                            store.filtro = f
+                            if f != .corrida { store.categoria = .todas }
+                        }
+                    }
+                }
+            }
+            // faixas de distância (meia, maratona...) só aparecem quando o filtro é "Corrida"
+            if store.filtro == .corrida {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(CategoriaCorrida.allCases) { c in
+                            ficha("\(c.rawValue) \(store.contagem(c))", ativo: store.categoria == c) { store.categoria = c }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func ficha(_ texto: String, ativo: Bool, acao: @escaping () -> Void) -> some View {
+        Button(action: acao) {
+            Text(texto)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .foregroundStyle(ativo ? Color.white : Tema.texto)
+                .background(ativo ? Tema.texto : Tema.cartao, in: Capsule())
+                .overlay(Capsule().stroke(Tema.linha, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 

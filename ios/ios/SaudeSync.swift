@@ -434,21 +434,14 @@ extension SaudeSync {
         }
     }
 
-    /// Todos os treinos do Saúde (mais recentes primeiro), de um ano ou os últimos `limite`.
-    func listarTreinos(ano: Int?, limite: Int = 600) async throws -> [ResumoCorrida] {
+    /// Todos os treinos do Saúde num intervalo de datas (mais recentes primeiro).
+    func listarTreinos(de: Date, ate: Date, limite: Int = 800) async throws -> [ResumoCorrida] {
         guard HKHealthStore.isHealthDataAvailable() else { return [] }
         try await healthStore.requestAuthorization(toShare: [], read: tiposLeituraResultados)
 
-        var predicados: [NSPredicate] = []
-        if let ano {
-            var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = .current
-            let de = cal.date(from: DateComponents(year: ano, month: 1, day: 1))!
-            let ate = cal.date(from: DateComponents(year: ano + 1, month: 1, day: 1))!
-            predicados.append(HKQuery.predicateForSamples(withStart: de, end: ate))
-        }
+        let predicado = HKQuery.predicateForSamples(withStart: de, end: ate)
         let descritor = HKSampleQueryDescriptor(
-            predicates: [.workout(predicados.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicados))],
+            predicates: [.workout(predicado)],
             sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
             limit: limite
         )
@@ -461,6 +454,8 @@ extension SaudeSync {
             let comDistancia = tipo.chave == "corrida" || tipo.chave == "caminhada"
             let metros = comDistancia ? (w.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter()) ?? 0) : 0
             let fc = w.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?.doubleValue(for: bpm)
+            let subida = (w.metadata?[HKMetadataKeyElevationAscended] as? HKQuantity)?.doubleValue(for: .meter())
+            let kcal = w.statistics(for: HKQuantityType(.activeEnergyBurned))?.sumQuantity()?.doubleValue(for: .kilocalorie())
             return ResumoCorrida(
                 id: w.uuid.uuidString,
                 nome: tipo.nome,
@@ -471,7 +466,9 @@ extension SaudeSync {
                 fcMedia: fc,
                 tipoSessao: nil,
                 tipo: tipo.chave,
-                icone: tipo.icone
+                icone: tipo.icone,
+                elevacaoM: subida,
+                caloriasKcal: kcal
             )
         }
     }
