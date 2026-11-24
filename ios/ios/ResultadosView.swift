@@ -937,9 +937,56 @@ private struct BlocoComparacao: View {
 }
 
 private struct BlocoGraficos: View {
-    let serie: [PontoSerie]
+    private let entrada: [PontoSerie]
     /// km escolhido ao tocar ou arrastar em qualquer um dos gráficos (a linha aparece nos três)
     @State private var kmSel: Double?
+    /// 0 = original, 1 = suave, 2 = muito suave (janela em km, em cima da suavização que já existe)
+    @State private var suavizacao = 1
+    private static let janelas: [Double] = [0, 0.3, 0.8]
+
+    init(serie: [PontoSerie]) { entrada = serie }
+
+    /// Série com o pace suavizado pela distância: média das velocidades na janela, e só depois vira pace.
+    private var serie: [PontoSerie] {
+        let janela = Self.janelas[suavizacao]
+        guard janela > 0, entrada.count > 3 else { return entrada }
+        let n = entrada.count
+        // somas acumuladas da velocidade (pontos sem pace não entram)
+        var soma = [Double](repeating: 0, count: n + 1), cont = [Int](repeating: 0, count: n + 1)
+        for i in 0..<n {
+            let v = entrada[i].pace.map { 1000 / $0 }
+            soma[i + 1] = soma[i] + (v ?? 0)
+            cont[i + 1] = cont[i] + (v == nil ? 0 : 1)
+        }
+        var lo = 0, hi = 0
+        return entrada.enumerated().map { i, p in
+            guard p.pace != nil else { return p }
+            while entrada[lo].km < p.km - janela / 2 { lo += 1 }
+            while hi < n - 1, entrada[hi + 1].km <= p.km + janela / 2 { hi += 1 }
+            let c = cont[hi + 1] - cont[lo]
+            var q = p
+            if c > 0 { q.pace = (1000 / ((soma[hi + 1] - soma[lo]) / Double(c))).rounded() }
+            return q
+        }
+    }
+
+    /// Inclinação (%) em cada ponto: variação de altitude numa janela de ~300 m ao redor.
+    private func inclinacao(_ i: Int, _ pts: [PontoSerie]) -> Double? {
+        guard pts[i].alt != nil else { return nil }
+        var a = i, b = i
+        while a > 0, pts[i].km - pts[a].km < 0.15 { a -= 1 }
+        while b < pts.count - 1, pts[b].km - pts[i].km < 0.15 { b += 1 }
+        guard let altA = pts[a].alt, let altB = pts[b].alt, pts[b].km > pts[a].km else { return nil }
+        return (altB - altA) / ((pts[b].km - pts[a].km) * 1000) * 100
+    }
+
+    private func inclinacaoTexto(_ v: Double) -> String {
+        (v > 0.05 ? "+" : "") + String(format: "%.1f", v).replacingOccurrences(of: ".", with: ",") + "%"
+    }
+
+    private func corInclinacao(_ v: Double) -> Color {
+        v > 6 ? Tema.vermelho : v > 2 ? Tema.laranja : v < -2 ? Tema.azul : Tema.textoSuave
+    }
 
     private var paces: [Double] { serie.compactMap(\.pace) }
     private var fcs: [Double] { serie.compactMap(\.fc) }
@@ -972,6 +1019,21 @@ private struct BlocoGraficos: View {
     private var pontoSel: PontoSerie? {
         guard let k = kmSel else { return nil }
         return serie.min { abs($0.km - k) < abs($1.km - k) }
+    }
+
+    private var inclinacaoSel: Double? {
+        guard let k = kmSel else { return nil }
+        let pts = serie
+        guard let i = pts.indices.min(by: { abs(pts[$0].km - k) < abs(pts[$1].km - k) }) else { return nil }
+        return inclinacao(i, pts)
+    }
+
+    /// Maior subida e descida da corrida (% numa janela de ~300 m).
+    private var extremos: (sobe: Double, desce: Double)? {
+        let pts = serie
+        let v = pts.indices.compactMap { inclinacao($0, pts) }
+        guard let mx = v.max(), let mn = v.min() else { return nil }
+        return (mx, mn)
     }
 
     private func kmTexto(_ km: Double) -> String { String(format: "%.2f km", km).replacingOccurrences(of: ".", with: ",") }
@@ -1010,15 +1072,26 @@ private struct BlocoGraficos: View {
                         if let v = p.pace { Text("\(formatarPace(v)) /km").foregroundStyle(Tema.azul) }
                         if let v = p.fc { Text("\(Int(v)) bpm").foregroundStyle(Tema.vermelho) }
                         if let v = p.alt { Text("\(Int(v.rounded())) m").foregroundStyle(Tema.textoSuave) }
+                        if let g = inclinacaoSel { Text(inclinacaoTexto(g)).foregroundStyle(corInclinacao(g)) }
                     }
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
                 } else {
-                    Text("Toque e arraste nos gráficos para ver o km, o pace, a FC e a altitude de cada ponto.")
+                    Text("Toque e arraste nos gráficos para ver o km, o pace, a FC, a altitude e a inclinação de cada ponto.")
                         .font(.caption).foregroundStyle(Tema.textoSuave)
                 }
             }
             .frame(minHeight: 22, alignment: .leading)
+
+            HStack(spacing: 8) {
+                Text("Suavizar pace").font(.caption).foregroundStyle(Tema.textoSuave)
+                Picker("Suavizar", selection: $suavizacao) {
+                    Text("Original").tag(0)
+                    Text("Suave").tag(1)
+                    Text("Muito suave").tag(2)
+                }
+                .pickerStyle(.segmented)
+            }
 
             if !paces.isEmpty {
                 Text("PACE").font(.caption.weight(.heavy)).foregroundStyle(Tema.azul)
@@ -1084,6 +1157,14 @@ private struct BlocoGraficos: View {
                 .chartYAxis { eixoYAlinhado { String(Int($0.rounded())) } }
                 .chartXAxis { eixoXKm }
                 .frame(height: 110)
+                if let e = extremos, e.sobe > 1 || e.desce < -1 {
+                    HStack(spacing: 14) {
+                        Label("Maior subida \(inclinacaoTexto(e.sobe))", systemImage: "arrow.up.right").foregroundStyle(corInclinacao(e.sobe))
+                        Label("Maior descida \(inclinacaoTexto(e.desce))", systemImage: "arrow.down.right").foregroundStyle(corInclinacao(e.desce))
+                    }
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                }
             }
         }
     }
@@ -1160,6 +1241,7 @@ private enum Granularidade: String, CaseIterable, Identifiable {
 private enum Sobreposicao: String, CaseIterable, Identifiable {
     case nenhuma = "Nenhuma"
     case altitude = "Altitude"
+    case inclinacao = "Inclinação"
     case fc = "Freq. cardíaca"
     case potencia = "Potência"
     case cadencia = "Cadência"
@@ -1171,6 +1253,7 @@ private enum Sobreposicao: String, CaseIterable, Identifiable {
         switch self {
         case .nenhuma: ""
         case .altitude: "m"
+        case .inclinacao: "%"
         case .fc: "bpm"
         case .potencia: "W"
         case .cadencia: "ppm"
@@ -1182,6 +1265,7 @@ private enum Sobreposicao: String, CaseIterable, Identifiable {
     var cor: Color {
         switch self {
         case .altitude: Tema.aqua
+        case .inclinacao: Tema.laranja
         case .fc: Tema.vermelho
         case .potencia: Tema.roxo
         default: Tema.azul
@@ -1197,6 +1281,7 @@ private struct BarraSplit: Identifiable {
     let pace: Double?
     var fc: Double?
     var altDelta: Double?
+    var inclinacao: Double?
     var potencia: Double?
     var cadencia: Double?
     var contato: Double?
@@ -1207,6 +1292,7 @@ private struct BarraSplit: Identifiable {
         switch s {
         case .nenhuma: nil
         case .altitude: altDelta
+        case .inclinacao: inclinacao
         case .fc: fc
         case .potencia: potencia
         case .cadencia: cadencia
@@ -1257,6 +1343,7 @@ private struct BlocoSplits: View {
                 var b = BarraSplit(id: s.km, rotulo: String(s.km), titulo: "Km \(s.km)", pace: s.paceSegKm)
                 b.fc = s.fcMedia
                 b.altDelta = delta(de: ini, ate: acumulado)
+                b.inclinacao = b.altDelta.map { $0 / max(s.distanciaM, 1) * 100 }
                 return b
             }
         }
@@ -1276,6 +1363,7 @@ private struct BlocoSplits: View {
             var b = BarraSplit(id: i + 1, rotulo: curto, titulo: v.rotulo, pace: v.distanciaM >= 150 ? v.tempoSeg / (v.distanciaM / 1000) : nil)
             b.fc = v.fcMedia
             b.altDelta = delta(de: ini, ate: acumulado)
+            b.inclinacao = b.altDelta.map { $0 / max(v.distanciaM, 1) * 100 }
             b.potencia = v.potenciaW
             b.cadencia = v.cadencia
             b.contato = v.contatoMs
@@ -1324,6 +1412,7 @@ private struct BlocoSplits: View {
         case .passada: String(format: "%.2f", v).replacingOccurrences(of: ".", with: ",")
         case .oscilacao: String(format: "%.1f", v).replacingOccurrences(of: ".", with: ",")
         case .altitude: (v > 0 ? "+" : "") + "\(Int(v.rounded()))"
+        case .inclinacao: (v > 0.05 ? "+" : "") + String(format: "%.1f", v).replacingOccurrences(of: ".", with: ",")
         default: "\(Int(v.rounded()))"
         }
     }
