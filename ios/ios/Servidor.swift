@@ -81,7 +81,7 @@ enum Servidor {
 
     // MARK: Apple Saúde
 
-    private static func requisicao(_ caminho: String, metodo: String = "GET") throws -> URLRequest {
+    static func requisicao(_ caminho: String, metodo: String = "GET") throws -> URLRequest {
         guard let token, !token.isEmpty else { throw Erro.semToken }
         guard let url = URL(string: endereco)?.appendingPathComponent(caminho), url.scheme?.hasPrefix("http") == true else {
             throw Erro.urlInvalida
@@ -92,7 +92,7 @@ enum Servidor {
         return req
     }
 
-    private static func executar(_ req: URLRequest) async throws -> Data {
+    static func executar(_ req: URLRequest) async throws -> Data {
         do {
             let (dados, resp) = try await URLSession.shared.data(for: req)
             let codigo = (resp as? HTTPURLResponse)?.statusCode ?? 0
@@ -126,6 +126,24 @@ enum Servidor {
         req.httpBody = try enc.encode(Corpo(treinos: treinos))
         let dados = try await executar(req)
         return try JSONDecoder().decode(RespostaEnvio.self, from: dados)
+    }
+}
+
+extension Servidor {
+    // MARK: Resultados das corridas
+
+    static func listarCorridas(limite: Int = 25) async throws -> [ResumoCorrida] {
+        var req = try requisicao("api/corridas-relogio")
+        req.url = req.url.flatMap { URL(string: $0.absoluteString + "?limite=\(limite)") }
+        let dados = try await executar(req)
+        return try JSONDecoder().decode(ListaCorridas.self, from: dados).corridas
+    }
+
+    static func buscarResultado(id: String) async throws -> ResultadoCorrida {
+        var req = try requisicao("api/corridas-relogio")
+        req.url = req.url.flatMap { URL(string: $0.absoluteString + "?id=\(id)") }
+        let dados = try await executar(req)
+        return try JSONDecoder().decode(ResultadoCorrida.self, from: dados)
     }
 }
 

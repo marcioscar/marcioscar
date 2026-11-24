@@ -21,6 +21,11 @@ struct ContentView: View {
                 SemanaView(store: store, abrir: { detalhe = $0 }, ajustes: { mostrarAjustes = true })
             }
             .tabItem { Label("Semana", systemImage: "calendar") }
+
+            NavigationStack {
+                ResultadosView(ajustes: { mostrarAjustes = true })
+            }
+            .tabItem { Label("Resultados", systemImage: "chart.xyaxis.line") }
         }
         .tint(Tema.texto)
         .preferredColorScheme(.light)
