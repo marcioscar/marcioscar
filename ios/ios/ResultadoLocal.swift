@@ -152,12 +152,35 @@ enum ConstrutorResultado {
         }
     }
 
+    // MARK: etapas válidas
+
+    /// Só entram etapas de um treino estruturado (quando o relógio grava cada passo como atividade). Corridas livres
+    /// vêm do relógio com segmentos automáticos a cada km e a cada milha, que se sobrepõem e não são etapas: somariam mais
+    /// km do que a corrida e teriam distâncias quebradas. Mesma regra que o site aplica.
+    static func etapasValidas(_ voltas: [VoltaPayload], distanciaTotalM: Double) -> [VoltaPayload] {
+        var candidatas: [VoltaPayload]
+        if voltas.count >= 2, voltas.allSatisfy({ $0.tipo == "etapa" }) {
+            candidatas = nomearEtapas(voltas)
+        } else {
+            guard voltas.count >= 3 else { return [] }
+            let ordenadas = voltas.sorted { $0.inicio < $1.inicio }
+            var sobrepostas = 0
+            for i in 1..<ordenadas.count where ordenadas[i].inicio < ordenadas[i - 1].fim.addingTimeInterval(-1) { sobrepostas += 1 }
+            guard sobrepostas < max(2, ordenadas.count / 4) else { return [] }
+            candidatas = ordenadas
+        }
+        // as etapas nunca podem somar bem mais do que a corrida inteira
+        let soma = candidatas.reduce(0) { $0 + $1.distanciaM }
+        if distanciaTotalM > 0, soma > distanciaTotalM * 1.1 { return [] }
+        return candidatas
+    }
+
     // MARK: resultado completo
 
     static func montar(payload p: TreinoSaudePayload, fcMaxima: Double) -> ResultadoCorrida {
         let tempo = p.duracaoSeg
         let distancia = p.distanciaM ?? 0
-        let voltas = nomearEtapas(p.voltas ?? [])
+        let voltas = etapasValidas(p.voltas ?? [], distanciaTotalM: distancia)
 
         return ResultadoCorrida(
             id: p.healthId,

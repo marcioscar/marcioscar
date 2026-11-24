@@ -368,33 +368,74 @@ private struct BlocoComparacao: View {
         }
     }
 
-    private var pontos: [LinhaComparacao] { comparacao.linhas.filter { $0.diffSeg != nil } }
+    /// Etapas com pace executado e faixa planejada: só essas entram no gráfico.
+    private var pontos: [(rotulo: String, linha: LinhaComparacao)] {
+        var esforco = 0
+        return comparacao.linhas.compactMap { l in
+            if l.papel == "trabalho" { esforco += 1 }
+            guard l.execSeg != nil, l.planRapidoSeg != nil, l.planLentoSeg != nil else { return nil }
+            let curto: String
+            switch l.papel {
+            case "aquecimento": curto = "Aquec."
+            case "desaquecimento": curto = "Desaq."
+            case "recuperacao": curto = "Rec."
+            case "km": curto = l.rotulo.replacingOccurrences(of: "Km ", with: "")
+            default: curto = "E\(esforco)"
+            }
+            return (curto, l)
+        }
+    }
+
+    /// Velocidade em km/h: barra mais alta = mais rápido (o contrário do pace, que é menor quando se corre mais rápido).
+    private func velocidade(_ pace: Double) -> Double { 3600 / pace }
+
+    private var textoResumo: String {
+        let r = comparacao.resumo
+        let unidade = comparacao.base == "km" ? "km" : (r.avaliadas == 1 ? "esforço" : "esforços")
+        return "\(planejado.titulo) · \(r.dentro) de \(r.avaliadas) \(unidade) na faixa"
+    }
 
     var body: some View {
         Secao(titulo: "Planejado × executado") {
-            Text("\(planejado.titulo) · \(comparacao.resumo.dentro) de \(comparacao.resumo.avaliadas) \(comparacao.base == "km" ? "km" : "esforços") na faixa")
-                .font(.subheadline).foregroundStyle(Tema.textoSuave)
+            Text(textoResumo).font(.subheadline).foregroundStyle(Tema.textoSuave)
 
             if !pontos.isEmpty {
-                let limite = max(30, min(90, (pontos.map { abs($0.diffSeg ?? 0) }.max() ?? 30) + 10))
-                Chart(pontos) { l in
-                    BarMark(x: .value("Diferença", max(-limite, min(limite, l.diffSeg ?? 0))), y: .value("Etapa", l.rotulo))
-                        .foregroundStyle(cor(l.status))
-                        .cornerRadius(4)
-                }
-                .chartXScale(domain: -limite...limite)
-                .chartXAxis {
-                    AxisMarks { v in
-                        AxisGridLine()
-                        AxisValueLabel { if let d = v.as(Double.self) { Text(d > 0 ? "+\(Int(d))s" : "\(Int(d))s").font(.caption2) } }
+                let maxVel = (pontos.flatMap { [velocidade($0.linha.planRapidoSeg ?? 600), velocidade($0.linha.execSeg ?? 600)] }.max() ?? 12) * 1.18
+                Chart {
+                    ForEach(pontos, id: \.linha.id) { p in
+                        let l = p.linha
+                        // planejado, atrás: coluna cinza até o limite lento e, por cima, a faixa entre o lento e o rápido
+                        BarMark(x: .value("Etapa", p.rotulo), yStart: .value("base", 0), yEnd: .value("lento", velocidade(l.planLentoSeg ?? 600)), width: .ratio(0.78))
+                            .foregroundStyle(Tema.cinzaPausa.opacity(0.28))
+                        BarMark(x: .value("Etapa", p.rotulo), yStart: .value("lento", velocidade(l.planLentoSeg ?? 600)), yEnd: .value("rápido", velocidade(l.planRapidoSeg ?? 600)), width: .ratio(0.78))
+                            .foregroundStyle(Tema.roxo.opacity(0.38))
+                        // executado, na frente e translúcido: passou da faixa ou ficou aquém?
+                        BarMark(x: .value("Etapa", p.rotulo), yStart: .value("base", 0), yEnd: .value("executado", velocidade(l.execSeg ?? 600)), width: .ratio(0.44))
+                            .foregroundStyle(cor(l.status).opacity(0.62))
+                            .annotation(position: .top, spacing: 2) {
+                                Text(formatarPace(l.execSeg)).font(.caption2.weight(.semibold)).foregroundStyle(Tema.texto)
+                            }
                     }
                 }
-                .frame(height: CGFloat(60 + pontos.count * 30))
-                HStack {
-                    Text("← mais rápido").font(.caption2).foregroundStyle(Tema.textoSuave)
-                    Spacer()
-                    Text("mais lento →").font(.caption2).foregroundStyle(Tema.textoSuave)
+                .chartYScale(domain: 0...maxVel)
+                .chartYAxis {
+                    AxisMarks { v in
+                        AxisGridLine()
+                        AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d)) km/h").font(.caption2) } }
+                    }
                 }
+                .frame(height: 230)
+
+                HStack(spacing: 12) {
+                    legenda(Tema.cinzaPausa.opacity(0.4), "plano")
+                    legenda(Tema.roxo.opacity(0.5), "faixa do plano")
+                    legenda(Tema.aqua, "dentro")
+                    legenda(Tema.azul, "mais rápido")
+                    legenda(Tema.laranja, "mais lento")
+                }
+                .font(.caption2).foregroundStyle(Tema.textoSuave)
+                Text("Barra mais alta = mais rápido. A barra colorida é o que você correu; quando passa do topo da faixa roxa, foi mais rápido que o plano.")
+                    .font(.caption).foregroundStyle(Tema.textoSuave)
             }
 
             ForEach(comparacao.linhas) { l in
@@ -412,6 +453,13 @@ private struct BlocoComparacao: View {
             }
         }
     }
+
+    private func legenda(_ cor: Color, _ texto: String) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2).fill(cor).frame(width: 10, height: 10)
+            Text(texto)
+        }
+    }
 }
 
 private struct BlocoGraficos: View {
@@ -426,14 +474,33 @@ private struct BlocoGraficos: View {
         return o[min(o.count - 1, max(0, Int((p * Double(o.count - 1)).rounded())))]
     }
 
+    private struct PontoPace: Identifiable {
+        let km: Double
+        let y: Double
+        let trecho: Int
+        var id: Double { km }
+    }
+
+    /// Pace (negativo, para o eixo invertido) preso ao intervalo do eixo e separado em trechos contínuos.
+    private func segmentos(lo: Double, hi: Double) -> [PontoPace] {
+        var saida: [PontoPace] = []
+        var trecho = 0
+        for p in serie {
+            guard let pace = p.pace else { trecho += 1; continue }
+            saida.append(PontoPace(km: p.km, y: -min(max(pace, lo), hi), trecho: trecho))
+        }
+        return saida
+    }
+
     var body: some View {
         Secao(titulo: "Ritmo, FC e altitude") {
             if !paces.isEmpty {
                 Text("PACE").font(.caption.weight(.heavy)).foregroundStyle(Tema.azul)
                 let lo = (percentil(paces, 0.03) / 10).rounded(.down) * 10 - 10
                 let hi = (percentil(paces, 0.97) / 10).rounded(.up) * 10 + 10
-                Chart(serie.filter { $0.pace != nil }) { p in
-                    LineMark(x: .value("km", p.km), y: .value("pace", -(p.pace ?? 0)))
+                Chart(segmentos(lo: lo, hi: hi)) { p in
+                    // cada trecho contínuo é uma linha; paradas (sem pace) quebram a linha em vez de cruzar o gráfico
+                    LineMark(x: .value("km", p.km), y: .value("pace", p.y), series: .value("trecho", p.trecho))
                         .foregroundStyle(Tema.azul)
                         .interpolationMethod(.monotone)
                 }
