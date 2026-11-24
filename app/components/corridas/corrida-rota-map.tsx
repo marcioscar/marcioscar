@@ -175,7 +175,7 @@ export function CorridaRotaMap({
 			type: "line",
 			source: SOURCE_ID,
 			layout: { "line-cap": "round", "line-join": "round" },
-			paint: { "line-color": "#ffffff", "line-width": 7 },
+			paint: { "line-color": "#ffffff", "line-width": 9 },
 		});
 		map.addLayer({
 			id: "rota-linha",
@@ -184,10 +184,10 @@ export function CorridaRotaMap({
 			layout: { "line-cap": "round", "line-join": "round" },
 			paint: gradiente
 				? {
-						"line-width": 4,
+						"line-width": 5.5,
 						"line-gradient": ["interpolate", ["linear"], ["line-progress"], ...gradiente.stops] as mapboxgl.ExpressionSpecification,
 					}
-				: { "line-color": ["get", "cor"], "line-width": 4 },
+				: { "line-color": ["get", "cor"], "line-width": 5.5 },
 		});
 	}
 
