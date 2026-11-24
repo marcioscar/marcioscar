@@ -6,6 +6,8 @@ import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from "~/mo
 import { compararKmComPlano, compararPlanoExecutado, resumirComparacao, textoPrescrito } from "~/lib/treino-manual";
 import { ComparacaoPace } from "~/components/corridas/comparacao-pace";
 import { GraficosCorrida } from "~/components/corridas/graficos-corrida";
+import { TempoPorZona } from "~/components/corridas/tempo-por-zona";
+import { obterFcMaximaReferencia } from "~/models/corrida-dashboard.server";
 import { Button } from "~/components/ui/button";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
 import { AnaliseIaRelogio } from "~/components/corridas/analise-ia-relogio";
@@ -29,6 +31,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 	const t = await buscarTreinoSaudePorId(params.healthId);
 	if (!t) throw new Response("Corrida não encontrada", { status: 404 });
 
+	const fcMaximaReferencia = Math.max(await obterFcMaximaReferencia(), t.fcMaxima ?? 0);
 	const plano = await planejadoDoDia(t.inicio);
 	const corrida = paraCorridaRelogio(t, plano);
 	// comparação planejado × executado: por etapa (treino estruturado) ou por km (corrida contínua)
@@ -82,6 +85,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 		analise: (t.analise as AnaliseResult | null) ?? null,
 		analisadaEm: t.analisadaEm ? t.analisadaEm.toISOString() : null,
 		healthId: t.healthId,
+		fcMaximaReferencia,
 		detalhe: t.polyline
 			? ({ polyline: t.polyline, ...((t.rota as Record<string, number[]> | null) ?? {}) } as RotaDetalhada)
 			: null,
@@ -91,7 +95,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 }
 
 export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado, detalhe, comparacao } = loaderData;
+	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado, detalhe, comparacao, fcMaximaReferencia } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
 
@@ -147,7 +151,7 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 				/>
 			)}
 
-			<CorridaMetricasRelogio metricas={saude} />
+			<CorridaMetricasRelogio metricas={saude} detalhe={detalhe} distanciaMetros={corrida.distanciaMetros} />
 
 			{corrida.summaryPolyline && (
 				<div className="min-w-0">
@@ -165,6 +169,10 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 						<div className={placeholder}>Carregando mapa...</div>
 					)}
 				</div>
+			)}
+
+			{detalhe && (
+				<TempoPorZona detalhe={detalhe} tempoTotalSeg={corrida.tempoMovimentoSeg} fcMaxima={fcMaximaReferencia} />
 			)}
 
 			{detalhe && <GraficosCorrida detalhe={detalhe} distanciaMetros={corrida.distanciaMetros} />}

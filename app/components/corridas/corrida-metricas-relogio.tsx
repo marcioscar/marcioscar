@@ -1,20 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { formatarPace, formatarTempo } from "~/lib/formatar-corrida";
-
-type SplitRelogio = { km: number; distanciaM: number; tempoSeg: number; fcMedia: number | null };
-type VoltaRelogio = {
-	indice: number;
-	tipo: string;
-	rotulo?: string | null;
-	potenciaW?: number | null;
-	cadencia?: number | null;
-	passadaM?: number | null;
-	oscilacaoCm?: number | null;
-	contatoMs?: number | null;
-	distanciaM: number;
-	tempoSeg: number;
-	fcMedia: number | null;
-};
+import type { RotaDetalhada } from "~/types/rota";
+import { DetalhamentoRelogio, type SplitRelogio, type VoltaRelogio } from "./detalhamento-relogio";
 
 export type MetricasRelogio = {
 	fcMedia: number | null;
@@ -56,79 +42,16 @@ function montarItens(m: MetricasRelogio): Item[] {
 	return itens;
 }
 
-function paceDe(distanciaM: number, tempoSeg: number): string {
-	// descansos (poucos metros em 1:30) dão um pace sem sentido: o Fitness também mostra "—"
-	return distanciaM >= 150 ? formatarPace(tempoSeg / (distanciaM / 1000)) : "—";
-}
-
-function Tabela({
-	titulo,
-	linhas,
-}: {
-	titulo: string;
-	linhas: {
-		chave: string;
-		rotulo: string;
-		distanciaM: number;
-		tempoSeg: number;
-		fcMedia: number | null;
-		potenciaW?: number | null;
-		cadencia?: number | null;
-		oscilacaoCm?: number | null;
-		contatoMs?: number | null;
-	}[];
-}) {
-	const mostra = {
-		pot: linhas.some((l) => l.potenciaW),
-		cad: linhas.some((l) => l.cadencia),
-		osc: linhas.some((l) => l.oscilacaoCm),
-		cont: linhas.some((l) => l.contatoMs),
-	};
-	return (
-		<div className="min-w-0">
-			<h3 className="mb-2 text-sm font-semibold">{titulo}</h3>
-			<div className="overflow-x-auto rounded-xl border">
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="border-b bg-muted/40 text-xs text-muted-foreground">
-							<th className="px-3 py-2 text-left font-medium">#</th>
-							<th className="px-3 py-2 text-right font-medium">Dist.</th>
-							<th className="px-3 py-2 text-right font-medium">Tempo</th>
-							<th className="px-3 py-2 text-right font-medium">Pace</th>
-							<th className="px-3 py-2 text-right font-medium">FC</th>
-							{mostra.pot && <th className="px-3 py-2 text-right font-medium">Pot.</th>}
-							{mostra.cad && <th className="px-3 py-2 text-right font-medium">Cad.</th>}
-							{mostra.cont && <th className="px-3 py-2 text-right font-medium">Contato</th>}
-							{mostra.osc && <th className="px-3 py-2 text-right font-medium">Osc.</th>}
-						</tr>
-					</thead>
-					<tbody className="divide-y">
-						{linhas.map((l) => (
-							<tr key={l.chave}>
-								<td className="px-3 py-1.5 font-medium">{l.rotulo}</td>
-								<td className="px-3 py-1.5 text-right tabular-nums">
-									{l.distanciaM >= 1000
-										? `${(l.distanciaM / 1000).toFixed(2).replace(".", ",")} km`
-										: `${Math.round(l.distanciaM)} m`}
-								</td>
-								<td className="px-3 py-1.5 text-right tabular-nums">{formatarTempo(l.tempoSeg)}</td>
-								<td className="px-3 py-1.5 text-right tabular-nums">{paceDe(l.distanciaM, l.tempoSeg)}</td>
-								<td className="px-3 py-1.5 text-right tabular-nums">{l.fcMedia ? Math.round(l.fcMedia) : "—"}</td>
-								{mostra.pot && <td className="px-3 py-1.5 text-right tabular-nums">{l.potenciaW ? `${Math.round(l.potenciaW)} W` : "—"}</td>}
-								{mostra.cad && <td className="px-3 py-1.5 text-right tabular-nums">{l.cadencia ? Math.round(l.cadencia) : "—"}</td>}
-								{mostra.cont && <td className="px-3 py-1.5 text-right tabular-nums">{l.contatoMs ? `${Math.round(l.contatoMs)} ms` : "—"}</td>}
-								{mostra.osc && <td className="px-3 py-1.5 text-right tabular-nums">{l.oscilacaoCm ? `${l.oscilacaoCm.toFixed(1)} cm` : "—"}</td>}
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-		</div>
-	);
-}
-
 /** Métricas gravadas pelo Apple Watch e lidas do app Saúde (não vêm do Strava). */
-export function CorridaMetricasRelogio({ metricas }: { metricas: MetricasRelogio }) {
+export function CorridaMetricasRelogio({
+	metricas,
+	detalhe,
+	distanciaMetros,
+}: {
+	metricas: MetricasRelogio;
+	detalhe?: RotaDetalhada | null;
+	distanciaMetros?: number;
+}) {
 	const itens = montarItens(metricas);
 	const voltas = metricas.voltas ?? [];
 	const splits = metricas.splits ?? [];
@@ -153,22 +76,7 @@ export function CorridaMetricasRelogio({ metricas }: { metricas: MetricasRelogio
 					))}
 				</dl>
 
-				{(voltas.length > 0 || splits.length > 0) && (
-					<div className="mt-5 grid gap-5 lg:grid-cols-2">
-						{voltas.length > 0 && (
-							<Tabela
-								titulo="Voltas do relógio"
-								linhas={voltas.map((v) => ({ chave: `v${v.indice}`, ...v, rotulo: v.rotulo || String(v.indice) }))}
-							/>
-						)}
-						{splits.length > 0 && (
-							<Tabela
-								titulo="Splits por km do relógio"
-								linhas={splits.map((s) => ({ chave: `s${s.km}`, rotulo: String(s.km), ...s }))}
-							/>
-						)}
-					</div>
-				)}
+				<DetalhamentoRelogio voltas={voltas} splits={splits} detalhe={detalhe} distanciaMetros={distanciaMetros} />
 			</CardContent>
 		</Card>
 	);

@@ -116,3 +116,12 @@ export async function obterCargaTreino(): Promise<CargaTreino> {
 	// sem FC registrada em nenhuma corrida, a referência não importa (usa fração padrão)
 	return calcularCargaTreino(corridas, fcMax._max.frequenciaMaxima ?? 185);
 }
+
+/** FC máxima de referência: o maior pico registrado nos últimos 12 meses (190 se não houver). */
+export async function obterFcMaximaReferencia(): Promise<number> {
+	const r = await db.corrida.aggregate({
+		where: { dataInicio: { gte: new Date(Date.now() - 365 * 24 * 3600 * 1000) } },
+		_max: { frequenciaMaxima: true },
+	});
+	return r._max.frequenciaMaxima ?? 190;
+}

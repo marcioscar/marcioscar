@@ -11,6 +11,8 @@ import { Button } from "~/components/ui/button";
 import { CorridaPaceDesnivelChart } from "~/components/corridas/corrida-pace-desnivel-chart";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
 import { GraficosCorrida } from "~/components/corridas/graficos-corrida";
+import { TempoPorZona } from "~/components/corridas/tempo-por-zona";
+import { obterFcMaximaReferencia } from "~/models/corrida-dashboard.server";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import type {
@@ -68,6 +70,8 @@ export async function loader({ params }: Route.LoaderArgs) {
 		await db.corrida.findUnique({ where: { stravaId }, select: { rotaCompleta: true } })
 	)?.rotaCompleta;
 
+	const fcMaximaReferencia = await obterFcMaximaReferencia();
+
 	const distanciaKm = corrida.distanciaMetros / 1000;
 	const paceMedioSegPorKm =
 		distanciaKm > 0 ? Math.round(corrida.tempoMovimentoSeg / distanciaKm) : null;
@@ -89,6 +93,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 			analisadaEm: corrida.analisadaEm ? corrida.analisadaEm.toISOString() : null,
 		},
 		saude,
+		fcMaximaReferencia,
 		mapboxToken: getMapboxToken(),
 		provaAtivaInfo: provaAtiva
 			? {
@@ -139,7 +144,7 @@ const MAPA_PLACEHOLDER =
 	"flex h-[280px] w-full items-center justify-center rounded-md border text-sm text-muted-foreground sm:h-[360px] lg:h-[420px]";
 
 export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, provaAtivaInfo, mapboxToken, saude } = loaderData;
+	const { corrida, provaAtivaInfo, mapboxToken, saude, fcMaximaReferencia } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
 
@@ -277,7 +282,7 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 			</div>
 
 			{/* APPLE WATCH (app Saúde) */}
-			{saude && <CorridaMetricasRelogio metricas={saude} />}
+			{saude && <CorridaMetricasRelogio metricas={saude} detalhe={rotaDetalhada} distanciaMetros={corrida.distanciaMetros} />}
 
 			{/* MAPA */}
 			{corrida.summaryPolyline && (
@@ -298,7 +303,10 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 				</div>
 			)}
 
-			{/* PACE, FC E ALTITUDE AO LONGO DA CORRIDA (rota de alta resolução) */}
+			{/* TEMPO POR ZONA E GRÁFICOS (rota de alta resolução) */}
+			{rotaDetalhada && (
+				<TempoPorZona detalhe={rotaDetalhada} tempoTotalSeg={corrida.tempoMovimentoSeg} fcMaxima={fcMaximaReferencia} />
+			)}
 			{rotaDetalhada && <GraficosCorrida detalhe={rotaDetalhada} distanciaMetros={corrida.distanciaMetros} />}
 
 			{/* PACE × SUBIDA */}
