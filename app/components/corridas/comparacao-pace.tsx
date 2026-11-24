@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, LabelList, Line, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import {
 	ChartContainer,
@@ -75,6 +75,24 @@ export function ComparacaoPace({ titulo, linhas, resumo, base }: Props) {
 			status: l.status,
 		}));
 
+	// barras de desvio por etapa: só etapas com pace (descansos curtos ficam de fora)
+	const comDesvio = linhas.filter((l) => l.diffSeg !== null && l.execSeg !== null);
+	const maiorDesvio = comDesvio.reduce((m, l) => Math.max(m, Math.abs(l.diffSeg ?? 0)), 0);
+	// um aquecimento caminhado não pode esmagar a escala: limita o eixo e mantém o número real no rótulo
+	const limiteDesvio = Math.min(Math.max(30, Math.ceil((maiorDesvio + 6) / 10) * 10), 90);
+	const dadosDesvio = comDesvio.map((l) => {
+		const real = l.diffSeg ?? 0;
+		return {
+			nome: l.rotulo,
+			valor: Math.max(-limiteDesvio, Math.min(limiteDesvio, real)),
+			status: l.status,
+			planRapido: l.planRapidoSeg,
+			planLento: l.planLentoSeg,
+			exec: l.execSeg,
+			texto: real === 0 ? "na faixa" : `${Math.abs(real)}s ${real < 0 ? "mais rápido" : "mais lento"}`,
+		};
+	});
+
 	const valores = dadosGrafico.flatMap((d) => [d.faixa[0], d.faixa[1], d.exec]);
 	const minimo = valores.length ? Math.floor((Math.min(...valores) - 15) / 5) * 5 : 0;
 	const maximo = valores.length ? Math.ceil((Math.max(...valores) + 15) / 5) * 5 : 600;
@@ -102,88 +120,145 @@ export function ComparacaoPace({ titulo, linhas, resumo, base }: Props) {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="grid gap-5">
-				{dadosGrafico.length > 0 && (
-					<ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
-						<ComposedChart data={dadosGrafico} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-							<CartesianGrid vertical={false} strokeDasharray="3 3" />
-							<XAxis dataKey="nome" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-							<YAxis
-								reversed
-								domain={[minimo, maximo]}
-								width={44}
-								tickLine={false}
-								axisLine={false}
-								tick={{ fontSize: 11 }}
-								tickFormatter={(v: number) => pace(v)}
-							/>
-							<Bar
-								dataKey="faixa"
-								fill="var(--color-faixa)"
-								fillOpacity={0.3}
-								stroke="var(--color-faixa)"
-								strokeOpacity={0.6}
-								radius={4}
-								barSize={28}
-								isAnimationActive={false}
-							/>
-							<Line
-								dataKey="exec"
-								stroke="var(--muted-foreground)"
-								strokeOpacity={0.4}
-								strokeDasharray="4 4"
-								isAnimationActive={false}
-								dot={(props: { cx?: number; cy?: number; index?: number }) => {
-									const { cx, cy, index } = props;
-									if (cx === undefined || cy === undefined || index === undefined) return <g key={index} />;
-									const d = dadosGrafico[index];
-									return (
-										<circle
-											key={index}
-											cx={cx}
-											cy={cy}
-											r={6}
-											fill={COR_STATUS[d.status]}
-											stroke="var(--background)"
-											strokeWidth={2}
-										/>
-									);
-								}}
-								activeDot={false}
-							/>
-							<ChartTooltip
-								cursor={false}
-								content={({ active, payload }) => {
-									const d = payload?.[0]?.payload as (typeof dadosGrafico)[number] | undefined;
-									if (!active || !d) return null;
-									return (
-										<div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
-											<p className="font-medium">{d.rotulo}</p>
-											<p className="tabular-nums text-muted-foreground">
-												Planejado {pace(d.faixa[0])}–{pace(d.faixa[1])} /km
-											</p>
-											<p className="tabular-nums" style={{ color: COR_STATUS[d.status] }}>
-												Executado {pace(d.exec)} /km
-											</p>
-										</div>
-									);
-								}}
-							/>
-						</ComposedChart>
-					</ChartContainer>
+				{base === "etapa" && dadosDesvio.length > 0 && (
+					<div className="grid gap-1.5">
+						<p className="text-xs text-muted-foreground">
+							Diferença para a faixa planejada, em segundos por km. Zero é estar dentro da faixa.
+						</p>
+						<ChartContainer config={chartConfig} className="aspect-auto w-full" style={{ height: 52 + dadosDesvio.length * 38 }}>
+							<BarChart data={dadosDesvio} layout="vertical" margin={{ top: 4, right: 64, bottom: 0, left: 4 }}>
+								<CartesianGrid horizontal={false} strokeDasharray="3 3" />
+								<XAxis
+									type="number"
+									domain={[-limiteDesvio, limiteDesvio]}
+									tickLine={false}
+									axisLine={false}
+									tick={{ fontSize: 11 }}
+									tickFormatter={(v: number) => (v > 0 ? `+${v}s` : `${v}s`)}
+								/>
+								<YAxis
+									type="category"
+									dataKey="nome"
+									width={104}
+									tickLine={false}
+									axisLine={false}
+									tick={{ fontSize: 12 }}
+								/>
+								<ReferenceLine x={0} stroke="var(--foreground)" strokeOpacity={0.5} />
+								<Bar dataKey="valor" barSize={16} radius={4} minPointSize={4} isAnimationActive={false}>
+									{dadosDesvio.map((d) => (
+										<Cell key={d.nome} fill={COR_STATUS[d.status]} />
+									))}
+									<LabelList
+										dataKey="texto"
+										position="right"
+										fontSize={11}
+										fill="var(--muted-foreground)"
+									/>
+								</Bar>
+								<ChartTooltip
+									cursor={false}
+									content={({ active, payload }) => {
+										const d = payload?.[0]?.payload as (typeof dadosDesvio)[number] | undefined;
+										if (!active || !d) return null;
+										return (
+											<div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+												<p className="font-medium">{d.nome}</p>
+												<p className="tabular-nums text-muted-foreground">
+													Planejado {pace(d.planRapido)}–{pace(d.planLento)} /km
+												</p>
+												<p className="tabular-nums" style={{ color: COR_STATUS[d.status] }}>
+													Executado {pace(d.exec)} /km
+												</p>
+											</div>
+										);
+									}}
+								/>
+							</BarChart>
+						</ChartContainer>
+						<div className="flex justify-between px-1 text-[11px] text-muted-foreground">
+							<span>← mais rápido que o plano</span>
+							<span>mais lento que o plano →</span>
+						</div>
+					</div>
+				)}
+
+				{base === "km" && dadosGrafico.length > 1 && (
+					<div className="grid gap-1.5">
+						<ChartContainer config={chartConfig} className="aspect-auto h-60 w-full">
+							<ComposedChart data={dadosGrafico} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+								<CartesianGrid vertical={false} strokeDasharray="3 3" />
+								<XAxis dataKey="nome" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+								<YAxis
+									reversed
+									domain={[minimo, maximo]}
+									width={44}
+									tickLine={false}
+									axisLine={false}
+									tick={{ fontSize: 11 }}
+									tickFormatter={(v: number) => pace(v)}
+								/>
+								<ReferenceArea
+									y1={dadosGrafico[0].faixa[0]}
+									y2={dadosGrafico[0].faixa[1]}
+									fill="var(--paleta-6)"
+									fillOpacity={0.18}
+									stroke="var(--paleta-6)"
+									strokeOpacity={0.4}
+									ifOverflow="extendDomain"
+								/>
+								<Line
+									dataKey="exec"
+									stroke="var(--paleta-4)"
+									strokeWidth={2}
+									isAnimationActive={false}
+									dot={(props: { cx?: number; cy?: number; index?: number }) => {
+										const { cx, cy, index } = props;
+										if (cx === undefined || cy === undefined || index === undefined) return <g key={index} />;
+										return (
+											<circle
+												key={index}
+												cx={cx}
+												cy={cy}
+												r={4.5}
+												fill={COR_STATUS[dadosGrafico[index].status]}
+												stroke="var(--background)"
+												strokeWidth={1.5}
+											/>
+										);
+									}}
+									activeDot={false}
+								/>
+								<ChartTooltip
+									cursor={false}
+									content={({ active, payload }) => {
+										const d = payload?.[0]?.payload as (typeof dadosGrafico)[number] | undefined;
+										if (!active || !d) return null;
+										return (
+											<div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+												<p className="font-medium">{d.rotulo}</p>
+												<p className="tabular-nums" style={{ color: COR_STATUS[d.status] }}>
+													{pace(d.exec)} /km
+												</p>
+											</div>
+										);
+									}}
+								/>
+							</ComposedChart>
+						</ChartContainer>
+						<p className="text-xs text-muted-foreground">
+							A faixa em roxo é o pace planejado; mais para cima é mais rápido.
+						</p>
+					</div>
 				)}
 
 				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-					<span className="flex items-center gap-1.5">
-						<span className="h-3 w-5 rounded-sm" style={{ background: "color-mix(in oklab, var(--paleta-6) 30%, transparent)", border: "1px solid var(--paleta-6)" }} />
-						faixa planejada
-					</span>
 					{(["dentro", "rapido", "lento"] as StatusPace[]).map((s) => (
 						<span key={s} className="flex items-center gap-1.5">
 							<span className="size-2.5 rounded-full" style={{ background: COR_STATUS[s] }} />
 							{TEXTO_STATUS[s].toLowerCase()}
 						</span>
 					))}
-					<span>· eixo invertido: mais para cima é mais rápido</span>
 				</div>
 
 				<div className="overflow-x-auto rounded-xl border">
