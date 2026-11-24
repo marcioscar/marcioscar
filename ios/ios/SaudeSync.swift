@@ -38,9 +38,12 @@ final class SaudeSync {
     private var tarefa: Task<Void, Never>?
 
     private let store = HKHealthStore()
+    var healthStore: HKHealthStore { store }
     private let tamanhoLote = 8
 
     // MARK: tipos lidos
+
+    var tiposLeituraResultados: Set<HKObjectType> { tiposLeitura }
 
     private var tiposLeitura: Set<HKObjectType> {
         var t: Set<HKObjectType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute()]
@@ -165,6 +168,8 @@ final class SaudeSync {
         )
         return try await descritor.result(for: store)
     }
+
+    func montarPublico(_ w: HKWorkout) async -> TreinoSaudePayload { await montar(w) }
 
     private func montar(_ w: HKWorkout) async -> TreinoSaudePayload {
         let (tipo, nomeHK) = classificar(w.workoutActivityType)
@@ -392,5 +397,75 @@ enum Polyline {
 extension Array {
     func chunked(_ n: Int) -> [[Element]] {
         stride(from: 0, to: count, by: n).map { Array(self[$0..<Swift.min($0 + n, count)]) }
+    }
+}
+
+// MARK: - Leitura para a aba Resultados (direto do app Saúde, sem passar pelo site)
+
+extension SaudeSync {
+    private func nomeDaCorrida(_ inicio: Date) -> String {
+        let hora = Calendar.current.component(.hour, from: inicio)
+        return hora < 12 ? "Corrida matinal" : hora < 18 ? "Corrida da tarde" : "Corrida noturna"
+    }
+
+    /// Corridas do Saúde (mais recentes primeiro), de um ano ou das últimas `limite`.
+    func listarCorridas(ano: Int?, limite: Int = 400) async throws -> [ResumoCorrida] {
+        guard HKHealthStore.isHealthDataAvailable() else { return [] }
+        try await healthStore.requestAuthorization(toShare: [], read: tiposLeituraResultados)
+
+        var predicados: [NSPredicate] = [HKQuery.predicateForWorkouts(with: .running)]
+        if let ano {
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = .current
+            let de = cal.date(from: DateComponents(year: ano, month: 1, day: 1))!
+            let ate = cal.date(from: DateComponents(year: ano + 1, month: 1, day: 1))!
+            predicados.append(HKQuery.predicateForSamples(withStart: de, end: ate))
+        }
+        let descritor = HKSampleQueryDescriptor(
+            predicates: [.workout(NSCompoundPredicate(andPredicateWithSubpredicates: predicados))],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: limite
+        )
+        let treinos = try await descritor.result(for: healthStore)
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+
+        return treinos.map { w in
+            let metros = w.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter()) ?? 0
+            let fc = w.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?.doubleValue(for: bpm)
+            return ResumoCorrida(
+                id: w.uuid.uuidString,
+                nome: nomeDaCorrida(w.startDate),
+                dataInicio: ISO8601DateFormatter.comFracao.string(from: w.startDate),
+                distanciaM: metros,
+                tempoSeg: w.duration,
+                paceSegKm: metros >= 150 ? w.duration / (metros / 1000) : nil,
+                fcMedia: fc,
+                tipoSessao: nil
+            )
+        }
+    }
+
+    /// Todos os detalhes de uma corrida (rota, splits, etapas, métricas), os mesmos que vão para o site.
+    func payloadDaCorrida(id: String) async throws -> TreinoSaudePayload? {
+        guard let uuid = UUID(uuidString: id) else { return nil }
+        let descritor = HKSampleQueryDescriptor(
+            predicates: [.workout(HKQuery.predicateForObject(with: uuid))],
+            sortDescriptors: [],
+            limit: 1
+        )
+        guard let w = try await descritor.result(for: healthStore).first else { return nil }
+        return await montarPublico(w)
+    }
+
+    /// Maior FC registrada nos últimos 12 meses (referência para as zonas de FC).
+    func fcMaximaReferencia() async -> Double {
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        let umAno = HKQuery.predicateForSamples(withStart: Date().addingTimeInterval(-365 * 86400), end: nil)
+        let descritor = HKStatisticsQueryDescriptor(
+            predicate: .quantitySample(type: HKQuantityType(.heartRate), predicate: umAno),
+            options: .discreteMax
+        )
+        let max = try? await descritor.result(for: healthStore)?.maximumQuantity()?.doubleValue(for: bpm)
+        return max ?? 190
     }
 }

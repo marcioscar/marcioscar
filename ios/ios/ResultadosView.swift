@@ -10,23 +10,32 @@ private let ptBR = Locale(identifier: "pt_BR")
 @MainActor
 final class ResultadosStore {
     var corridas: [ResumoCorrida] = []
+    var ano = Calendar.current.component(.year, from: Date())
     var carregando = false
     var erro: String?
+    /// tipo de sessão da análise por IA, quando a corrida já está no site
+    var tiposDoSite: [String: String] = [:]
 
-    func carregar() async {
+    func carregar(saude: SaudeSync) async {
         carregando = true
         defer { carregando = false }
+        if saude.anosDisponiveis.isEmpty { await saude.carregarAnos() }
         do {
-            corridas = try await Servidor.listarCorridas()
+            corridas = try await saude.listarCorridas(ano: ano)
             erro = nil
         } catch {
             erro = error.localizedDescription
+        }
+        // opcional: marca as que a IA já analisou (ignora falha de rede)
+        if tiposDoSite.isEmpty, let doSite = try? await Servidor.listarCorridas(limite: 60) {
+            tiposDoSite = Dictionary(uniqueKeysWithValues: doSite.compactMap { c in c.tipoSessao.map { (c.id.uppercased(), $0) } })
         }
     }
 }
 
 struct ResultadosView: View {
     @State private var store = ResultadosStore()
+    var saude: SaudeSync
     var ajustes: () -> Void
 
     var body: some View {
@@ -34,7 +43,7 @@ struct ResultadosView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Corridas do relógio").font(.subheadline).foregroundStyle(Tema.textoSuave)
+                        Text("Direto do app Saúde").font(.subheadline).foregroundStyle(Tema.textoSuave)
                         Text("Resultados").font(.system(size: 40, weight: .heavy)).foregroundStyle(Tema.texto)
                     }
                     Spacer()
@@ -50,6 +59,19 @@ struct ResultadosView: View {
                 }
                 .padding(.top, 8)
 
+                HStack {
+                    if saude.anosDisponiveis.count > 1 {
+                        Picker("Ano", selection: $store.ano) {
+                            ForEach(saude.anosDisponiveis, id: \.self) { Text(String($0)).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Tema.texto)
+                    }
+                    Spacer()
+                    Text("\(store.corridas.count) corridas · \(String(format: "%.0f", store.corridas.reduce(0) { $0 + $1.distanciaM } / 1000)) km")
+                        .font(.subheadline).foregroundStyle(Tema.textoSuave)
+                }
+
                 if let erro = store.erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
@@ -59,15 +81,19 @@ struct ResultadosView: View {
                         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
                 }
 
+                if store.carregando && store.corridas.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(.top, 30) }
+
                 VStack(spacing: 8) {
                     ForEach(store.corridas) { c in
-                        NavigationLink(value: c) { LinhaCorrida(corrida: c) }
-                            .buttonStyle(.plain)
+                        NavigationLink(value: c) {
+                            LinhaCorrida(corrida: c, tipoSessao: store.tiposDoSite[c.id.uppercased()])
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
                 if store.corridas.isEmpty && !store.carregando && store.erro == nil {
-                    Text("Nenhuma corrida do relógio ainda. Sincronize os treinos em Ajustes.")
+                    Text("Nenhuma corrida de \(String(store.ano)) no app Saúde.")
                         .font(.footnote).foregroundStyle(Tema.textoSuave)
                 }
             }
@@ -75,15 +101,16 @@ struct ResultadosView: View {
             .padding(.bottom, 32)
         }
         .background(Tema.fundo)
-        .refreshable { await store.carregar() }
+        .refreshable { await store.carregar(saude: saude) }
         .toolbar(.hidden, for: .navigationBar)
-        .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0) }
-        .task { await store.carregar() }
+        .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0, saude: saude) }
+        .task(id: store.ano) { await store.carregar(saude: saude) }
     }
 }
 
 struct LinhaCorrida: View {
     let corrida: ResumoCorrida
+    var tipoSessao: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -96,7 +123,7 @@ struct LinhaCorrida: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(format: "%.2f km", corrida.distanciaM / 1000).replacingOccurrences(of: ".", with: ","))
                     .font(.body.weight(.semibold)).foregroundStyle(Tema.texto)
-                Text(corrida.tipoSessao ?? corrida.nome)
+                Text(tipoSessao ?? corrida.tipoSessao ?? corrida.nome)
                     .font(.caption).foregroundStyle(Tema.textoSuave).lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -116,14 +143,18 @@ struct LinhaCorrida: View {
 
 struct ResultadoCorridaView: View {
     let resumo: ResumoCorrida
+    var saude: SaudeSync
     @State private var resultado: ResultadoCorrida?
+    @State private var payload: TreinoSaudePayload?
     @State private var erro: String?
+    @State private var analisando = false
+    @State private var avisoIA: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let r = resultado {
-                    ConteudoResultado(r: r)
+                    ConteudoResultado(r: r, aoAnalisar: r.analise == nil && Servidor.configurado ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
                 } else if let erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.orange).font(.footnote)
                 } else {
@@ -136,20 +167,78 @@ struct ResultadoCorridaView: View {
         .background(Tema.fundo)
         .navigationTitle(resumo.data.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(ptBR)).capitalized)
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            do { resultado = try await Servidor.buscarResultado(id: resumo.id) } catch { erro = error.localizedDescription }
+        .task { await carregar() }
+    }
+
+    private func carregar() async {
+        do {
+            guard let p = try await saude.payloadDaCorrida(id: resumo.id) else {
+                erro = "Não encontrei essa corrida no app Saúde."
+                return
+            }
+            payload = p
+            var r = ConstrutorResultado.montar(payload: p, fcMaxima: await saude.fcMaximaReferencia())
+            r.nome = resumo.nome
+            resultado = r
+        } catch {
+            erro = error.localizedDescription
+            return
+        }
+        await mesclarComSite()
+    }
+
+    /// Se a corrida já está no site, traz de lá a análise por IA, o treino planejado e a comparação.
+    private func mesclarComSite() async {
+        guard Servidor.configurado, let local = resultado, let remoto = try? await Servidor.buscarResultado(id: resumo.id) else { return }
+        var r = local
+        r.analise = remoto.analise
+        r.analisadaEm = remoto.analisadaEm
+        r.planejado = remoto.planejado
+        r.comparacao = remoto.comparacao
+        if !remoto.voltas.isEmpty { r.voltas = remoto.voltas } // nomes que levam o plano em conta
+        resultado = r
+    }
+
+    /// Envia só esta corrida ao site, pede a análise e traz o resultado de volta.
+    private func analisar() async {
+        guard let p = payload else { return }
+        analisando = true
+        avisoIA = nil
+        defer { analisando = false }
+        do {
+            _ = try await Servidor.enviarTreinosSaude([p])
+            try await Servidor.analisarCorrida(id: resumo.id)
+            await mesclarComSite()
+        } catch {
+            avisoIA = "Não foi possível analisar: \(error.localizedDescription)"
         }
     }
 }
 
 private struct ConteudoResultado: View {
     let r: ResultadoCorrida
+    var aoAnalisar: (() -> Void)?
+    var analisando = false
+    var avisoIA: String?
 
     var body: some View {
         cabecalho
         if r.polyline != nil { MapaRota(r: r) }
         if let c = r.comparacao, let p = r.planejado { BlocoComparacao(comparacao: c, planejado: p) }
-        if let a = r.analise { BlocoAnalise(analise: a) }
+        if let a = r.analise {
+            BlocoAnalise(analise: a)
+        } else if aoAnalisar != nil || analisando {
+            Secao(titulo: "Treinador IA", cor: Tema.laranja) {
+                Text("Envia esta corrida ao site e pede uma análise com a sua metodologia, usando as etapas, os splits e as métricas do relógio.")
+                    .font(.subheadline).foregroundStyle(Tema.textoSuave)
+                Button { aoAnalisar?() } label: {
+                    HStack { if analisando { ProgressView() }; Text(analisando ? "Analisando…" : "Analisar com IA") }
+                }
+                .buttonStyle(BotaoPrincipal())
+                .disabled(analisando)
+                if let avisoIA { Text(avisoIA).font(.footnote).foregroundStyle(Tema.vermelho) }
+            }
+        }
         if r.serie.count > 10 { BlocoGraficos(serie: r.serie) }
         BlocoZonas(zonas: r.zonas)
         if r.splits.count >= 2 { BlocoSplits(splits: r.splits) }

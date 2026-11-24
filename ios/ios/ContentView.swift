@@ -23,7 +23,7 @@ struct ContentView: View {
             .tabItem { Label("Semana", systemImage: "calendar") }
 
             NavigationStack {
-                ResultadosView(ajustes: { mostrarAjustes = true })
+                ResultadosView(saude: saude, ajustes: { mostrarAjustes = true })
             }
             .tabItem { Label("Resultados", systemImage: "chart.xyaxis.line") }
         }

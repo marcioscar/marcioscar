@@ -139,6 +139,15 @@ extension Servidor {
         return try JSONDecoder().decode(ListaCorridas.self, from: dados).corridas
     }
 
+    /// Pede ao site a análise por IA de uma corrida já enviada (identificada pelo UUID do Saúde).
+    static func analisarCorrida(id: String) async throws {
+        var req = try requisicao("api/analisar-corrida", metodo: "POST")
+        req.timeoutInterval = 180
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["healthId": id])
+        _ = try await executar(req)
+    }
+
     static func buscarResultado(id: String) async throws -> ResultadoCorrida {
         var req = try requisicao("api/corridas-relogio")
         req.url = req.url.flatMap { URL(string: $0.absoluteString + "?id=\(id)") }
