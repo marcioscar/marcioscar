@@ -176,6 +176,7 @@ final class ResultadosStore {
 
 struct ResultadosView: View {
     @State private var store = ResultadosStore()
+    @Environment(\.scenePhase) private var fase
     var saude: SaudeSync
     var ajustes: () -> Void
 
@@ -238,6 +239,10 @@ struct ResultadosView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0, saude: saude) }
         .task(id: store.chave) { await store.carregar(saude: saude) }
+        // ao voltar para o app (ex.: depois de um treino), lê o Saúde de novo
+        .onChange(of: fase) { _, nova in
+            if nova == .active { Task { await store.carregar(saude: saude) } }
+        }
     }
 
     // MARK: período

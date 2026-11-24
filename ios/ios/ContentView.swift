@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var detalhe: Sessao?
     @State private var mostrarAjustes = false
     @State private var aba: Aba = .resultados
+    @Environment(\.scenePhase) private var fase
 
     enum Aba { case resultados, hoje, semana }
 
@@ -44,6 +45,10 @@ struct ContentView: View {
         .task {
             if !Servidor.configurado { mostrarAjustes = true }
             await store.carregar()
+        }
+        // ao voltar para o app, busca de novo o planejado no site (e o que já está no relógio)
+        .onChange(of: fase) { _, nova in
+            if nova == .active, Servidor.configurado { Task { await store.carregar() } }
         }
     }
 }
