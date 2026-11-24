@@ -258,15 +258,15 @@ function CartaoPlanejado({
 	const seg = feita ? feita.tempoSeg : estimarSegundos(t);
 	const pace = feita && feita.km > 0 ? feita.tempoSeg / feita.km : null;
 	const status = feita ? "feito" : passado ? "perdido" : "pendente";
-	return (
-		<div
-			className="grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border px-2 py-1.5 text-xs"
-			style={{
-				borderColor: `color-mix(in oklab, ${COR_TIPO[t.tipo as TipoTreino]} 40%, transparent)`,
-				background: feita
-					? "color-mix(in oklab, var(--paleta-1) 14%, var(--card))"
-					: `color-mix(in oklab, ${COR_TIPO[t.tipo as TipoTreino]} 8%, var(--card))`,
-			}}>
+	const classe = "grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border px-2 py-1.5 text-xs";
+	const estilo = {
+		borderColor: `color-mix(in oklab, ${COR_TIPO[t.tipo as TipoTreino]} 40%, transparent)`,
+		background: feita
+			? "color-mix(in oklab, var(--paleta-1) 14%, var(--card))"
+			: `color-mix(in oklab, ${COR_TIPO[t.tipo as TipoTreino]} 8%, var(--card))`,
+	};
+	const conteudo = (
+		<>
 			<div className="flex items-center gap-1.5">
 				<Footprints size={13} className="shrink-0 text-muted-foreground" />
 				<span className="min-w-0 flex-1 truncate font-semibold">{t.titulo}</span>
@@ -285,6 +285,22 @@ function CartaoPlanejado({
 				{formatarKm(km)} · {formatarDuracao(seg)}
 				{pace ? ` · ${formatarPaceSeg(pace)}` : ""}
 			</p>
+		</>
+	);
+
+	// treino feito: o cartão abre a corrida (detalhes); o resto da célula continua abrindo o editor do plano
+	return feita?.href ? (
+		<Link
+			to={feita.href}
+			onClick={(e) => e.stopPropagation()}
+			className={`${classe} transition-opacity hover:opacity-80`}
+			style={estilo}
+			title="Ver detalhes da corrida">
+			{conteudo}
+		</Link>
+	) : (
+		<div className={classe} style={estilo}>
+			{conteudo}
 		</div>
 	);
 }
