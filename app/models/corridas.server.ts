@@ -7,6 +7,9 @@ import type { SplitMetric } from "~/types/analise";
 
 export type CorridaResumo = {
   stravaId: number;
+  /** só nas corridas lidas do relógio: chave única e página de detalhe */
+  chave?: string;
+  href?: string;
   nome: string;
   distanciaMetros: number;
   elevacaoGanhoMetros: number;

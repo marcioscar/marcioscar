@@ -1,6 +1,9 @@
 import { db } from "../../db.server";
 import { getInicioSemana } from "~/lib/provaUtils";
 import { calcularCargaTreino, DIAS_HISTORICO, type CargaTreino } from "~/lib/carga-treino";
+import { RELOGIO_DESDE_DATA } from "~/lib/fonte-dados";
+import { semDuplicadasDoStrava } from "~/models/corridas-unificadas.server";
+import { listarCorridasRelogio } from "~/models/treino-saude.server";
 
 export type VolumeSemanaItem = {
 	inicioSemana: string;
@@ -24,10 +27,18 @@ export async function obterTendenciaVolumeSemanal(
 	const primeiraSemana = new Date(hojeInicioSemana);
 	primeiraSemana.setUTCDate(primeiraSemana.getUTCDate() - (semanas - 1) * 7);
 
-	const corridas = await db.corrida.findMany({
-		where: { dataInicio: { gte: primeiraSemana } },
-		select: { dataInicio: true, distanciaMetros: true },
-	});
+	const [corridasStrava, corridasRelogio] = await Promise.all([
+		db.corrida.findMany({
+			where: { dataInicio: { gte: primeiraSemana } },
+			select: { dataInicio: true, distanciaMetros: true },
+		}),
+		listarCorridasRelogio(RELOGIO_DESDE_DATA, primeiraSemana),
+	]);
+	// de 23/11 em diante a fonte é o relógio; o Strava só entra se o relógio não tiver a mesma corrida
+	const corridas = [
+		...semDuplicadasDoStrava(corridasStrava, corridasRelogio),
+		...corridasRelogio.map((r) => ({ dataInicio: new Date(r.dataInicio), distanciaMetros: r.distanciaMetros })),
+	];
 
 	const acumuladoPorSemana = new Map<string, number>();
 	for (const corrida of corridas) {
@@ -57,6 +68,9 @@ export async function obterTendenciaVolumeSemanal(
 
 export type CorridaSemanaAtual = {
 	stravaId: number;
+	/** só nas corridas do relógio: chave única e página de detalhe */
+	chave?: string;
+	href?: string;
 	nome: string;
 	dataInicio: Date;
 	distanciaMetros: number;
@@ -72,18 +86,35 @@ export type ResumoSemanaAtual = {
 export async function obterResumoSemanaAtual(): Promise<ResumoSemanaAtual> {
 	const inicioSemana = getInicioSemana();
 
-	const corridas = await db.corrida.findMany({
-		where: { dataInicio: { gte: inicioSemana } },
-		orderBy: { dataInicio: "asc" },
-		select: {
-			stravaId: true,
-			nome: true,
-			dataInicio: true,
-			distanciaMetros: true,
-			tempoMovimentoSeg: true,
-			frequenciaMedia: true,
-		},
-	});
+	const [doStrava, doRelogio] = await Promise.all([
+		db.corrida.findMany({
+			where: { dataInicio: { gte: inicioSemana } },
+			orderBy: { dataInicio: "asc" },
+			select: {
+				stravaId: true,
+				nome: true,
+				dataInicio: true,
+				distanciaMetros: true,
+				tempoMovimentoSeg: true,
+				frequenciaMedia: true,
+			},
+		}),
+		listarCorridasRelogio(RELOGIO_DESDE_DATA, inicioSemana),
+	]);
+
+	const corridas: CorridaSemanaAtual[] = [
+		...semDuplicadasDoStrava(doStrava, doRelogio),
+		...doRelogio.map((r) => ({
+			stravaId: 0,
+			chave: `relogio-${r.healthId}`,
+			href: `/corridas/relogio/${r.healthId}`,
+			nome: r.nome,
+			dataInicio: new Date(r.dataInicio),
+			distanciaMetros: r.distanciaMetros,
+			tempoMovimentoSeg: r.tempoMovimentoSeg,
+			frequenciaMedia: r.fcMedia,
+		})),
+	].sort((a, b) => a.dataInicio.getTime() - b.dataInicio.getTime());
 
 	const kmSemana = corridas.reduce((soma, c) => soma + c.distanciaMetros / 1000, 0);
 
@@ -96,9 +127,10 @@ export async function obterResumoSemanaAtual(): Promise<ResumoSemanaAtual> {
 /** Carga de treino e relação aguda:crônica dos últimos 7 dias (a média exponencial usa ~120 dias de histórico). */
 export async function obterCargaTreino(): Promise<CargaTreino> {
 	const dia = 24 * 3600 * 1000;
-	const [corridas, fcMax] = await Promise.all([
+	const desde = new Date(Date.now() - DIAS_HISTORICO * dia);
+	const [corridasStrava, corridasRelogio, fcMax] = await Promise.all([
 		db.corrida.findMany({
-			where: { dataInicio: { gte: new Date(Date.now() - DIAS_HISTORICO * dia) } },
+			where: { dataInicio: { gte: desde } },
 			select: {
 				dataInicio: true,
 				tempoMovimentoSeg: true,
@@ -107,11 +139,23 @@ export async function obterCargaTreino(): Promise<CargaTreino> {
 				elevacaoGanhoMetros: true,
 			},
 		}),
+		listarCorridasRelogio(RELOGIO_DESDE_DATA, desde),
 		db.corrida.aggregate({
 			where: { dataInicio: { gte: new Date(Date.now() - 365 * dia) } },
 			_max: { frequenciaMaxima: true },
 		}),
 	]);
+
+	const corridas = [
+		...semDuplicadasDoStrava(corridasStrava, corridasRelogio),
+		...corridasRelogio.map((r) => ({
+			dataInicio: new Date(r.dataInicio),
+			tempoMovimentoSeg: r.tempoMovimentoSeg,
+			frequenciaMedia: r.fcMedia,
+			distanciaMetros: r.distanciaMetros,
+			elevacaoGanhoMetros: r.elevacaoGanhoMetros,
+		})),
+	];
 
 	// sem FC registrada em nenhuma corrida, a referência não importa (usa fração padrão)
 	return calcularCargaTreino(corridas, fcMax._max.frequenciaMaxima ?? 185);

@@ -87,8 +87,8 @@ export function CorridaPacesTable({ corridas, paceAlvoSeg, fcMaximaReferencia }:
 
 					return (
 						<Link
-							key={corrida.stravaId}
-							to={`/corridas/${corrida.stravaId}`}
+							key={corrida.chave ?? corrida.stravaId}
+							to={corrida.href ?? `/corridas/${corrida.stravaId}`}
 							className="group flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 transition-colors hover:bg-accent/50">
 							<RotaMini
 								polyline={corrida.summaryPolyline}

@@ -5,7 +5,8 @@ import { Target01Icon } from "@hugeicons/core-free-icons";
 import type { DayOfWeek } from "~/lib/canovaPlanner";
 import { montarPlanoSemanaAtual, type PlanoSemanaAtual } from "~/models/plano-semana.server";
 import { listarProvas } from "~/models/provas.server";
-import { listarUltimasCorridas, type CorridaResumo } from "~/models/corridas.server";
+import type { CorridaResumo } from "~/models/corridas.server";
+import { listarUltimasCorridasUnificadas } from "~/models/corridas-unificadas.server";
 import {
 	obterTendenciaVolumeSemanal,
 	obterResumoSemanaAtual,
@@ -75,7 +76,7 @@ export async function loader(): Promise<LoaderData> {
 	const [tendenciaVolume, resumoSemanaAtual, ultimasCorridas, cargaTreino] = await Promise.all([
 		obterTendenciaVolumeSemanal(8),
 		obterResumoSemanaAtual(),
-		listarUltimasCorridas(8),
+		listarUltimasCorridasUnificadas(8),
 		obterCargaTreino(),
 	]);
 
