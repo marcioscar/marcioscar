@@ -3,7 +3,8 @@ import * as React from "react";
 import { Link } from "react-router";
 import { getMapboxToken } from "~/lib/mapbox.server";
 import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from "~/models/treino-saude.server";
-import { textoPrescrito } from "~/lib/treino-manual";
+import { compararKmComPlano, compararPlanoExecutado, resumirComparacao, textoPrescrito } from "~/lib/treino-manual";
+import { ComparacaoPace } from "~/components/corridas/comparacao-pace";
 import { Button } from "~/components/ui/button";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
 import { AnaliseIaRelogio } from "~/components/corridas/analise-ia-relogio";
@@ -29,8 +30,23 @@ export async function loader({ params }: Route.LoaderArgs) {
 
 	const plano = await planejadoDoDia(t.inicio);
 	const corrida = paraCorridaRelogio(t, plano);
+	// comparação planejado × executado: por etapa (treino estruturado) ou por km (corrida contínua)
+	const voltasDoRelogio = corrida.laps.map((l) => ({ distanciaM: l.distance, tempoSeg: l.moving_time }));
+	const splitsDoRelogio = corrida.splits.map((s) => ({ km: s.split, distanciaM: s.distance, tempoSeg: s.moving_time }));
+	let comparacao: {
+		base: "etapa" | "km";
+		linhas: NonNullable<ReturnType<typeof compararPlanoExecutado>>;
+		resumo: ReturnType<typeof resumirComparacao>;
+	} | null = null;
+	if (plano) {
+		const porEtapa = voltasDoRelogio.length > 1 ? compararPlanoExecutado(plano, voltasDoRelogio) : null;
+		const linhas = porEtapa ?? compararKmComPlano(plano, splitsDoRelogio);
+		if (linhas) comparacao = { base: porEtapa ? "etapa" : "km", linhas, resumo: resumirComparacao(linhas) };
+	}
+
 	return {
 		corrida,
+		comparacao,
 		saude: {
 			fcMedia: t.fcMedia,
 			fcMaxima: t.fcMaxima,
@@ -74,7 +90,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 }
 
 export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado, detalhe } = loaderData;
+	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado, detalhe, comparacao } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
 
@@ -119,6 +135,15 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 					<p className="mb-1 text-xs font-medium tracking-wide text-paleta-6 uppercase">Treino planejado · {planejado.titulo}</p>
 					<pre className="font-sans text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{planejado.texto}</pre>
 				</div>
+			)}
+
+			{comparacao && planejado && (
+				<ComparacaoPace
+					titulo={planejado.titulo}
+					linhas={comparacao.linhas}
+					resumo={comparacao.resumo}
+					base={comparacao.base}
+				/>
 			)}
 
 			<CorridaMetricasRelogio metricas={saude} />

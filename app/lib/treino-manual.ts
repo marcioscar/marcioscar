@@ -523,6 +523,140 @@ export function aplicarPlanoNasVoltas<T extends { rotulo?: string | null; distan
 	})
 }
 
+// ── Comparação planejado × executado ─────────────────────────────────────
+
+export type StatusPace = 'dentro' | 'rapido' | 'lento' | 'sem'
+
+export type LinhaComparacao = {
+	chave: string
+	rotulo: string
+	papel: EtapaRelogio['papel'] | 'km'
+	/** meta planejada, em texto (ex.: "400 m", "15 min") */
+	meta: string
+	distanciaM: number
+	tempoSeg: number
+	planRapidoSeg: number | null
+	planLentoSeg: number | null
+	zona: number | null
+	/** pace executado em seg/km; null em trechos curtos/parados (descansos) */
+	execSeg: number | null
+	status: StatusPace
+	/** diferença para a borda mais próxima da faixa (seg/km): 0 dentro; negativo = mais rápido que o plano */
+	diffSeg: number | null
+}
+
+export type ResumoComparacao = {
+	avaliadas: number
+	dentro: number
+	rapidas: number
+	lentas: number
+	/** pace médio do que foi avaliado menos o centro da faixa planejada (seg/km; negativo = mais rápido) */
+	desvioMedioSeg: number | null
+}
+
+const DISTANCIA_MINIMA_PACE_M = 150
+
+function classificar(exec: number | null, rapido: number | null, lento: number | null): { status: StatusPace; diff: number | null } {
+	if (exec === null || rapido === null || lento === null) return { status: 'sem', diff: null }
+	if (exec < rapido) return { status: 'rapido', diff: Math.round(exec - rapido) }
+	if (exec > lento) return { status: 'lento', diff: Math.round(exec - lento) }
+	return { status: 'dentro', diff: 0 }
+}
+
+function paceDe(distanciaM: number, tempoSeg: number): number | null {
+	return distanciaM >= DISTANCIA_MINIMA_PACE_M && tempoSeg > 0 ? tempoSeg / (distanciaM / 1000) : null
+}
+
+const ROTULO_PAPEL: Record<EtapaRelogio['papel'], string> = {
+	aquecimento: 'Aquecimento',
+	trabalho: 'Esforço',
+	recuperacao: 'Recuperação',
+	desaquecimento: 'Desaquecimento',
+}
+
+/** Compara etapa a etapa; só quando o relógio gravou o mesmo número de etapas do plano. */
+export function compararPlanoExecutado(
+	plano: DadosEstrutura,
+	voltas: { distanciaM: number; tempoSeg: number }[],
+): LinhaComparacao[] | null {
+	const planejadas = expandirEtapas(plano)
+	if (planejadas.length === 0 || planejadas.length !== voltas.length) return null
+
+	let contaEsforco = 0
+	return planejadas.map((e, i) => {
+		const v = voltas[i]
+		// descansos e trechos curtos não têm pace com sentido
+		const exec = e.papel === 'recuperacao' && v.distanciaM < DISTANCIA_MINIMA_PACE_M ? null : paceDe(v.distanciaM, v.tempoSeg)
+		const { status, diff } = classificar(exec, e.paceRapidoSeg, e.paceLentoSeg)
+		if (e.papel === 'trabalho') contaEsforco++
+		return {
+			chave: `etapa-${i}`,
+			rotulo: e.papel === 'trabalho' ? `Esforço ${contaEsforco}` : ROTULO_PAPEL[e.papel],
+			papel: e.papel,
+			meta: descreverMeta(e),
+			distanciaM: v.distanciaM,
+			tempoSeg: v.tempoSeg,
+			planRapidoSeg: e.paceRapidoSeg,
+			planLentoSeg: e.paceLentoSeg,
+			zona: e.zona,
+			execSeg: exec,
+			status,
+			diffSeg: diff,
+		}
+	})
+}
+
+/**
+ * Sem etapas gravadas (corrida contínua), compara cada km com a faixa do esforço planejado,
+ * desde que o plano tenha uma só faixa de esforço.
+ */
+export function compararKmComPlano(
+	plano: DadosEstrutura,
+	splits: { km: number; distanciaM: number; tempoSeg: number }[],
+): LinhaComparacao[] | null {
+	const esforcos = plano.blocos.flatMap(b => b.etapas).filter(e => e.papel === 'trabalho' && e.paceRapidoSeg && e.paceLentoSeg)
+	if (esforcos.length === 0 || splits.length === 0) return null
+	const rapido = Math.min(...esforcos.map(e => e.paceRapidoSeg!))
+	const lento = Math.max(...esforcos.map(e => e.paceLentoSeg!))
+	// faixas muito diferentes entre si (ex.: tiros e trote) não servem de referência única
+	if (lento - rapido > 90) return null
+	const zona = esforcos[0].zona
+
+	return splits.map((s, i) => {
+		const exec = paceDe(s.distanciaM, s.tempoSeg)
+		const { status, diff } = classificar(exec, rapido, lento)
+		return {
+			chave: `km-${s.km}`,
+			rotulo: `Km ${s.km}`,
+			papel: 'km' as const,
+			meta: s.distanciaM >= 950 ? '1 km' : `${Math.round(s.distanciaM)} m`,
+			distanciaM: s.distanciaM,
+			tempoSeg: s.tempoSeg,
+			planRapidoSeg: rapido,
+			planLentoSeg: lento,
+			zona,
+			execSeg: exec,
+			status: i === splits.length - 1 && s.distanciaM < 950 ? 'sem' : status,
+			diffSeg: i === splits.length - 1 && s.distanciaM < 950 ? null : diff,
+		}
+	})
+}
+
+export function resumirComparacao(linhas: LinhaComparacao[]): ResumoComparacao {
+	const avaliadas = linhas.filter(l => l.status !== 'sem' && (l.papel === 'trabalho' || l.papel === 'km'))
+	const dentro = avaliadas.filter(l => l.status === 'dentro').length
+	const desvios = avaliadas
+		.filter(l => l.execSeg !== null && l.planRapidoSeg !== null && l.planLentoSeg !== null)
+		.map(l => l.execSeg! - (l.planRapidoSeg! + l.planLentoSeg!) / 2)
+	return {
+		avaliadas: avaliadas.length,
+		dentro,
+		rapidas: avaliadas.filter(l => l.status === 'rapido').length,
+		lentas: avaliadas.filter(l => l.status === 'lento').length,
+		desvioMedioSeg: desvios.length ? desvios.reduce((a, b) => a + b, 0) / desvios.length : null,
+	}
+}
+
 const TIPOS_VALIDOS = new Set(Object.keys(ROTULO_TIPO))
 
 function numeroOuNull(v: unknown): number | null {
