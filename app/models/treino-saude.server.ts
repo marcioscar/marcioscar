@@ -1,4 +1,7 @@
 import { db } from '../../db.server'
+import { chaveDia } from '~/lib/carga-treino'
+import { aplicarPlanoNasVoltas, type DadosEstrutura } from '~/lib/treino-manual'
+import { listarTreinosManuais } from '~/models/treino-manual.server'
 
 export type TipoSaude = 'corrida' | 'caminhada' | 'musculacao' | 'outro'
 
@@ -13,6 +16,11 @@ export type VoltaSaude = {
 	distanciaM: number
 	tempoSeg: number
 	fcMedia: number | null
+	potenciaW?: number | null
+	cadencia?: number | null
+	passadaM?: number | null
+	oscilacaoCm?: number | null
+	contatoMs?: number | null
 }
 export type EventoSaude = { tipo: string; inicio: string; fim: string }
 
@@ -182,6 +190,11 @@ export function sanearTreinoSaude(bruto: unknown): TreinoSaudeEntrada | null {
 						distanciaM,
 						tempoSeg,
 						fcMedia: num(i.fcMedia, 260),
+						potenciaW: num(i.potenciaW, 2000),
+						cadencia: num(i.cadencia, 400),
+						passadaM: num(i.passadaM, 5),
+						oscilacaoCm: num(i.oscilacaoCm, 50),
+						contatoMs: num(i.contatoMs, 1000),
 					}
 				: null
 		})),
@@ -258,6 +271,8 @@ export type CorridaRelogio = {
 	elevacaoGanhoMetros: number
 	summaryPolyline: string | null
 	fcMedia: number | null
+	analise: unknown
+	analisadaEm: string | null
 	splits: {
 		split: number
 		distance: number
@@ -275,6 +290,12 @@ export type CorridaRelogio = {
 		moving_time: number
 		average_speed: number
 		average_heartrate?: number
+		total_elevation_gain?: number
+		potenciaW?: number
+		cadencia?: number
+		passadaM?: number
+		oscilacaoCm?: number
+		contatoMs?: number
 	}[]
 }
 
@@ -285,7 +306,16 @@ function nomeDaCorrida(inicio: Date): string {
 
 type LinhaSaude = Awaited<ReturnType<typeof listarTreinosSaude>>[number]
 
-export function paraCorridaRelogio(t: LinhaSaude): CorridaRelogio {
+/** Ganho de elevação da etapa (metros), lido do metadado HKElevationAscended ("1158 cm"). */
+function ganhoDaEtapa(v: VoltaSaude): number | null {
+	const bruto = v.metadados?.HKElevationAscended
+	const m = bruto?.match(/^([\d.,]+)\s*(cm|m)$/i)
+	if (!m) return null
+	const n = Number(m[1].replace(',', '.'))
+	return Number.isFinite(n) ? (m[2].toLowerCase() === 'cm' ? n / 100 : n) : null
+}
+
+export function paraCorridaRelogio(t: LinhaSaude, plano: DadosEstrutura | null = null): CorridaRelogio {
 	const splits = ((t.splits as SplitSaude[] | null) ?? []).map(s => ({
 		split: s.km,
 		distance: s.distanciaM,
@@ -295,7 +325,7 @@ export function paraCorridaRelogio(t: LinhaSaude): CorridaRelogio {
 		average_speed: s.tempoSeg > 0 ? s.distanciaM / s.tempoSeg : 0,
 		...(s.fcMedia ? { average_heartrate: s.fcMedia } : {}),
 	}))
-	const laps = ((t.voltas as VoltaSaude[] | null) ?? []).map((v, i) => ({
+	const laps = aplicarPlanoNasVoltas((t.voltas as VoltaSaude[] | null) ?? [], plano).map((v, i) => ({
 		lap_index: i,
 		name: v.rotulo ?? `Volta ${v.indice}`,
 		distance: v.distanciaM,
@@ -303,6 +333,12 @@ export function paraCorridaRelogio(t: LinhaSaude): CorridaRelogio {
 		moving_time: v.tempoSeg,
 		average_speed: v.tempoSeg > 0 ? v.distanciaM / v.tempoSeg : 0,
 		...(v.fcMedia ? { average_heartrate: v.fcMedia } : {}),
+		...(v.potenciaW ? { potenciaW: v.potenciaW } : {}),
+		...(v.cadencia ? { cadencia: v.cadencia } : {}),
+		...(v.passadaM ? { passadaM: v.passadaM } : {}),
+		...(v.oscilacaoCm ? { oscilacaoCm: v.oscilacaoCm } : {}),
+		...(v.contatoMs ? { contatoMs: v.contatoMs } : {}),
+		...(ganhoDaEtapa(v) !== null ? { total_elevation_gain: ganhoDaEtapa(v)! } : {}),
 	}))
 	return {
 		healthId: t.healthId,
@@ -313,6 +349,8 @@ export function paraCorridaRelogio(t: LinhaSaude): CorridaRelogio {
 		elevacaoGanhoMetros: t.elevacaoGanhoM ?? 0,
 		summaryPolyline: t.polyline,
 		fcMedia: t.fcMedia,
+		analise: t.analise ?? null,
+		analisadaEm: t.analisadaEm ? t.analisadaEm.toISOString() : null,
 		splits,
 		laps,
 	}
@@ -323,10 +361,23 @@ export async function listarCorridasRelogio(de: Date, inicio?: Date, fim?: Date)
 	const piso = inicio && inicio > de ? inicio : de
 	const teto = fim ?? new Date('2100-01-01')
 	const linhas = await listarTreinosSaude(piso, teto)
+	// treinos planejados no site, por dia: nomeiam as etapas gravadas pelo relógio
+	const planos = new Map<string, DadosEstrutura>()
+	if (linhas.length > 0) {
+		const dias = linhas.map(t => chaveDia(t.inicio)).sort()
+		for (const p of await listarTreinosManuais(dias[0], dias[dias.length - 1])) planos.set(p.data, p)
+	}
 	return linhas
 		.filter(t => t.tipo === 'corrida')
 		.filter(t => (t.distanciaM ?? 0) / 1000 === 0 || t.duracaoSeg / ((t.distanciaM ?? 0) / 1000) <= 570)
-		.map(paraCorridaRelogio)
+		.map(t => paraCorridaRelogio(t, planos.get(chaveDia(t.inicio)) ?? null))
+}
+
+/** Treino planejado no site para o dia da corrida (null se não houver ou se for descanso). */
+export async function planejadoDoDia(inicio: Date) {
+	const dia = chaveDia(inicio)
+	const [plano] = await listarTreinosManuais(dia, dia)
+	return plano && plano.tipo !== 'descanso' && plano.blocos.length > 0 ? plano : null
 }
 
 export async function buscarTreinoSaudePorId(healthId: string) {

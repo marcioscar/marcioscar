@@ -24,6 +24,12 @@ struct VoltaPayload: Codable {
     var distanciaM: Double
     var tempoSeg: Double
     var fcMedia: Double?
+    /// Métricas de corrida medidas pelo relógio só nesta etapa
+    var potenciaW: Double?
+    var cadencia: Double?
+    var passadaM: Double?
+    var oscilacaoCm: Double?
+    var contatoMs: Double?
 }
 
 struct EventoPayload: Codable {
@@ -157,6 +163,10 @@ enum DetalhesTreino {
                 let valor = (kv.value as? HKQuantity)?.description ?? "\(kv.value)"
                 r[String(kv.key.prefix(60))] = String(valor.prefix(80))
             }
+            func media(_ id: HKQuantityTypeIdentifier, _ u: HKUnit) -> Double? {
+                a.statistics(for: HKQuantityType(id))?.averageQuantity()?.doubleValue(for: u)
+            }
+            let passos = a.statistics(for: HKQuantityType(.stepCount))?.sumQuantity()?.doubleValue(for: .count())
             return VoltaPayload(
                 indice: i + 1,
                 tipo: "etapa",
@@ -166,7 +176,12 @@ enum DetalhesTreino {
                 fim: fim,
                 distanciaM: metros(entre: a.startDate, e: fim, amostras: amostras),
                 tempoSeg: a.duration,
-                fcMedia: fcMedia(entre: a.startDate, e: fim, fc: fc)
+                fcMedia: fcMedia(entre: a.startDate, e: fim, fc: fc),
+                potenciaW: media(.runningPower, .watt()),
+                cadencia: passos.flatMap { a.duration > 0 ? $0 / (a.duration / 60) : nil },
+                passadaM: media(.runningStrideLength, .meter()),
+                oscilacaoCm: media(.runningVerticalOscillation, .meterUnit(with: .centi)),
+                contatoMs: media(.runningGroundContactTime, .secondUnit(with: .milli))
             )
         }
     }
@@ -209,7 +224,8 @@ enum DetalhesTreino {
                 fim: t.2,
                 distanciaM: metros(entre: t.1, e: t.2, amostras: amostras),
                 tempoSeg: segundosEmMovimento(de: t.1, ate: t.2, pausas: pausas),
-                fcMedia: fcMedia(entre: t.1, e: t.2, fc: fc)
+                fcMedia: fcMedia(entre: t.1, e: t.2, fc: fc),
+                potenciaW: nil, cadencia: nil, passadaM: nil, oscilacaoCm: nil, contatoMs: nil
             )
         }
     }

@@ -167,6 +167,9 @@ model TreinoSaude {
     voltas           Json?
     /// Eventos crus do HKWorkout (lap, segment, marker, pause...), guardados para conferência
     eventos          Json?
+    /// Análise por IA (mesmo formato de Corrida.analise)
+    analise          Json?
+    analisadaEm      DateTime?
     createdAt        DateTime @default(now())
     updatedAt        DateTime @updatedAt
 

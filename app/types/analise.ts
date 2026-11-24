@@ -23,6 +23,12 @@ export type LapData = {
 	max_heartrate?: number
 	total_elevation_gain?: number
 	pace_zone?: number
+	/** Métricas por etapa medidas pelo Apple Watch (corridas do relógio) */
+	potenciaW?: number
+	cadencia?: number
+	passadaM?: number
+	oscilacaoCm?: number
+	contatoMs?: number
 }
 
 export type AnalyzeApiResponse = {
@@ -54,6 +60,8 @@ export type AnaliseResult = {
 	alinhamentoCanova: string
 	recomendacao: string
 	comparacaoTreinus?: string
+	/** Só em corridas do Apple Watch: leitura das métricas que o Strava não tem */
+	metricasRelogio?: string
 	lapsAnotados?: LapAnotado[]
 }
 

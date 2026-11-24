@@ -495,6 +495,34 @@ export function textoPrescrito(t: DadosEstrutura): string {
 	return linhas.join('\n')
 }
 
+/**
+ * Quando o treino foi planejado no site e enviado ao relógio, as etapas gravadas seguem a mesma
+ * ordem do plano. Se a quantidade bate, nomeia cada etapa pelo papel planejado (aquecimento,
+ * esforço, recuperação, desaquecimento); senão devolve como está.
+ */
+export function aplicarPlanoNasVoltas<T extends { rotulo?: string | null; distanciaM: number }>(
+	voltas: T[],
+	plano: DadosEstrutura | null,
+): T[] {
+	if (!plano) return voltas
+	const esperadas = expandirEtapas(plano)
+	if (esperadas.length === 0 || esperadas.length !== voltas.length) return voltas
+	return voltas.map((v, i) => {
+		const papel = esperadas[i].papel
+		const rotulo =
+			papel === 'aquecimento'
+				? 'Aquecimento'
+				: papel === 'desaquecimento'
+					? 'Desaquecimento'
+					: papel === 'trabalho'
+						? 'Esforço'
+						: v.distanciaM < 150
+							? 'Descanso'
+							: 'Recuperação'
+		return { ...v, rotulo }
+	})
+}
+
 const TIPOS_VALIDOS = new Set(Object.keys(ROTULO_TIPO))
 
 function numeroOuNull(v: unknown): number | null {

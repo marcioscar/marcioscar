@@ -6,6 +6,11 @@ type VoltaRelogio = {
 	indice: number;
 	tipo: string;
 	rotulo?: string | null;
+	potenciaW?: number | null;
+	cadencia?: number | null;
+	passadaM?: number | null;
+	oscilacaoCm?: number | null;
+	contatoMs?: number | null;
 	distanciaM: number;
 	tempoSeg: number;
 	fcMedia: number | null;
@@ -61,8 +66,24 @@ function Tabela({
 	linhas,
 }: {
 	titulo: string;
-	linhas: { chave: string; rotulo: string; distanciaM: number; tempoSeg: number; fcMedia: number | null }[];
+	linhas: {
+		chave: string;
+		rotulo: string;
+		distanciaM: number;
+		tempoSeg: number;
+		fcMedia: number | null;
+		potenciaW?: number | null;
+		cadencia?: number | null;
+		oscilacaoCm?: number | null;
+		contatoMs?: number | null;
+	}[];
 }) {
+	const mostra = {
+		pot: linhas.some((l) => l.potenciaW),
+		cad: linhas.some((l) => l.cadencia),
+		osc: linhas.some((l) => l.oscilacaoCm),
+		cont: linhas.some((l) => l.contatoMs),
+	};
 	return (
 		<div className="min-w-0">
 			<h3 className="mb-2 text-sm font-semibold">{titulo}</h3>
@@ -75,6 +96,10 @@ function Tabela({
 							<th className="px-3 py-2 text-right font-medium">Tempo</th>
 							<th className="px-3 py-2 text-right font-medium">Pace</th>
 							<th className="px-3 py-2 text-right font-medium">FC</th>
+							{mostra.pot && <th className="px-3 py-2 text-right font-medium">Pot.</th>}
+							{mostra.cad && <th className="px-3 py-2 text-right font-medium">Cad.</th>}
+							{mostra.cont && <th className="px-3 py-2 text-right font-medium">Contato</th>}
+							{mostra.osc && <th className="px-3 py-2 text-right font-medium">Osc.</th>}
 						</tr>
 					</thead>
 					<tbody className="divide-y">
@@ -89,6 +114,10 @@ function Tabela({
 								<td className="px-3 py-1.5 text-right tabular-nums">{formatarTempo(l.tempoSeg)}</td>
 								<td className="px-3 py-1.5 text-right tabular-nums">{paceDe(l.distanciaM, l.tempoSeg)}</td>
 								<td className="px-3 py-1.5 text-right tabular-nums">{l.fcMedia ? Math.round(l.fcMedia) : "—"}</td>
+								{mostra.pot && <td className="px-3 py-1.5 text-right tabular-nums">{l.potenciaW ? `${Math.round(l.potenciaW)} W` : "—"}</td>}
+								{mostra.cad && <td className="px-3 py-1.5 text-right tabular-nums">{l.cadencia ? Math.round(l.cadencia) : "—"}</td>}
+								{mostra.cont && <td className="px-3 py-1.5 text-right tabular-nums">{l.contatoMs ? `${Math.round(l.contatoMs)} ms` : "—"}</td>}
+								{mostra.osc && <td className="px-3 py-1.5 text-right tabular-nums">{l.oscilacaoCm ? `${l.oscilacaoCm.toFixed(1)} cm` : "—"}</td>}
 							</tr>
 						))}
 					</tbody>

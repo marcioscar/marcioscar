@@ -186,8 +186,8 @@ function mapCorridaRelogioParaDataTableRow(c: CorridaRelogio): CorridaDataTableR
 		dataInicio: c.dataInicio,
 		splits: c.splits.length > 0 ? c.splits : null,
 		laps: c.laps.length > 1 ? c.laps : null,
-		analise: null,
-		analisadaEm: null,
+		analise: (c.analise as import('~/types/analise').AnaliseResult | null) ?? null,
+		analisadaEm: c.analisadaEm,
 	};
 }
 

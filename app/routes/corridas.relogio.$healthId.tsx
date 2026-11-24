@@ -2,9 +2,12 @@ import type { Route } from "./+types/corridas.relogio.$healthId";
 import * as React from "react";
 import { Link } from "react-router";
 import { getMapboxToken } from "~/lib/mapbox.server";
-import { buscarTreinoSaudePorId, paraCorridaRelogio } from "~/models/treino-saude.server";
+import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from "~/models/treino-saude.server";
+import { textoPrescrito } from "~/lib/treino-manual";
 import { Button } from "~/components/ui/button";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
+import { AnaliseIaRelogio } from "~/components/corridas/analise-ia-relogio";
+import type { AnaliseResult } from "~/types/analise";
 import { formatarPace, formatarTempo } from "~/lib/formatar-corrida";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
@@ -23,7 +26,8 @@ export async function loader({ params }: Route.LoaderArgs) {
 	const t = await buscarTreinoSaudePorId(params.healthId);
 	if (!t) throw new Response("Corrida não encontrada", { status: 404 });
 
-	const corrida = paraCorridaRelogio(t);
+	const plano = await planejadoDoDia(t.inicio);
+	const corrida = paraCorridaRelogio(t, plano);
 	return {
 		corrida,
 		saude: {
@@ -50,15 +54,23 @@ export async function loader({ params }: Route.LoaderArgs) {
 						distanciaM: l.distance,
 						tempoSeg: l.moving_time,
 						fcMedia: l.average_heartrate ?? null,
+						potenciaW: l.potenciaW ?? null,
+						cadencia: l.cadencia ?? null,
+						oscilacaoCm: l.oscilacaoCm ?? null,
+						contatoMs: l.contatoMs ?? null,
 					}))
 				: null,
 		},
+		analise: (t.analise as AnaliseResult | null) ?? null,
+		analisadaEm: t.analisadaEm ? t.analisadaEm.toISOString() : null,
+		healthId: t.healthId,
+		planejado: plano ? { titulo: plano.titulo, texto: textoPrescrito(plano) } : null,
 		mapboxToken: getMapboxToken(),
 	};
 }
 
 export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentProps) {
-	const { corrida, saude, mapboxToken } = loaderData;
+	const { corrida, saude, mapboxToken, analise, analisadaEm, healthId, planejado } = loaderData;
 	const [montado, setMontado] = React.useState(false);
 	React.useEffect(() => setMontado(true), []);
 
@@ -98,6 +110,13 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 				))}
 			</div>
 
+			{planejado && (
+				<div className="rounded-2xl border border-paleta-6/20 bg-paleta-6/5 px-4 py-3">
+					<p className="mb-1 text-xs font-medium tracking-wide text-paleta-6 uppercase">Treino planejado · {planejado.titulo}</p>
+					<pre className="font-sans text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{planejado.texto}</pre>
+				</div>
+			)}
+
 			<CorridaMetricasRelogio metricas={saude} />
 
 			{corrida.summaryPolyline && (
@@ -116,6 +135,10 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 					)}
 				</div>
 			)}
+
+			<div className="border-t border-border" />
+
+			<AnaliseIaRelogio healthId={healthId} analiseInicial={analise} analisadaEmInicial={analisadaEm} />
 		</main>
 	);
 }
