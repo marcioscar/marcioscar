@@ -683,6 +683,30 @@ private struct BlocoGraficos: View {
 
     private func kmTexto(_ km: Double) -> String { String(format: "%.2f km", km).replacingOccurrences(of: ".", with: ",") }
 
+    /// Os três gráficos usam o mesmo eixo de km e a mesma largura de rótulos do eixo Y, para ficarem alinhados.
+    private var kmTotal: Double { max(serie.last?.km ?? 1, 1) }
+    private var marcasKm: [Double] {
+        let passo: Double = kmTotal > 30 ? 10 : kmTotal > 14 ? 5 : kmTotal > 6 ? 2 : 1
+        return Array(stride(from: 0, through: kmTotal, by: passo))
+    }
+
+    private func eixoYAlinhado(_ formatar: @escaping (Double) -> String) -> some AxisContent {
+        AxisMarks { v in
+            AxisGridLine()
+            AxisValueLabel {
+                if let d = v.as(Double.self) {
+                    Text(formatar(d)).font(.caption2).frame(width: 44, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    private var eixoXKm: some AxisContent {
+        AxisMarks(values: marcasKm) { v in
+            AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d)) km").font(.caption2) } }
+        }
+    }
+
     var body: some View {
         Secao(titulo: "Ritmo, FC e altitude") {
             // leitura do ponto tocado: fica fixa no topo para não cobrir os gráficos
@@ -722,15 +746,11 @@ private struct BlocoGraficos: View {
                     }
                 }
                 .chartXSelection(value: $kmSel)
+                .chartXScale(domain: 0...kmTotal)
                 .chartYScale(domain: -hi ... -lo)
-                .chartYAxis {
-                    AxisMarks { v in
-                        AxisGridLine()
-                        AxisValueLabel { if let d = v.as(Double.self) { Text(formatarPace(-d)).font(.caption2) } }
-                    }
-                }
-                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 5)) { v in AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d)) km").font(.caption2) } } } }
-                .frame(height: 150)
+                .chartYAxis { eixoYAlinhado { formatarPace(-$0) } }
+                .chartXAxis(.hidden)
+                .frame(height: 140)
             }
             if !fcs.isEmpty {
                 Text("FREQUÊNCIA CARDÍACA").font(.caption.weight(.heavy)).foregroundStyle(Tema.vermelho)
@@ -746,7 +766,9 @@ private struct BlocoGraficos: View {
                     }
                 }
                 .chartXSelection(value: $kmSel)
+                .chartXScale(domain: 0...kmTotal)
                 .chartYScale(domain: ((fcs.min() ?? 60) - 5)...((fcs.max() ?? 180) + 5))
+                .chartYAxis { eixoYAlinhado { String(Int($0.rounded())) } }
                 .chartXAxis(.hidden)
                 .frame(height: 120)
             }
@@ -764,9 +786,11 @@ private struct BlocoGraficos: View {
                     }
                 }
                 .chartXSelection(value: $kmSel)
+                .chartXScale(domain: 0...kmTotal)
                 .chartYScale(domain: base...((alts.max() ?? 0) + 5))
-                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 5)) { v in AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d)) km").font(.caption2) } } } }
-                .frame(height: 90)
+                .chartYAxis { eixoYAlinhado { String(Int($0.rounded())) } }
+                .chartXAxis { eixoXKm }
+                .frame(height: 110)
             }
         }
     }
