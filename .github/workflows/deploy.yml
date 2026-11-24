@@ -5,6 +5,9 @@ name: Build e deploy
 on:
   push:
     branches: [main]
+    # o app do iPhone (ios/) não faz parte da imagem do site: mudar só ele não precisa de deploy
+    paths-ignore:
+      - "ios/**"
   workflow_dispatch:
 
 concurrency:
