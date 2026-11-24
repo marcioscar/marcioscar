@@ -74,6 +74,9 @@ struct VoltaResultado: Codable, Identifiable {
     var fcMedia: Double?
     var potenciaW: Double?
     var cadencia: Double?
+    var passadaM: Double? = nil
+    var oscilacaoCm: Double? = nil
+    var contatoMs: Double? = nil
     var id: String { "\(rotulo)-\(distanciaM)-\(tempoSeg)" }
 }
 

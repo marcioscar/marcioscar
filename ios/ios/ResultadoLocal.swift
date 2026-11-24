@@ -200,7 +200,8 @@ enum ConstrutorResultado {
             splits: (p.splits ?? []).map { SplitKm(km: $0.km, distanciaM: $0.distanciaM, tempoSeg: $0.tempoSeg, fcMedia: $0.fcMedia) },
             voltas: voltas.count > 1 ? voltas.map {
                 VoltaResultado(rotulo: $0.rotulo ?? "Etapa \($0.indice)", distanciaM: $0.distanciaM, tempoSeg: $0.tempoSeg,
-                               fcMedia: $0.fcMedia, potenciaW: $0.potenciaW, cadencia: $0.cadencia)
+                               fcMedia: $0.fcMedia, potenciaW: $0.potenciaW, cadencia: $0.cadencia,
+                               passadaM: $0.passadaM, oscilacaoCm: $0.oscilacaoCm, contatoMs: $0.contatoMs)
             } : [],
             zonas: zonas(rota: p.rota, tempoSeg: tempo, fcMaxima: max(fcMaxima, p.fcMaxima ?? 0)),
             planejado: nil,

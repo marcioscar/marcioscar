@@ -479,7 +479,9 @@ struct ResultadoCorridaView: View {
         r.analisadaEm = remoto.analisadaEm
         r.planejado = remoto.planejado
         r.comparacao = remoto.comparacao
-        if !remoto.voltas.isEmpty { r.voltas = remoto.voltas } // nomes que levam o plano em conta
+        // as etapas locais têm todas as métricas; do site só entram os nomes (que levam o plano em conta)
+        if remoto.voltas.count == r.voltas.count { for i in r.voltas.indices { r.voltas[i].rotulo = remoto.voltas[i].rotulo } }
+        else if r.voltas.isEmpty { r.voltas = remoto.voltas }
         resultado = r
     }
 
@@ -511,7 +513,7 @@ private struct ConteudoResultado: View {
         if let c = r.comparacao, let p = r.planejado { BlocoComparacao(comparacao: c, planejado: p) }
         if r.serie.count > 10 { BlocoGraficos(serie: r.serie) }
         BlocoZonas(zonas: r.zonas)
-        if r.splits.count >= 2 { BlocoSplits(splits: r.splits) }
+        if r.splits.count >= 2 || r.voltas.count > 1 { BlocoSplits(splits: r.splits, voltas: r.voltas, serie: r.serie) }
         if r.voltas.count > 1 { BlocoVoltas(voltas: r.voltas) }
         BlocoMetricas(m: r.metricas)
         // a análise por IA fica por último: primeiro os números, depois a leitura deles
@@ -1148,145 +1150,346 @@ private struct BlocoZonas: View {
     }
 }
 
+private enum Granularidade: String, CaseIterable, Identifiable {
+    case km = "1 km"
+    case intervalos = "Intervalos"
+    var id: String { rawValue }
+}
+
+/// O que se pode sobrepor às barras de variação de pace.
+private enum Sobreposicao: String, CaseIterable, Identifiable {
+    case nenhuma = "Nenhuma"
+    case altitude = "Altitude"
+    case fc = "Freq. cardíaca"
+    case potencia = "Potência"
+    case cadencia = "Cadência"
+    case contato = "Contato com o solo"
+    case oscilacao = "Oscilação vertical"
+    case passada = "Passada"
+    var id: String { rawValue }
+    var unidade: String {
+        switch self {
+        case .nenhuma: ""
+        case .altitude: "m"
+        case .fc: "bpm"
+        case .potencia: "W"
+        case .cadencia: "ppm"
+        case .contato: "ms"
+        case .oscilacao: "cm"
+        case .passada: "m"
+        }
+    }
+    var cor: Color {
+        switch self {
+        case .altitude: Tema.aqua
+        case .fc: Tema.vermelho
+        case .potencia: Tema.roxo
+        default: Tema.azul
+        }
+    }
+}
+
+/// Uma barra do gráfico: um km, ou uma etapa do treino.
+private struct BarraSplit: Identifiable {
+    let id: Int
+    let rotulo: String
+    let titulo: String
+    let pace: Double?
+    var fc: Double?
+    var altDelta: Double?
+    var potencia: Double?
+    var cadencia: Double?
+    var contato: Double?
+    var oscilacao: Double?
+    var passada: Double?
+
+    func valor(_ s: Sobreposicao) -> Double? {
+        switch s {
+        case .nenhuma: nil
+        case .altitude: altDelta
+        case .fc: fc
+        case .potencia: potencia
+        case .cadencia: cadencia
+        case .contato: contato
+        case .oscilacao: oscilacao
+        case .passada: passada
+        }
+    }
+}
+
 private struct BlocoSplits: View {
     let splits: [SplitKm]
-    @State private var metrica = 0
-    /// km tocado nas barras (mostra os números daquele km logo abaixo)
-    @State private var kmBarra: Int?
+    let voltas: [VoltaResultado]
+    let serie: [PontoSerie]
 
+    @State private var granularidade: Granularidade = .km
+    @State private var sobreposicao: Sobreposicao = .nenhuma
+    @State private var selecionado: Int?
+
+    private var temIntervalos: Bool { voltas.count > 1 }
     private var completos: [SplitKm] { splits.filter { $0.distanciaM >= 950 } }
 
-    /// Números do km tocado (ou uma dica, enquanto nada está selecionado).
-    @ViewBuilder
-    private func leituraKm(media: Double?) -> some View {
-        Group {
-            if let k = kmBarra, let s = completos.first(where: { $0.km == k }) {
-                HStack(spacing: 12) {
-                    Text("Km \(s.km)").font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto)
-                    if let p = s.paceSegKm {
-                        Text("\(formatarPace(p)) /km").foregroundStyle(Tema.azul)
-                        if let m = media {
-                            let d = Int((p - m).rounded())
-                            Text(d == 0 ? "na média" : (d < 0 ? "\(-d)s mais rápido" : "\(d)s mais lento")).foregroundStyle(Tema.textoSuave)
-                        }
-                    }
-                    if let f = s.fcMedia { Text("\(Int(f.rounded())) bpm").foregroundStyle(Tema.vermelho) }
-                }
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-            } else {
-                Text("Toque numa barra para ver os números do km.").font(.caption).foregroundStyle(Tema.textoSuave)
+    // MARK: dados
+
+    /// Altitude interpolada num ponto da corrida (km), pela série ao longo da distância.
+    private func altitudeEm(_ km: Double) -> Double? {
+        let pts = serie.filter { $0.alt != nil }
+        guard pts.count >= 2, let primeiro = pts.first, let ultimo = pts.last else { return nil }
+        if km <= primeiro.km { return primeiro.alt }
+        if km >= ultimo.km { return ultimo.alt }
+        guard let i = pts.firstIndex(where: { $0.km >= km }), i > 0 else { return nil }
+        let a = pts[i - 1], b = pts[i]
+        let t = b.km > a.km ? (km - a.km) / (b.km - a.km) : 0
+        return (a.alt ?? 0) + ((b.alt ?? 0) - (a.alt ?? 0)) * t
+    }
+
+    private func delta(de: Double, ate: Double) -> Double? {
+        guard let a = altitudeEm(de), let b = altitudeEm(ate) else { return nil }
+        return b - a
+    }
+
+    private var barras: [BarraSplit] {
+        if granularidade == .km || !temIntervalos {
+            var acumulado = 0.0
+            return completos.map { s in
+                let ini = acumulado
+                acumulado += s.distanciaM / 1000
+                var b = BarraSplit(id: s.km, rotulo: String(s.km), titulo: "Km \(s.km)", pace: s.paceSegKm)
+                b.fc = s.fcMedia
+                b.altDelta = delta(de: ini, ate: acumulado)
+                return b
             }
         }
-        .frame(minHeight: 22, alignment: .leading)
+        var acumulado = 0.0
+        var esforco = 0
+        return voltas.enumerated().map { i, v in
+            let ini = acumulado
+            acumulado += v.distanciaM / 1000
+            let curto: String
+            switch v.rotulo {
+            case "Aquecimento": curto = "Aq."
+            case "Desaquecimento": curto = "Des."
+            case "Descanso", "Recuperação": curto = "·"
+            case "Esforço": esforco += 1; curto = "E\(esforco)"
+            default: curto = String(i + 1)
+            }
+            var b = BarraSplit(id: i + 1, rotulo: curto, titulo: v.rotulo, pace: v.distanciaM >= 150 ? v.tempoSeg / (v.distanciaM / 1000) : nil)
+            b.fc = v.fcMedia
+            b.altDelta = delta(de: ini, ate: acumulado)
+            b.potencia = v.potenciaW
+            b.cadencia = v.cadencia
+            b.contato = v.contatoMs
+            b.oscilacao = v.oscilacaoCm
+            b.passada = v.passadaM
+            return b
+        }
     }
 
-    /// largura da barra conforme a quantidade de km, para caber em corridas longas
-    private var larguraBarra: CGFloat { completos.count > 20 ? 6 : completos.count > 12 ? 9 : 14 }
+    private var paces: [Double] { barras.compactMap(\.pace) }
 
-    /// rótulos do eixo de km: todos nas corridas curtas, de 5 em 5 nas longas
-    private var marcasKm: [Int] {
-        let passo = completos.count > 22 ? 5 : completos.count > 12 ? 2 : 1
-        return completos.map(\.km).filter { $0 % passo == 0 || $0 == 1 }
+    /// Mediana (como no Fitness): mais estável que a média quando há um km parado.
+    private var mediana: Double? {
+        let o = paces.sorted()
+        guard !o.isEmpty else { return nil }
+        return o.count % 2 == 1 ? o[o.count / 2] : (o[o.count / 2 - 1] + o[o.count / 2]) / 2
     }
 
-    private var mediaPace: Double? {
-        let p = completos.compactMap(\.paceSegKm)
-        return p.isEmpty ? nil : p.reduce(0, +) / Double(p.count)
-    }
+    private var tolerancia: Double { max(3, (mediana ?? 300) * 0.02) }
+    private let limiteBarra = 120.0
 
-    private func corPace(_ pace: Double, media: Double) -> Color {
+    private func cor(_ pace: Double, media: Double) -> Color {
         let d = pace - media
-        if d < -3 { return Tema.azul }
-        if d > 3 { return Tema.laranja }
+        if d < -tolerancia { return Tema.azul }
+        if d > tolerancia { return Tema.laranja }
         return Tema.cinzaPausa
     }
 
-    /// Primeira metade contra a segunda (pace médio ponderado pelos km)
-    private var metades: (primeira: Double, segunda: Double)? {
-        guard completos.count >= 4 else { return nil }
-        let meio = completos.count / 2
-        func pace(_ s: ArraySlice<SplitKm>) -> Double {
-            let d = s.reduce(0) { $0 + $1.distanciaM }
-            let t = s.reduce(0) { $0 + $1.tempoSeg }
-            return t / (d / 1000)
-        }
-        return (pace(completos[0..<meio]), pace(completos[(completos.count - meio)...]))
+    private func clamp(_ v: Double) -> Double { max(-limiteBarra, min(limiteBarra, v)) }
+
+    // MARK: sobreposição normalizada para a escala das barras
+
+    private func faixaSobreposicao(_ lista: [BarraSplit]) -> (min: Double, max: Double)? {
+        let v = lista.compactMap { $0.valor(sobreposicao) }
+        guard let lo = v.min(), let hi = v.max() else { return nil }
+        return (lo, hi)
     }
 
-    var body: some View {
-        Secao(titulo: "Variação por km", cor: Tema.laranja) {
-            Picker("Métrica", selection: $metrica) {
-                Text("Pace").tag(0)
-                Text("FC").tag(1)
-            }
-            .pickerStyle(.segmented)
+    private func posicao(_ v: Double, faixa: (min: Double, max: Double), topo: Double) -> Double {
+        let t = faixa.max > faixa.min ? (v - faixa.min) / (faixa.max - faixa.min) : 0.5
+        return topo * (0.15 + 0.80 * t) // fica na metade de cima, como no Fitness
+    }
 
-            if metrica == 0, let media = mediaPace {
-                Text("Média \(formatarPace(media)) /km · barras mostram a diferença para a média (para cima = mais rápido)")
-                    .font(.caption).foregroundStyle(Tema.textoSuave)
+    private func formatar(_ v: Double, _ s: Sobreposicao) -> String {
+        switch s {
+        case .passada: String(format: "%.2f", v).replacingOccurrences(of: ".", with: ",")
+        case .oscilacao: String(format: "%.1f", v).replacingOccurrences(of: ".", with: ",")
+        case .altitude: (v > 0 ? "+" : "") + "\(Int(v.rounded()))"
+        default: "\(Int(v.rounded()))"
+        }
+    }
+
+    /// Opções de sobreposição que têm dado na granularidade escolhida.
+    private func opcoes(_ lista: [BarraSplit]) -> [Sobreposicao] {
+        Sobreposicao.allCases.filter { opcao in opcao == .nenhuma || lista.contains { b in b.valor(opcao) != nil } }
+    }
+
+    // MARK: vista
+
+    var body: some View {
+        let lista = barras
+        let media = mediana
+        let topo = max(15.0, min(limiteBarra, (lista.compactMap { $0.pace }.map { abs((media ?? $0) - $0) }.max() ?? 15) + 5))
+        let faixa = faixaSobreposicao(lista)
+
+        Secao(titulo: "Variação por \(granularidade == .km || !temIntervalos ? "km" : "etapa")", cor: Tema.laranja) {
+            if temIntervalos && !completos.isEmpty {
+                Picker("Agrupar por", selection: $granularidade) {
+                    ForEach(Granularidade.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("\(formatarPace(media)) /km").font(.title3.weight(.bold)).foregroundStyle(Tema.azul).monospacedDigit()
+                    Text("Mediana").font(.caption).foregroundStyle(Tema.textoSuave)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(formatarPace(paces.min())) /km").font(.title3.weight(.bold)).foregroundStyle(Tema.azul).monospacedDigit()
+                    Text("Melhor").font(.caption).foregroundStyle(Tema.textoSuave)
+                }
+            }
+
+            // sobrepor outra métrica às barras (linha verde, como no Fitness)
+            HStack {
+                Spacer()
+                Menu {
+                    Picker("Sobrepor", selection: $sobreposicao) {
+                        ForEach(opcoes(lista)) { Text($0.rawValue).tag($0) }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(sobreposicao == .nenhuma ? "Sobrepor" : sobreposicao.rawValue).fontWeight(.semibold)
+                        Image(systemName: "chevron.down").font(.caption2)
+                    }
+                    .foregroundStyle(sobreposicao == .nenhuma ? Tema.textoSuave : sobreposicao.cor)
+                }
+            }
+
+            if let media {
                 Chart {
-                    ForEach(completos) { s in
-                        if let p = s.paceSegKm {
-                            BarMark(x: .value("Km", s.km), yStart: .value("zero", 0), yEnd: .value("Diferença", media - p), width: .fixed(larguraBarra))
-                                .foregroundStyle(corPace(p, media: media))
-                                .opacity(kmBarra == nil || kmBarra == s.km ? 1 : 0.35)
-                                .cornerRadius(3)
+                    // faixa "no ritmo": quanto de variação ainda conta como o mesmo pace
+                    RectangleMark(yStart: .value("a", -tolerancia), yEnd: .value("b", tolerancia))
+                        .foregroundStyle(Tema.cinzaPausa.opacity(0.14))
+                    RuleMark(y: .value("zero", 0)).foregroundStyle(Tema.cinzaPausa.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 0.8))
+
+                    ForEach(lista) { b in
+                        if let p = b.pace {
+                            BarMark(x: .value("x", b.id), yStart: .value("zero", 0), yEnd: .value("diferença", clamp(media - p)), width: .fixed(larguraBarra(lista.count)))
+                                .foregroundStyle(cor(p, media: media))
+                                .opacity(selecionado == nil || selecionado == b.id ? 1 : 0.35)
+                                .cornerRadius(4)
+                        }
+                    }
+
+                    if let f = faixa, sobreposicao != .nenhuma {
+                        ForEach(lista) { b in
+                            if let v = b.valor(sobreposicao) {
+                                LineMark(x: .value("x", b.id), y: .value("sobreposição", posicao(v, faixa: f, topo: topo)), series: .value("s", "sobre"))
+                                    .foregroundStyle(sobreposicao.cor)
+                                    .lineStyle(StrokeStyle(lineWidth: 1.6))
+                                PointMark(x: .value("x", b.id), y: .value("sobreposição", posicao(v, faixa: f, topo: topo)))
+                                    .foregroundStyle(sobreposicao.cor)
+                                    .symbolSize(32)
+                            }
+                        }
+                    }
+
+                    if let sel = selecionado, lista.contains(where: { $0.id == sel }) {
+                        RuleMark(x: .value("x", sel)).foregroundStyle(Tema.texto.opacity(0.35)).lineStyle(StrokeStyle(lineWidth: 1))
+                    }
+                }
+                .chartXSelection(value: $selecionado)
+                .chartXScale(domain: (lista.first?.id ?? 1) - 1 ... (lista.last?.id ?? 1) + 1)
+                .chartYScale(domain: -topo * 1.15 ... topo * 1.15)
+                .chartYAxis(.hidden)
+                .chartXAxis {
+                    AxisMarks(values: marcas(lista)) { v in
+                        AxisValueLabel {
+                            if let d = v.as(Int.self), let b = lista.first(where: { $0.id == d }) { Text(b.rotulo).font(.caption2) }
                         }
                     }
                 }
-                .chartXSelection(value: $kmBarra)
-                .chartXAxis { AxisMarks(values: marcasKm) { v in AxisValueLabel { if let d = v.as(Int.self) { Text("\(d)").font(.caption2) } } } }
-                .chartYAxis {
-                    AxisMarks { v in
-                        AxisGridLine()
-                        AxisValueLabel { if let d = v.as(Double.self) { Text(d > 0 ? "+\(Int(d))s" : "\(Int(d))s").font(.caption2) } }
-                    }
-                }
                 .chartPlotStyle { $0.clipped() }
-                .frame(height: 170)
-                leituraKm(media: media)
+                .frame(height: 200)
+
+                leitura(lista: lista, media: media)
+
                 HStack(spacing: 14) {
                     Label("Mais rápido", systemImage: "circle.fill").foregroundStyle(Tema.azul)
                     Label("No ritmo", systemImage: "circle.fill").foregroundStyle(Tema.cinzaPausa)
                     Label("Mais lento", systemImage: "circle.fill").foregroundStyle(Tema.laranja)
                 }
                 .font(.caption2)
-            } else {
-                let fcs = completos.compactMap(\.fcMedia)
-                if fcs.isEmpty {
-                    Text("Sem FC por km.").font(.footnote).foregroundStyle(Tema.textoSuave)
-                } else {
-                    // as barras começam no piso do eixo (não em zero) e o gráfico recorta o que passar
-                    let piso = max(0, ((fcs.min() ?? 60) - 15) / 5).rounded(.down) * 5
-                    let teto = (((fcs.max() ?? 180) + 5) / 5).rounded(.up) * 5
-                    Chart {
-                        ForEach(completos) { s in
-                            if let f = s.fcMedia {
-                                BarMark(x: .value("Km", s.km), yStart: .value("piso", piso), yEnd: .value("FC", f), width: .fixed(larguraBarra))
-                                    .foregroundStyle(Tema.vermelho.opacity(kmBarra == nil || kmBarra == s.km ? 0.9 : 0.3))
-                                    .cornerRadius(3)
-                            }
-                        }
-                    }
-                    .chartXSelection(value: $kmBarra)
-                    .chartYScale(domain: piso...teto)
-                    .chartXAxis { AxisMarks(values: marcasKm) { v in AxisValueLabel { if let d = v.as(Int.self) { Text("\(d)").font(.caption2) } } } }
-                    .chartPlotStyle { $0.clipped() }
-                    .frame(height: 170)
-                    leituraKm(media: nil)
+                if let f = faixa, sobreposicao != .nenhuma {
+                    Text("\(sobreposicao.rawValue): \(formatar(f.min, sobreposicao))–\(formatar(f.max, sobreposicao)) \(sobreposicao.unidade) (a linha usa a própria escala)")
+                        .font(.caption2).foregroundStyle(sobreposicao.cor)
                 }
             }
 
-            if let m = metades {
-                let dif = (m.primeira - m.segunda) / m.primeira * 100
-                Divider()
-                Text(dif > 0 ? "Split negativo · \(String(format: "%.1f", dif).replacingOccurrences(of: ".", with: ","))%" : "Split positivo · \(String(format: "%.1f", -dif).replacingOccurrences(of: ".", with: ","))%")
-                    .font(.headline).foregroundStyle(Tema.texto)
-                HStack(spacing: 10) {
-                    Metrica(titulo: "1ª metade", valor: "\(formatarPace(m.primeira)) /km")
-                    Metrica(titulo: "2ª metade", valor: "\(formatarPace(m.segunda)) /km")
+            negativoOuPositivo
+        }
+    }
+
+    private func larguraBarra(_ n: Int) -> CGFloat { n > 20 ? 6 : n > 12 ? 10 : 18 }
+
+    private func marcas(_ lista: [BarraSplit]) -> [Int] {
+        let passo = lista.count > 22 ? 5 : lista.count > 12 && granularidade == .km ? 2 : 1
+        return lista.map(\.id).filter { $0 % passo == 0 || $0 == 1 }
+    }
+
+    @ViewBuilder
+    private func leitura(lista: [BarraSplit], media: Double) -> some View {
+        Group {
+            if let k = selecionado, let b = lista.first(where: { $0.id == k }) {
+                HStack(spacing: 12) {
+                    Text(b.titulo).font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto)
+                    if let p = b.pace {
+                        Text("\(formatarPace(p)) /km").foregroundStyle(Tema.azul)
+                        let d = Int((p - media).rounded())
+                        Text(abs(d) <= Int(tolerancia) ? "no ritmo" : (d < 0 ? "\(-d)s mais rápido" : "\(d)s mais lento")).foregroundStyle(Tema.textoSuave)
+                    } else {
+                        Text("sem pace (parado)").foregroundStyle(Tema.textoSuave)
+                    }
+                    if sobreposicao != .nenhuma, let v = b.valor(sobreposicao) {
+                        Text("\(formatar(v, sobreposicao)) \(sobreposicao.unidade)").foregroundStyle(sobreposicao.cor)
+                    }
                 }
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+            } else {
+                Text("Toque numa barra para ver os números.").font(.caption).foregroundStyle(Tema.textoSuave)
+            }
+        }
+        .frame(minHeight: 22, alignment: .leading)
+    }
+
+    /// Primeira metade contra a segunda (pace médio ponderado pelos km)
+    @ViewBuilder
+    private var negativoOuPositivo: some View {
+        if completos.count >= 4 {
+            let meio = completos.count / 2
+            let primeira = Array(completos[0..<meio]), segunda = Array(completos[(completos.count - meio)...])
+            let p1 = primeira.reduce(0) { $0 + $1.tempoSeg } / (primeira.reduce(0) { $0 + $1.distanciaM } / 1000)
+            let p2 = segunda.reduce(0) { $0 + $1.tempoSeg } / (segunda.reduce(0) { $0 + $1.distanciaM } / 1000)
+            let dif = (p1 - p2) / p1 * 100
+            Divider()
+            Text(dif > 0 ? "Split negativo · \(String(format: "%.1f", dif).replacingOccurrences(of: ".", with: ","))%" : "Split positivo · \(String(format: "%.1f", -dif).replacingOccurrences(of: ".", with: ","))%")
+                .font(.headline).foregroundStyle(Tema.texto)
+            HStack(spacing: 10) {
+                Metrica(titulo: "1ª metade", valor: "\(formatarPace(p1)) /km")
+                Metrica(titulo: "2ª metade", valor: "\(formatarPace(p2)) /km")
             }
         }
     }
