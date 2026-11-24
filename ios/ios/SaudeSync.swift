@@ -14,13 +14,28 @@ final class SaudeSync {
         case erro(String)
     }
 
+    enum Escopo: Equatable {
+        /// só o que for mais novo que o último treino que o site já tem
+        case novos
+        /// um ano inteiro (1º de janeiro a 31 de dezembro)
+        case ano(Int)
+        /// todos os anos que o app Saúde tiver, do mais recente para o mais antigo
+        case tudo
+    }
+
     var fase: Fase = .parado
+    /// Texto de andamento (ex.: "2024 · 35 de 120 · ano 3 de 7")
+    var progresso: String?
+    /// Anos que têm treino no app Saúde (preenchido por `carregarAnos`)
+    var anosDisponiveis: [Int] = []
     var rodando: Bool {
         switch fase {
         case .lendo, .enviando: true
         default: false
         }
     }
+
+    private var tarefa: Task<Void, Never>?
 
     private let store = HKHealthStore()
     private let tamanhoLote = 8
@@ -39,45 +54,101 @@ final class SaudeSync {
 
     // MARK: fluxo principal
 
-    /// Sincroniza. `desdeAnoInteiro` lê desde 1º de janeiro; senão, só o que for mais novo que o site já tem.
-    func sincronizar(desdeAnoInteiro: Bool) async {
+    private var calendario: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = .current
+        return c
+    }
+
+    private func primeiroDia(do ano: Int) -> Date {
+        calendario.date(from: DateComponents(year: ano, month: 1, day: 1))!
+    }
+
+    func iniciar(_ escopo: Escopo) {
+        guard !rodando else { return }
+        tarefa = Task { await executar(escopo) }
+    }
+
+    func cancelar() {
+        tarefa?.cancel()
+    }
+
+    /// Descobre os anos com treino no Saúde (do primeiro treino gravado até hoje).
+    func carregarAnos() async {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        do {
+            try await store.requestAuthorization(toShare: [], read: tiposLeitura)
+            let descritor = HKSampleQueryDescriptor(
+                predicates: [.workout()],
+                sortDescriptors: [SortDescriptor(\.startDate, order: .forward)],
+                limit: 1
+            )
+            let atual = calendario.component(.year, from: Date())
+            let primeiro = (try await descritor.result(for: store)).first.map { calendario.component(.year, from: $0.startDate) } ?? atual
+            anosDisponiveis = Array(stride(from: atual, through: min(primeiro, atual), by: -1))
+        } catch {
+            anosDisponiveis = [calendario.component(.year, from: Date())]
+        }
+    }
+
+    private func executar(_ escopo: Escopo) async {
         guard HKHealthStore.isHealthDataAvailable() else {
             fase = .erro("O app Saúde não está disponível neste aparelho.")
             return
         }
         fase = .lendo
+        progresso = nil
         do {
             try await store.requestAuthorization(toShare: [], read: tiposLeitura)
 
-            let inicio = try await dataInicial(anoInteiro: desdeAnoInteiro)
-            let treinos = try await lerTreinos(desde: inicio)
-            if treinos.isEmpty {
-                fase = .concluido("Nenhum treino novo no Saúde.")
-                return
+            if anosDisponiveis.isEmpty { await carregarAnos() }
+            let atual = calendario.component(.year, from: Date())
+
+            // cada janela é um intervalo de datas a ler e enviar
+            var janelas: [(rotulo: String, de: Date, ate: Date?)] = []
+            switch escopo {
+            case .novos:
+                janelas = [("novos", try await dataInicialIncremental(), nil)]
+            case .ano(let ano):
+                janelas = [("\(ano)", primeiroDia(do: ano), primeiroDia(do: ano + 1))]
+            case .tudo:
+                for ano in (anosDisponiveis.isEmpty ? [atual] : anosDisponiveis) {
+                    janelas.append(("\(ano)", primeiroDia(do: ano), primeiroDia(do: ano + 1)))
+                }
             }
 
-            var enviados = 0
-            var criados = 0
-            var atualizados = 0
-            for lote in treinos.chunked(tamanhoLote) {
-                fase = .enviando(enviados, treinos.count)
-                let r = try await Servidor.enviarTreinosSaude(lote)
-                criados += r.criados
-                atualizados += r.atualizados
-                enviados += lote.count
+            var lidos = 0, criados = 0, atualizados = 0
+            for (indice, janela) in janelas.enumerated() {
+                let workouts = try await listarWorkouts(de: janela.de, ate: janela.ate)
+                var feitos = 0
+                for lote in workouts.chunked(tamanhoLote) {
+                    if Task.isCancelled {
+                        fase = .concluido("Interrompido. \(lidos) treinos enviados (\(criados) novos, \(atualizados) atualizados). Pode retomar quando quiser: o reenvio não duplica.")
+                        progresso = nil
+                        return
+                    }
+                    fase = .enviando(feitos, workouts.count)
+                    progresso = "\(janela.rotulo) · \(feitos) de \(workouts.count)" + (janelas.count > 1 ? " · período \(indice + 1) de \(janelas.count)" : "")
+                    var payloads: [TreinoSaudePayload] = []
+                    for w in lote { payloads.append(await montar(w)) }
+                    let r = try await Servidor.enviarTreinosSaude(payloads)
+                    criados += r.criados
+                    atualizados += r.atualizados
+                    feitos += lote.count
+                    lidos += lote.count
+                }
             }
-            fase = .concluido("\(treinos.count) treinos lidos: \(criados) novos, \(atualizados) atualizados.")
+            progresso = nil
+            fase = .concluido(lidos == 0 ? "Nenhum treino novo no Saúde." : "\(lidos) treinos lidos: \(criados) novos, \(atualizados) atualizados.")
         } catch {
+            progresso = nil
             fase = .erro(error.localizedDescription)
         }
     }
 
-    private func dataInicial(anoInteiro: Bool) async throws -> Date {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = .current
-        let primeiroDoAno = cal.date(from: DateComponents(year: cal.component(.year, from: Date()), month: 1, day: 1))!
-        if anoInteiro { return primeiroDoAno }
-        // incremental: do mais recente que o site tem, menos 2 dias de folga
+    private func dataInicialIncremental() async throws -> Date {
+        let primeiroDoAno = primeiroDia(do: calendario.component(.year, from: Date()))
+        // do mais recente que o site tem, menos 2 dias de folga
         if let recente = try await Servidor.maisRecenteSaude() {
             return max(recente.addingTimeInterval(-2 * 86400), primeiroDoAno)
         }
@@ -86,19 +157,13 @@ final class SaudeSync {
 
     // MARK: leitura
 
-    private func lerTreinos(desde: Date) async throws -> [TreinoSaudePayload] {
-        let predicado = HKQuery.predicateForSamples(withStart: desde, end: nil)
+    private func listarWorkouts(de: Date, ate: Date?) async throws -> [HKWorkout] {
+        let predicado = HKQuery.predicateForSamples(withStart: de, end: ate)
         let descritor = HKSampleQueryDescriptor(
             predicates: [.workout(predicado)],
-            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)]
         )
-        let workouts = try await descritor.result(for: store)
-
-        var saida: [TreinoSaudePayload] = []
-        for w in workouts {
-            saida.append(await montar(w))
-        }
-        return saida
+        return try await descritor.result(for: store)
     }
 
     private func montar(_ w: HKWorkout) async -> TreinoSaudePayload {

@@ -549,6 +549,8 @@ struct AjustesView: View {
     var saude: SaudeSync
 
     @State private var confirmandoLimpeza = false
+    @State private var confirmandoHistorico = false
+    @State private var anoEscolhido = Calendar.current.component(.year, from: Date())
     @State private var limpo = false
     @State private var endereco = Servidor.endereco
     @State private var token = Servidor.token ?? ""
@@ -591,24 +593,28 @@ struct AjustesView: View {
                     }
                 }
                 Section {
-                    Button {
-                        Task { await saude.sincronizar(desdeAnoInteiro: true) }
-                    } label: {
-                        HStack {
-                            Text("Sincronizar treinos do ano")
-                            if saude.rodando { Spacer(); ProgressView() }
+                    Button("Sincronizar só os novos") { saude.iniciar(.novos) }
+                        .disabled(saude.rodando || !Servidor.configurado)
+
+                    if !saude.anosDisponiveis.isEmpty {
+                        Picker("Ano", selection: $anoEscolhido) {
+                            ForEach(saude.anosDisponiveis, id: \.self) { Text(String($0)).tag($0) }
                         }
+                        Button("Sincronizar o ano \(String(anoEscolhido))") { saude.iniciar(.ano(anoEscolhido)) }
+                            .disabled(saude.rodando || !Servidor.configurado)
+                        Button("Sincronizar todo o histórico (\(saude.anosDisponiveis.count) anos)") { confirmandoHistorico = true }
+                            .disabled(saude.rodando || !Servidor.configurado)
                     }
-                    .disabled(saude.rodando || !Servidor.configurado)
-                    Button("Sincronizar só os novos") {
-                        Task { await saude.sincronizar(desdeAnoInteiro: false) }
+
+                    if saude.rodando {
+                        HStack {
+                            ProgressView()
+                            Text(saude.progresso ?? "Lendo o app Saúde…").font(.footnote).foregroundStyle(.secondary)
+                        }
+                        Button("Interromper", role: .destructive) { saude.cancelar() }
                     }
-                    .disabled(saude.rodando || !Servidor.configurado)
                     switch saude.fase {
-                    case .parado: EmptyView()
-                    case .lendo: Text("Lendo o app Saúde…").font(.footnote).foregroundStyle(.secondary)
-                    case .enviando(let feitos, let total):
-                        Text("Enviando \(feitos) de \(total)…").font(.footnote).foregroundStyle(.secondary)
+                    case .parado, .lendo, .enviando: EmptyView()
                     case .concluido(let msg):
                         Label(msg, systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.footnote)
                     case .erro(let msg):
@@ -617,7 +623,7 @@ struct AjustesView: View {
                 } header: {
                     Text("Apple Saúde")
                 } footer: {
-                    Text("Lê corridas, caminhadas e musculação gravadas pelo Apple Watch (com frequência cardíaca, rota e métricas de corrida) e envia para o site.")
+                    Text("Lê corridas, caminhadas e musculação gravadas pelo Apple Watch (com frequência cardíaca, rota e métricas de corrida) e envia para o site. Reenviar um treino não duplica. O histórico completo pode levar vários minutos: mantenha o app aberto e o iPhone desbloqueado.")
                 }
                 Section {
                     Button("Remover treinos do relógio", role: .destructive) { confirmandoLimpeza = true }
@@ -632,6 +638,17 @@ struct AjustesView: View {
             }
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
+            .task { await saude.carregarAnos() }
+            .confirmationDialog(
+                "Enviar todo o histórico do app Saúde?",
+                isPresented: $confirmandoHistorico,
+                titleVisibility: .visible
+            ) {
+                Button("Enviar tudo, do ano mais recente ao mais antigo") { saude.iniciar(.tudo) }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("Vai ler as corridas, caminhadas e musculações de todos os anos, uma por uma, e pode levar vários minutos. Dá para interromper e retomar: o reenvio não duplica.")
+            }
             .confirmationDialog(
                 "Remover todos os treinos que este app agendou no relógio?",
                 isPresented: $confirmandoLimpeza,
