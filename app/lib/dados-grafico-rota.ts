@@ -19,27 +19,51 @@ function metrosEntre(a: [number, number], b: [number, number]): number {
 	return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function suavizar(valores: (number | null)[], janela: number): (number | null)[] {
-	return valores.map((v, i) => {
-		if (v === null) return null;
+/**
+ * Média de uma série dentro de uma janela em metros (centrada em cada ponto), usando a distância
+ * acumulada de cada ponto. Janela por distância dá o mesmo grau de suavização em corridas curtas e longas,
+ * coisa que uma janela fixa de "pontos" não faz.
+ */
+function suavizarPorDistancia(
+	valores: (number | null)[],
+	distancias: number[],
+	janelaMetros: number,
+): (number | null)[] {
+	const metade = janelaMetros / 2;
+	const saida: (number | null)[] = new Array(valores.length).fill(null);
+	let ini = 0;
+	let fim = 0;
+	for (let i = 0; i < valores.length; i++) {
+		if (valores[i] === null) continue;
+		while (distancias[ini] < distancias[i] - metade) ini++;
+		while (fim + 1 < distancias.length && distancias[fim + 1] <= distancias[i] + metade) fim++;
 		let soma = 0;
 		let n = 0;
-		for (let k = Math.max(0, i - janela); k <= Math.min(valores.length - 1, i + janela); k++) {
-			const x = valores[k];
-			if (x !== null) {
-				soma += x;
+		for (let k = ini; k <= fim; k++) {
+			const v = valores[k];
+			if (v !== null) {
+				soma += v;
 				n++;
 			}
 		}
-		return n > 0 ? soma / n : null;
-	});
+		saida[i] = n > 0 ? soma / n : null;
+	}
+	return saida;
 }
+
+export type Suavizacao = "pouca" | "media" | "alta";
+/** Janela de suavização do pace, em metros. */
+export const JANELA_PACE_M: Record<Suavizacao, number> = { pouca: 100, media: 300, alta: 800 };
 
 /**
  * Série pace / FC / altitude contra a distância, a partir da rota de alta resolução.
  * A distância é escalada para bater com a distância oficial da corrida.
  */
-export function montarDadosGrafico(detalhe: RotaDetalhada, distanciaMetros: number): PontoGrafico[] {
+export function montarDadosGrafico(
+	detalhe: RotaDetalhada,
+	distanciaMetros: number,
+	suavizacao: Suavizacao = "media",
+): PontoGrafico[] {
 	const coords = decodePolyline(detalhe.polyline);
 	const n = coords.length;
 	if (n < 2) return [];
@@ -50,12 +74,17 @@ export function montarDadosGrafico(detalhe: RotaDetalhada, distanciaMetros: numb
 	const escala = distanciaMetros > 0 ? distanciaMetros / comprimento : 1;
 
 	const ok = (v: number[] | undefined): v is number[] => !!v && v.length === n;
-	const paces = suavizar(
-		ok(detalhe.vel) ? detalhe.vel.map((v) => (v >= VELOCIDADE_MINIMA_MPS ? 1000 / v : null)) : Array(n).fill(null),
-		5,
-	);
-	const fcs = suavizar(ok(detalhe.fc) ? detalhe.fc.map((v) => (v > 0 ? v : null)) : Array(n).fill(null), 3);
-	const alts = suavizar(ok(detalhe.alt) ? detalhe.alt.map((v) => v) : Array(n).fill(null), 3);
+	// distância de cada ponto já na escala oficial da corrida (em metros)
+	const dist = acumulado.map((m) => m * escala);
+
+	// pace: média das VELOCIDADES na janela (média de paces distorce) e só depois vira pace
+	const velocidades = ok(detalhe.vel)
+		? detalhe.vel.map((v) => (v >= VELOCIDADE_MINIMA_MPS ? v : null))
+		: new Array(n).fill(null);
+	const velSuave = suavizarPorDistancia(velocidades, dist, JANELA_PACE_M[suavizacao]);
+	const paces = velSuave.map((v) => (v !== null ? 1000 / v : null));
+	const fcs = suavizarPorDistancia(ok(detalhe.fc) ? detalhe.fc.map((v) => (v > 0 ? v : null)) : new Array(n).fill(null), dist, 150);
+	const alts = suavizarPorDistancia(ok(detalhe.alt) ? detalhe.alt.map((v) => v) : new Array(n).fill(null), dist, 100);
 
 	// ~400 pontos bastam para o gráfico e deixam o navegador leve
 	const passo = Math.max(1, Math.floor(n / 400));

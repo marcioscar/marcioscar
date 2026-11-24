@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "~/components/ui/chart";
-import { montarDadosGrafico, type PontoGrafico } from "~/lib/dados-grafico-rota";
+import { JANELA_PACE_M, montarDadosGrafico, type PontoGrafico, type Suavizacao } from "~/lib/dados-grafico-rota";
 import type { RotaDetalhada } from "~/types/rota";
 
 type Props = {
@@ -54,7 +55,9 @@ function Dica({ ativo, payload, rotulo, valor }: { ativo?: boolean; payload?: re
 }
 
 export function GraficosCorrida({ detalhe, distanciaMetros }: Props) {
-	const dados = montarDadosGrafico(detalhe, distanciaMetros);
+	// corridas com tiros pedem pouca suavização; longas e contínuas ficam mais legíveis com média ou alta
+	const [suavizacao, setSuavizacao] = useState<Suavizacao>(distanciaMetros > 0 && distanciaMetros < 12_000 ? "pouca" : "media");
+	const dados = montarDadosGrafico(detalhe, distanciaMetros, suavizacao);
 	if (dados.length < 10) return null;
 
 	const paces = dados.map((d) => d.pace).filter((v): v is number => v !== null);
@@ -100,7 +103,30 @@ export function GraficosCorrida({ detalhe, distanciaMetros }: Props) {
 			<CardContent className="grid gap-4">
 				{paces.length > 0 && (
 					<div>
-						<Titulo texto="Pace" detalhe="mais para cima é mais rápido" />
+						<div className="mb-1 flex flex-wrap items-center justify-between gap-2 px-1">
+							<p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+								Pace <span className="font-normal normal-case">· mais para cima é mais rápido</span>
+							</p>
+							<div role="group" aria-label="Suavização do pace" className="flex items-center gap-1.5">
+								<span className="text-xs text-muted-foreground">Suavização</span>
+								<div className="flex rounded-md border p-0.5">
+									{(["pouca", "media", "alta"] as Suavizacao[]).map((s) => (
+										<button
+											key={s}
+											type="button"
+											aria-pressed={suavizacao === s}
+											title={`Média de ${JANELA_PACE_M[s]} m`}
+											onClick={() => setSuavizacao(s)}
+											className={
+												"rounded px-2 py-0.5 text-xs font-medium capitalize transition-colors " +
+												(suavizacao === s ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")
+											}>
+											{s === "media" ? "Média" : s === "pouca" ? "Pouca" : "Alta"}
+										</button>
+									))}
+								</div>
+							</div>
+						</div>
 						<ChartContainer config={chartConfig} className="aspect-auto h-40 w-full">
 							<LineChart data={dados} syncId={SYNC_ID} margin={MARGEM}>
 								<CartesianGrid vertical={false} />
