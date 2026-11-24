@@ -55,8 +55,10 @@ struct HojeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 cabecalho
                 avisos
-                if let s = store.sessaoHoje {
-                    CartaoHoje(store: store, sessao: s, abrir: abrir)
+                if !store.sessoesHoje.isEmpty {
+                    ForEach(store.sessoesHoje) { s in
+                        CartaoHoje(store: store, sessao: s, abrir: abrir)
+                    }
                 } else {
                     DiaLivre(proximo: store.restoDaSemana.first, abrir: abrir)
                 }
@@ -160,7 +162,7 @@ struct CartaoHoje: View {
                 }
             }
 
-            Text(sessao.blocos.first.map { $0.repeticoes > 1 } == true ? (sessao.resumoTrabalho ?? sessao.titulo) : sessao.titulo)
+            Text(sessao.ehMusculacao ? sessao.titulo : (sessao.blocos.first.map { $0.repeticoes > 1 } == true ? (sessao.resumoTrabalho ?? sessao.titulo) : sessao.titulo))
                 .font(.system(size: 34, weight: .heavy))
                 .foregroundStyle(Tema.texto)
                 .fixedSize(horizontal: false, vertical: true)
@@ -172,7 +174,7 @@ struct CartaoHoje: View {
                 }
             }
 
-            GraficoEstrutura(sessao: sessao)
+            if !sessao.ehMusculacao { GraficoEstrutura(sessao: sessao) }
 
             HStack(spacing: 10) {
                 Button {
@@ -295,8 +297,14 @@ struct SemanaView: View {
 
                 VStack(spacing: 8) {
                     ForEach(store.diasDaSemana, id: \.self) { dia in
-                        if let s = store.sessao(em: dia) {
-                            DiaDaSemana(dia: dia) { LinhaCompacta(store: store, sessao: s) { abrir(s) } }
+                        if !store.sessoes(em: dia).isEmpty {
+                            DiaDaSemana(dia: dia) {
+                                VStack(spacing: 6) {
+                                    ForEach(store.sessoes(em: dia)) { s in
+                                        LinhaCompacta(store: store, sessao: s) { abrir(s) }
+                                    }
+                                }
+                            }
                         } else {
                             DiaDaSemana(dia: dia) {
                                 HStack {
@@ -415,7 +423,7 @@ struct DetalheView: View {
                         Metrica(titulo: "Esforço", valor: sessao.esforco)
                     }
 
-                    GraficoEstrutura(sessao: sessao, altura: 84)
+                    if !sessao.ehMusculacao { GraficoEstrutura(sessao: sessao, altura: 84) }
 
                     VStack(spacing: 10) {
                         if let a = sessao.aquecimento { LinhaEtapa(etapa: a) }
@@ -488,10 +496,17 @@ struct LinhaEtapa: View {
     var semCartao = false
 
     private var nome: String {
+        if let n = etapa.nome, !n.isEmpty { return n }
         switch etapa.papel {
-        case .trabalho: "Esforço"
-        default: etapa.papel.rotulo
+        case .trabalho: return "Esforço"
+        default: return etapa.papel.rotulo
         }
+    }
+
+    /// série de musculação sem meta: no relógio você toca para avançar
+    private var meta: String {
+        if etapa.nome != nil, etapa.papel == .trabalho, etapa.distanciaM == nil, etapa.tempoSeg == nil { return "série" }
+        return etapa.descricaoMeta
     }
 
     var body: some View {
@@ -499,7 +514,7 @@ struct LinhaEtapa: View {
             Circle().fill(etapa.papel.cor).frame(width: 12, height: 12)
             VStack(alignment: .leading, spacing: 2) {
                 Text(nome).font(.body.weight(.semibold)).foregroundStyle(Tema.texto)
-                Text(etapa.descricaoMeta).font(.subheadline).foregroundStyle(Tema.textoSuave)
+                Text(meta).font(.subheadline).foregroundStyle(Tema.textoSuave)
             }
             Spacer(minLength: 8)
             if let p = etapa.textoPace {

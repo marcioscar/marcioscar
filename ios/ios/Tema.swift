@@ -25,6 +25,7 @@ extension TipoSessao {
         case .tiros: Tema.laranja
         case .longao: Tema.roxo
         case .prova: Tema.vermelho
+        case .musculacao: Color(red: 0.36, green: 0.38, blue: 0.80)
         }
     }
 }

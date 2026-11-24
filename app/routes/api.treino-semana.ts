@@ -4,6 +4,8 @@ import { DAYS_OF_WEEK } from '~/lib/canovaPlanner'
 import { chaveDia } from '~/lib/carga-treino'
 import { converterSessao, type SessaoRelogio } from '~/lib/treino-para-relogio'
 import { listarTreinosManuais } from '~/models/treino-manual.server'
+import { musculacaoParaSessao } from '~/lib/musculacao'
+import { listarMusculacao } from '~/models/musculacao.server'
 import { montarPlanoSemanaAtual } from '~/models/plano-semana.server'
 import { listarProvas } from '~/models/provas.server'
 
@@ -29,7 +31,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const fim = somarDias(segunda, 6)
 
 	// Treinos montados à mão têm prioridade; "descanso" manual também tira o treino do plano da prova.
-	const manuais = await listarTreinosManuais(segunda, fim)
+	const [manuais, musculacao] = await Promise.all([listarTreinosManuais(segunda, fim), listarMusculacao(segunda, fim)])
+	const musculacaoPorDia = new Map(musculacao.map(m => [m.data, m]))
 	const manualPorDia = new Map(manuais.map(t => [t.data, t]))
 
 	const provas = await listarProvas()
@@ -60,6 +63,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		const doPlano = plano?.sessions.find(s => DAYS_OF_WEEK.indexOf(s.day) === i)
 		if (doPlano && prova) sessoes.push(converterSessao(doPlano, prova.paceAlvo, data))
 	}
+
+	// musculação escolhida para cada dia (pode coexistir com a corrida do mesmo dia)
+	for (const m of musculacaoPorDia.values()) sessoes.push(musculacaoParaSessao(m))
+	sessoes.sort((a, b) => a.data.localeCompare(b.data) || (a.atividade === 'musculacao' ? 1 : 0) - (b.atividade === 'musculacao' ? 1 : 0))
 
 	return Response.json(
 		{

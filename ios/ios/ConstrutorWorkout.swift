@@ -29,7 +29,11 @@ enum ConstrutorWorkout {
     }
 
     private static func passo(_ e: Etapa) -> WorkoutStep {
-        WorkoutStep(goal: meta(e), alert: alerta(e))
+        // o nome da etapa (ex.: o exercício) só existe no iOS 18 ou mais
+        if #available(iOS 18.0, *), let nome = e.nome, !nome.isEmpty {
+            return WorkoutStep(goal: meta(e), alert: alerta(e), displayName: nome)
+        }
+        return WorkoutStep(goal: meta(e), alert: alerta(e))
     }
 
     static func plano(para sessao: Sessao) -> WorkoutPlan {
@@ -42,8 +46,8 @@ enum ConstrutorWorkout {
             )
         }
         let treino = CustomWorkout(
-            activity: .running,
-            location: .outdoor,
+            activity: sessao.ehMusculacao ? .traditionalStrengthTraining : .running,
+            location: sessao.ehMusculacao ? .indoor : .outdoor,
             displayName: sessao.titulo,
             warmup: sessao.aquecimento.map(passo),
             blocks: blocos,
@@ -52,11 +56,11 @@ enum ConstrutorWorkout {
         return WorkoutPlan(.custom(treino), id: uuid(para: sessao))
     }
 
-    /// Agenda hoje/dia da sessão às 06:00 (passado vira daqui a 1 minuto, para poder testar).
+    /// Agenda no dia da sessão: corrida às 06:00, musculação às 18:00 (hoje, se a hora já passou, vira daqui a 1 minuto).
     static func componentes(para sessao: Sessao) -> DateComponents {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = .current
-        var data = cal.date(bySettingHour: 6, minute: 0, second: 0, of: sessao.dataComoDate) ?? Date()
+        var data = cal.date(bySettingHour: sessao.ehMusculacao ? 18 : 6, minute: 0, second: 0, of: sessao.dataComoDate) ?? Date()
         if data < Date() {
             data = cal.isDateInToday(sessao.dataComoDate) ? Date().addingTimeInterval(60) : data
         }

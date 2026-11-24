@@ -24,6 +24,8 @@ extension Sessao {
 
     func segundos(_ e: Etapa) -> Double {
         if let t = e.tempoSeg { return t }
+        // série de musculação sem meta: ~40 s de execução
+        if ehMusculacao, e.papel == .trabalho, e.distanciaM == nil { return 40 }
         if let d = e.distanciaM { return d / (velocidadeMedia(e) / 3.6) }
         return 0
     }
@@ -32,6 +34,7 @@ extension Sessao {
     var duracaoMin: Int { Int((etapasExpandidas.reduce(0) { $0 + segundos($1) } / 60).rounded()) }
 
     var esforco: String {
+        if ehMusculacao { return "Força" }
         let zs = etapasExpandidas.filter { $0.papel == .trabalho }.compactMap { $0.zona?.rawValue }
         switch zs.max() ?? 2 {
         case ...2: return "Leve"
@@ -48,7 +51,12 @@ extension Sessao {
         return b.repeticoes > 1 ? "\(b.repeticoes) × \(e.descricaoMeta)" : e.descricaoMeta
     }
 
-    var kmTexto: String { String(format: "%.1f km", distanciaKm).replacingOccurrences(of: ".", with: ",") }
+    /// distância da corrida, ou a contagem de exercícios na musculação
+    var kmTexto: String {
+        if ehMusculacao { return "\(blocos.count) exercícios" }
+        return String(format: "%.1f km", distanciaKm).replacingOccurrences(of: ".", with: ",")
+    }
+
     var duracaoTexto: String {
         let h = duracaoMin / 60, m = duracaoMin % 60
         return h > 0 ? "\(h) h \(String(format: "%02d", m))" : "~\(duracaoMin) min"

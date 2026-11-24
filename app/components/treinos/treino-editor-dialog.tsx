@@ -30,6 +30,8 @@ import {
 import type { EtapaRelogio } from "~/lib/treino-para-relogio";
 import { ZONAS_RITMO } from "~/lib/zonas-pace";
 import { COR_ZONA, TreinoGrafico } from "./treino-grafico";
+import { MusculacaoEditor } from "./musculacao-editor";
+import type { TreinoMusculacaoDados } from "~/lib/musculacao";
 
 type Unidade = "km" | "m" | "min" | "s";
 type PapelEditavel = "trabalho" | "recuperacao";
@@ -238,11 +240,17 @@ function mover<T>(lista: T[], de: number, para: number): T[] {
 type Props = {
 	data: string | null;
 	inicial: TreinoManualDados | null;
+	musculacaoInicial?: TreinoMusculacaoDados | null;
 	rotuloData: string;
 	onClose: () => void;
 };
 
-export function TreinoEditorDialog({ data, inicial, rotuloData, onClose }: Props) {
+export function TreinoEditorDialog({ data, inicial, musculacaoInicial = null, rotuloData, onClose }: Props) {
+	const [modo, setModo] = React.useState<"corrida" | "musculacao">("corrida");
+	React.useEffect(() => {
+		// ao abrir um dia que só tem musculação planejada, já mostra a aba de musculação
+		setModo(!inicial && musculacaoInicial ? "musculacao" : "corrida");
+	}, [data, inicial, musculacaoInicial]);
 	const fetcher = useFetcher<{ ok: boolean; message?: string }>();
 	const salvando = fetcher.state !== "idle";
 	const [form, setForm] = React.useState<Form | null>(null);
@@ -308,11 +316,40 @@ export function TreinoEditorDialog({ data, inicial, rotuloData, onClose }: Props
 				<DialogHeader>
 					<DialogTitle>Treino de {rotuloData}</DialogTitle>
 					<DialogDescription>
-						Comece por um modelo (método Jack Daniels) e monte do seu jeito: blocos que se repetem, com quantas etapas
-						quiser (ex.: fartlek 3× de 1,5 km Z2 + 1 km Z3 + 500 m Z3).
+						{modo === "musculacao"
+							? "Escolha um dos treinos da academia para este dia; depois ele vai para o app e para o relógio."
+							: "Comece por um modelo (método Jack Daniels) e monte do seu jeito: blocos que se repetem, com quantas etapas quiser (ex.: fartlek 3× de 1,5 km Z2 + 1 km Z3 + 500 m Z3)."}
 					</DialogDescription>
 				</DialogHeader>
 
+				<div role="tablist" aria-label="Tipo de treino" className="flex w-fit rounded-md border p-0.5">
+					{(
+						[
+							["corrida", "Corrida"],
+							["musculacao", "Musculação"],
+						] as const
+					).map(([id, rotulo]) => (
+						<button
+							key={id}
+							type="button"
+							role="tab"
+							aria-selected={modo === id}
+							onClick={() => setModo(id)}
+							className={
+								"rounded px-3 py-1 text-sm font-medium transition-colors " +
+								(modo === id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")
+							}>
+							{rotulo}
+							{id === "musculacao" && musculacaoInicial && " ✓"}
+							{id === "corrida" && inicial && " ✓"}
+						</button>
+					))}
+				</div>
+
+				{modo === "musculacao" ? (
+					<MusculacaoEditor data={data} inicial={musculacaoInicial} onClose={onClose} />
+				) : (
+				<>
 				<div className="grid gap-4">
 					<div className="flex flex-wrap gap-1.5" role="group" aria-label="Modelos">
 						{MODELOS.map((m) => (
@@ -565,6 +602,8 @@ export function TreinoEditorDialog({ data, inicial, rotuloData, onClose }: Props
 						</Button>
 					</div>
 				</DialogFooter>
+				</>
+				)}
 			</DialogContent>
 		</Dialog>
 	);

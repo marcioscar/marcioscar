@@ -16,6 +16,8 @@ import {
 import { db } from "../../db.server";
 import { listarTreinosSaude } from "~/models/treino-saude.server";
 import { RELOGIO_DESDE } from "~/lib/fonte-dados";
+import { sanearMusculacao, estimarMinutosMusculacao, type TreinoMusculacaoDados } from "~/lib/musculacao";
+import { listarMusculacao, removerMusculacao, salvarMusculacao } from "~/models/musculacao.server";
 import { chaveDia } from "~/lib/carga-treino";
 import {
 	ROTULO_FASE,
@@ -102,8 +104,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const inicio = segundaDe(primeiro);
 	const fim = somarDias(segundaDe(ultimoDoMes), 6);
 
-	const [treinos, saude, corridas] = await Promise.all([
+	const [treinos, musculacaoLista, saude, corridas] = await Promise.all([
 		listarTreinosManuais(inicio, fim),
+		listarMusculacao(inicio, fim),
 		listarTreinosSaude(new Date(`${somarDias(inicio, -1)}T00:00:00Z`), new Date(`${somarDias(fim, 2)}T00:00:00Z`)),
 		db.corrida.findMany({
 			where: {
@@ -175,7 +178,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	}
 	for (const lista of Object.values(atividades)) lista.sort((a, b) => a.chave.localeCompare(b.chave));
 
-	return { hoje, mes, inicio, fim, treinos, atividades };
+	const musculacao: Record<string, TreinoMusculacaoDados> = {};
+	for (const m of musculacaoLista) musculacao[m.data] = m;
+
+	return { hoje, mes, inicio, fim, treinos, musculacao, atividades };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -188,6 +194,20 @@ export async function action({ request }: Route.ActionArgs) {
 			if (!treino) return { ok: false, message: "Treino inválido." };
 			await salvarTreinoManual(treino);
 			return { ok: true, message: "Treino salvo." };
+		}
+
+		if (intent === "salvarMusculacao") {
+			const treino = sanearMusculacao(JSON.parse(String(form.get("treino") ?? "null")));
+			if (!treino) return { ok: false, message: "Treino de musculação inválido." };
+			await salvarMusculacao(treino);
+			return { ok: true, message: "Musculação salva." };
+		}
+
+		if (intent === "removerMusculacao") {
+			const data = String(form.get("data") ?? "");
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { ok: false, message: "Data inválida." };
+			await removerMusculacao(data);
+			return { ok: true, message: "Musculação excluída." };
 		}
 
 		if (intent === "remover") {
@@ -301,6 +321,48 @@ function CartaoPlanejado({
 	) : (
 		<div className={classe} style={estilo}>
 			{conteudo}
+		</div>
+	);
+}
+
+function CartaoMusculacao({
+	m,
+	feita,
+	passado,
+}: {
+	m: TreinoMusculacaoDados;
+	feita?: AtividadeDia;
+	passado: boolean;
+}) {
+	const status = feita ? "feito" : passado ? "perdido" : "pendente";
+	const minutos = feita ? Math.round(feita.tempoSeg / 60) : estimarMinutosMusculacao(m);
+	return (
+		<div
+			className="grid min-w-0 grid-cols-1 gap-0.5 rounded-lg border px-2 py-1.5 text-xs"
+			style={{
+				borderColor: "color-mix(in oklab, var(--paleta-6) 40%, transparent)",
+				background: feita
+					? "color-mix(in oklab, var(--paleta-1) 14%, var(--card))"
+					: "color-mix(in oklab, var(--paleta-6) 8%, var(--card))",
+			}}>
+			<div className="flex items-center gap-1.5">
+				<Dumbbell size={13} className="shrink-0 text-muted-foreground" />
+				<span className="min-w-0 flex-1 truncate font-semibold capitalize">{m.grupo.toLowerCase()}</span>
+				<span
+					className="flex size-4 shrink-0 items-center justify-center rounded-full"
+					style={
+						status === "feito"
+							? { background: "var(--paleta-1)", color: "white" }
+							: { background: "var(--muted)", color: "var(--muted-foreground)" }
+					}
+					title={status === "feito" ? "Feito" : status === "perdido" ? "Não feito" : "Planejado"}>
+					{status === "feito" ? <Check size={11} /> : status === "perdido" ? <Minus size={11} /> : <Clock size={11} />}
+				</span>
+			</div>
+			<p className="truncate text-[11px] text-muted-foreground tabular-nums">
+				{m.exercicios.length} exercícios · {feita ? "" : "~"}
+				{minutos} min
+			</p>
 		</div>
 	);
 }
@@ -422,7 +484,7 @@ function SugestaoDialog({ segunda, onClose }: { segunda: string | null; onClose:
 }
 
 export default function Treinos() {
-	const { hoje, mes, inicio, fim, treinos, atividades } = useLoaderData<typeof loader>();
+	const { hoje, mes, inicio, fim, treinos, musculacao, atividades } = useLoaderData<typeof loader>();
 	const [editando, setEditando] = useState<string | null>(null);
 	const [sugerindo, setSugerindo] = useState<string | null>(null);
 
@@ -492,7 +554,10 @@ export default function Treinos() {
 							<div key={dias[0]} className="contents">
 								{dias.map((dia) => {
 									const t = porData.get(dia);
-									const { feita, soltas } = parear(t, atividades[dia] ?? []);
+									const { feita, soltas: soltasBrutas } = parear(t, atividades[dia] ?? []);
+									const m = musculacao[dia];
+									const musculacaoFeita = m ? (atividades[dia] ?? []).find((a) => a.musculacao) : undefined;
+									const soltas = soltasBrutas.filter((a) => a !== musculacaoFeita);
 									const ehHoje = dia === hoje;
 									const passado = dia < hoje;
 									return (
@@ -514,6 +579,7 @@ export default function Treinos() {
 											</span>
 											<div className="mt-1.5 grid min-w-0 grid-cols-1 gap-1">
 												{t && t.tipo !== "descanso" && <CartaoPlanejado t={t} feita={feita} passado={passado} />}
+												{m && <CartaoMusculacao m={m} feita={musculacaoFeita} passado={passado} />}
 												{t && t.tipo === "descanso" && (
 													<p className="px-1 text-[11px] text-muted-foreground">Descanso</p>
 												)}
@@ -558,6 +624,7 @@ export default function Treinos() {
 			<TreinoEditorDialog
 				data={editando}
 				inicial={editando ? ((porData.get(editando) as TreinoManualDados | undefined) ?? null) : null}
+				musculacaoInicial={editando ? (musculacao[editando] ?? null) : null}
 				rotuloData={editando ? formatarDia(editando, { weekday: "long", day: "numeric", month: "long" }) : ""}
 				onClose={() => setEditando(null)}
 			/>

@@ -72,6 +72,8 @@ struct Etapa: Codable, Hashable {
     /// Faixa de pace da etapa em seg/km (rápido ≤ lento). Quando existe, vale mais que a zona.
     var paceRapidoSeg: Double?
     var paceLentoSeg: Double?
+    /// Nome da etapa (ex.: exercício da musculação)
+    var nome: String?
 
     /// Faixa de velocidade (km/h) para o alerta do relógio: pace explícito ou, senão, a zona.
     var faixaKmh: ClosedRange<Double>? {
@@ -111,7 +113,7 @@ struct Bloco: Codable, Hashable {
 }
 
 enum TipoSessao: String, Codable {
-    case leve, limiar, tiros, longao, prova
+    case leve, limiar, tiros, longao, prova, musculacao
 
     var rotulo: String {
         switch self {
@@ -120,6 +122,7 @@ enum TipoSessao: String, Codable {
         case .tiros: "Tiros"
         case .longao: "Longão"
         case .prova: "Prova"
+        case .musculacao: "Musculação"
         }
     }
 
@@ -130,6 +133,7 @@ enum TipoSessao: String, Codable {
         case .tiros: "bolt.fill"
         case .longao: "figure.run"
         case .prova: "flag.checkered"
+        case .musculacao: "dumbbell.fill"
         }
     }
 }
@@ -141,6 +145,8 @@ struct Sessao: Codable, Identifiable, Hashable {
     var data: String
     var titulo: String
     var tipo: TipoSessao
+    /// "corrida" (padrão) ou "musculacao": define a atividade gravada no relógio
+    var atividade: String?
     /// Observação livre (opcional)
     var observacao: String?
     /// "canova" (gerado pelo plano) ou "treinador" (prescrito por ele)
@@ -148,6 +154,8 @@ struct Sessao: Codable, Identifiable, Hashable {
     var aquecimento: Etapa?
     var blocos: [Bloco]
     var desaquecimento: Etapa?
+
+    var ehMusculacao: Bool { atividade == "musculacao" || tipo == .musculacao }
 
     var dataComoDate: Date {
         let f = DateFormatter()

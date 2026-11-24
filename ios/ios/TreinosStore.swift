@@ -29,7 +29,12 @@ final class TreinosStore {
         sessoes.first { calendario.isDate($0.dataComoDate, inSameDayAs: dia) }
     }
 
-    var sessaoHoje: Sessao? { sessao(em: Date()) }
+    /// Todas as sessões de um dia (corrida e musculação podem coexistir)
+    func sessoes(em dia: Date) -> [Sessao] {
+        sessoes.filter { calendario.isDate($0.dataComoDate, inSameDayAs: dia) }
+    }
+
+    var sessoesHoje: [Sessao] { sessoes(em: Date()) }
 
     /// Sessões da semana depois de hoje (para "Resto da semana").
     var restoDaSemana: [Sessao] {
@@ -37,7 +42,7 @@ final class TreinosStore {
         return sessoes.filter { $0.dataComoDate > hoje }
     }
 
-    var kmDaSemana: Double { sessoes.reduce(0) { $0 + $1.distanciaKm } }
+    var kmDaSemana: Double { sessoes.filter { !$0.ehMusculacao }.reduce(0) { $0 + $1.distanciaKm } }
 
     func estaNoRelogio(_ s: Sessao) -> Bool { agendadas.contains(ConstrutorWorkout.uuid(para: s)) }
 

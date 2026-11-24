@@ -181,6 +181,35 @@ model TreinoSaude {
     @@index([tipo])
 }
 
+/// Treino de musculação escolhido para um dia (vem do catálogo de treinos da academia Quattor).
+model TreinoMusculacao {
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    /// yyyy-MM-dd
+    data           String   @unique
+    /// nome do grupo, ex.: "MEMBROS SUPERIORES 1"
+    grupo          String
+    /// descanso entre séries, em segundos
+    descansoSeg    Int      @default(60)
+    /// [{ nome, series, repeticoes, nota }]
+    exercicios     Json
+    observacao     String?
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+}
+
+/// Cópia local dos treinos da academia (banco quattor, coleção treinos), usada quando QUATTOR_DATABASE_URL não está configurada.
+model AcademiaTreino {
+    id         String   @id @default(auto()) @map("_id") @db.ObjectId
+    ano        Int
+    semana     Int
+    grupo      String
+    /// [{ nome, Repeticoes, obs }]
+    exercicios Json
+    createdAt  DateTime @default(now())
+
+    @@unique([ano, semana, grupo])
+}
+
 model biblioteca {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     nome      String

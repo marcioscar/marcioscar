@@ -4,7 +4,8 @@
 import type { EtapaRelogio, SessaoRelogio } from '~/lib/treino-para-relogio'
 import { ZONAS_RITMO } from '~/lib/zonas-pace'
 
-export type TipoTreino = SessaoRelogio['tipo'] | 'descanso'
+// musculação tem tipo próprio no relógio, mas é montada em outro editor: aqui só entram corridas e descanso
+export type TipoTreino = Exclude<SessaoRelogio['tipo'], 'musculacao'> | 'descanso'
 
 export const ROTULO_TIPO: Record<TipoTreino, string> = {
 	descanso: 'Descanso',

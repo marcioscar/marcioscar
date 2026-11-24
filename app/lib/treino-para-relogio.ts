@@ -16,13 +16,17 @@ export type EtapaRelogio = {
 	/** faixa de pace em seg/km: `paceRapidoSeg` ≤ `paceLentoSeg` */
 	paceRapidoSeg: number | null
 	paceLentoSeg: number | null
+	/** nome da etapa (ex.: exercício da musculação); aparece no relógio a partir do iOS 18 */
+	nome?: string | null
 }
 
 export type SessaoRelogio = {
 	id: string
 	data: string
 	titulo: string
-	tipo: 'leve' | 'limiar' | 'tiros' | 'longao' | 'prova'
+	tipo: 'leve' | 'limiar' | 'tiros' | 'longao' | 'prova' | 'musculacao'
+	/** tipo de atividade no relógio; ausente = corrida */
+	atividade?: 'corrida' | 'musculacao'
 	origem: 'canova' | 'treinador' | 'manual'
 	observacao?: string | null
 	aquecimento: EtapaRelogio | null
