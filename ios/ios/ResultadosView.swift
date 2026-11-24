@@ -261,20 +261,125 @@ private struct ConteudoResultado: View {
 
 // MARK: - Mapa
 
-private struct MapaRota: View {
-    let r: ResultadoCorrida
+private enum EstiloMapaApp: String, CaseIterable {
+    case padrao = "Mapa"
+    case satelite = "Satélite"
+}
+
+/// Cor do pace: azul (rápido) → amarelo → vermelho (lento), vivas para se destacar no mapa.
+private func corDoPace(_ t: Double) -> Color {
+    let azul = (0.0, 0.66, 1.0), amarelo = (1.0, 0.84, 0.04), vermelho = (1.0, 0.23, 0.19)
+    let x = min(1, max(0, t))
+    func mix(_ a: (Double, Double, Double), _ b: (Double, Double, Double), _ f: Double) -> Color {
+        Color(red: a.0 + (b.0 - a.0) * f, green: a.1 + (b.1 - a.1) * f, blue: a.2 + (b.2 - a.2) * f)
+    }
+    return x <= 0.5 ? mix(azul, amarelo, x * 2) : mix(amarelo, vermelho, (x - 0.5) * 2)
+}
+
+private struct TrechoColorido: Identifiable {
+    let id: Int
+    let coordenadas: [CLLocationCoordinate2D]
+    let cor: Color
+}
+
+private struct RotaColorida {
+    let trechos: [TrechoColorido]
+    /// faixa de pace usada na legenda (seg/km); nil quando a rota não tem velocidade por ponto
+    let paceRapido: Double?
+    let paceLento: Double?
+
+    init(r: ResultadoCorrida) {
+        let coords = r.coordenadas
+        guard coords.count >= 2 else { trechos = []; paceRapido = nil; paceLento = nil; return }
+
+        guard let vel = r.velocidades, vel.count == coords.count else {
+            trechos = [TrechoColorido(id: 0, coordenadas: coords, cor: Tema.laranja)]
+            paceRapido = nil
+            paceLento = nil
+            return
+        }
+
+        // velocidade média numa janela curta, para a cor não piscar a cada ponto
+        let suave: [Double] = vel.indices.map { i in
+            let faixa = vel[max(0, i - 5)...min(vel.count - 1, i + 5)].filter { $0 >= 1.4 }
+            return faixa.isEmpty ? 0 : faixa.reduce(0, +) / Double(faixa.count)
+        }
+        let paces = suave.filter { $0 > 0 }.map { 1000 / $0 }.sorted()
+        guard paces.count > 10 else {
+            trechos = [TrechoColorido(id: 0, coordenadas: coords, cor: Tema.laranja)]
+            paceRapido = nil
+            paceLento = nil
+            return
+        }
+        let rapido = paces[Int(Double(paces.count - 1) * 0.05)]
+        let lento = paces[Int(Double(paces.count - 1) * 0.95)]
+        paceRapido = rapido
+        paceLento = lento
+
+        // ~150 trechos; cada um termina onde o próximo começa para a linha não ter falhas
+        let tamanho = max(3, coords.count / 150)
+        var saida: [TrechoColorido] = []
+        var inicio = 0
+        var id = 0
+        while inicio < coords.count - 1 {
+            let fim = min(inicio + tamanho, coords.count - 1)
+            let medias = suave[inicio...fim].filter { $0 > 0 }
+            let cor: Color
+            if medias.isEmpty {
+                cor = Tema.cinzaPausa
+            } else {
+                let pace = 1000 / (medias.reduce(0, +) / Double(medias.count))
+                cor = corDoPace(lento > rapido ? (pace - rapido) / (lento - rapido) : 0)
+            }
+            saida.append(TrechoColorido(id: id, coordenadas: Array(coords[inicio...fim]), cor: cor))
+            id += 1
+            inicio = fim
+        }
+        trechos = saida
+    }
+}
+
+private struct LegendaRitmo: View {
+    let rapido: Double
+    let lento: Double
 
     var body: some View {
-        let coords = r.coordenadas
-        Map(initialPosition: .region(regiao(coords)), interactionModes: [.pan, .zoom]) {
-            MapPolyline(coordinates: coords).stroke(Tema.laranja, lineWidth: 5)
-            if let ini = coords.first { Annotation("Largada", coordinate: ini) { Circle().fill(Tema.aqua).frame(width: 12, height: 12).overlay(Circle().stroke(.white, lineWidth: 2)) } }
-            if let fim = coords.last { Annotation("Chegada", coordinate: fim) { Circle().fill(Tema.texto).frame(width: 12, height: 12).overlay(Circle().stroke(.white, lineWidth: 2)) } }
+        HStack(spacing: 8) {
+            Text("\(formatarPace(rapido)) /km").font(.caption2.weight(.semibold)).monospacedDigit()
+            LinearGradient(colors: [corDoPace(0), corDoPace(0.5), corDoPace(1)], startPoint: .leading, endPoint: .trailing)
+                .frame(width: 90, height: 8)
+                .clipShape(Capsule())
+            Text("\(formatarPace(lento)) /km").font(.caption2.weight(.semibold)).monospacedDigit()
         }
-        .mapStyle(.standard(elevation: .realistic))
-        .frame(height: 260)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Tema.linha, lineWidth: 1))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+    }
+}
+
+private struct MapaColorido: View {
+    let r: ResultadoCorrida
+    var interativo: Bool
+    var estilo: EstiloMapaApp = .padrao
+
+    var body: some View {
+        let rota = RotaColorida(r: r)
+        let coords = r.coordenadas
+        Map(initialPosition: .region(regiao(coords)), interactionModes: interativo ? [.pan, .zoom, .rotate] : []) {
+            // contorno branco por baixo, para a linha colorida se destacar
+            MapPolyline(coordinates: coords).stroke(.white, lineWidth: 9)
+            ForEach(rota.trechos) { t in
+                MapPolyline(coordinates: t.coordenadas).stroke(t.cor, lineWidth: 5.5)
+            }
+            if let ini = coords.first { Annotation("Largada", coordinate: ini) { Circle().fill(Tema.aqua).frame(width: 13, height: 13).overlay(Circle().stroke(.white, lineWidth: 2.5)) } }
+            if let fim = coords.last { Annotation("Chegada", coordinate: fim) { Circle().fill(Tema.texto).frame(width: 13, height: 13).overlay(Circle().stroke(.white, lineWidth: 2.5)) } }
+        }
+        .mapStyle(estilo == .padrao ? .standard(elevation: .realistic) : .hybrid(elevation: .realistic))
+        .overlay(alignment: .bottomLeading) {
+            if let rapido = rota.paceRapido, let lento = rota.paceLento {
+                LegendaRitmo(rapido: rapido, lento: lento).padding(10)
+            }
+        }
     }
 
     private func regiao(_ c: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
@@ -288,6 +393,66 @@ private struct MapaRota: View {
             center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2),
             span: MKCoordinateSpan(latitudeDelta: max((maxLat - minLat) * 1.35, 0.004), longitudeDelta: max((maxLng - minLng) * 1.35, 0.004))
         )
+    }
+}
+
+private struct MapaRota: View {
+    let r: ResultadoCorrida
+    @State private var ampliado = false
+
+    var body: some View {
+        MapaColorido(r: r, interativo: false)
+            .frame(height: 260)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Tema.linha, lineWidth: 1))
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Tema.texto)
+                    .padding(9)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .padding(10)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 20))
+            .onTapGesture { ampliado = true }
+            .accessibilityLabel("Mapa da corrida. Toque para ampliar.")
+            .accessibilityAddTraits(.isButton)
+            .fullScreenCover(isPresented: $ampliado) { MapaTelaCheia(r: r) }
+    }
+}
+
+/// Mapa em tela cheia, com zoom e movimento livres e a troca entre mapa e satélite.
+private struct MapaTelaCheia: View {
+    let r: ResultadoCorrida
+    @Environment(\.dismiss) private var dismiss
+    @State private var estilo: EstiloMapaApp = .padrao
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            MapaColorido(r: r, interativo: true, estilo: estilo)
+                .ignoresSafeArea()
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .foregroundStyle(Tema.texto)
+                        .frame(width: 46, height: 46)
+                        .background(.regularMaterial, in: Circle())
+                }
+                .accessibilityLabel("Fechar mapa")
+                Spacer()
+                Picker("Estilo", selection: $estilo) {
+                    ForEach(EstiloMapaApp.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 180)
+                .padding(4)
+                .background(.regularMaterial, in: Capsule())
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+        .preferredColorScheme(.light)
     }
 }
 
@@ -606,6 +771,15 @@ private struct BlocoSplits: View {
 
     private var completos: [SplitKm] { splits.filter { $0.distanciaM >= 950 } }
 
+    /// largura da barra conforme a quantidade de km, para caber em corridas longas
+    private var larguraBarra: CGFloat { completos.count > 20 ? 6 : completos.count > 12 ? 9 : 14 }
+
+    /// rótulos do eixo de km: todos nas corridas curtas, de 5 em 5 nas longas
+    private var marcasKm: [Int] {
+        let passo = completos.count > 22 ? 5 : completos.count > 12 ? 2 : 1
+        return completos.map(\.km).filter { $0 % passo == 0 || $0 == 1 }
+    }
+
     private var mediaPace: Double? {
         let p = completos.compactMap(\.paceSegKm)
         return p.isEmpty ? nil : p.reduce(0, +) / Double(p.count)
@@ -643,17 +817,19 @@ private struct BlocoSplits: View {
                     .font(.caption).foregroundStyle(Tema.textoSuave)
                 Chart(completos) { s in
                     if let p = s.paceSegKm {
-                        BarMark(x: .value("Km", String(s.km)), y: .value("Diferença", media - p))
+                        BarMark(x: .value("Km", s.km), yStart: .value("zero", 0), yEnd: .value("Diferença", media - p), width: .fixed(larguraBarra))
                             .foregroundStyle(corPace(p, media: media))
-                            .cornerRadius(4)
+                            .cornerRadius(3)
                     }
                 }
+                .chartXAxis { AxisMarks(values: marcasKm) { v in AxisValueLabel { if let d = v.as(Int.self) { Text("\(d)").font(.caption2) } } } }
                 .chartYAxis {
                     AxisMarks { v in
                         AxisGridLine()
                         AxisValueLabel { if let d = v.as(Double.self) { Text(d > 0 ? "+\(Int(d))s" : "\(Int(d))s").font(.caption2) } }
                     }
                 }
+                .chartPlotStyle { $0.clipped() }
                 .frame(height: 170)
                 HStack(spacing: 14) {
                     Label("Mais rápido", systemImage: "circle.fill").foregroundStyle(Tema.azul)
@@ -666,12 +842,19 @@ private struct BlocoSplits: View {
                 if fcs.isEmpty {
                     Text("Sem FC por km.").font(.footnote).foregroundStyle(Tema.textoSuave)
                 } else {
+                    // as barras começam no piso do eixo (não em zero) e o gráfico recorta o que passar
+                    let piso = max(0, ((fcs.min() ?? 60) - 15) / 5).rounded(.down) * 5
+                    let teto = (((fcs.max() ?? 180) + 5) / 5).rounded(.up) * 5
                     Chart(completos) { s in
                         if let f = s.fcMedia {
-                            BarMark(x: .value("Km", String(s.km)), y: .value("FC", f)).foregroundStyle(Tema.vermelho.opacity(0.85)).cornerRadius(4)
+                            BarMark(x: .value("Km", s.km), yStart: .value("piso", piso), yEnd: .value("FC", f), width: .fixed(larguraBarra))
+                                .foregroundStyle(Tema.vermelho.opacity(0.85))
+                                .cornerRadius(3)
                         }
                     }
-                    .chartYScale(domain: max(0, (fcs.min() ?? 60) - 15)...((fcs.max() ?? 180) + 5))
+                    .chartYScale(domain: piso...teto)
+                    .chartXAxis { AxisMarks(values: marcasKm) { v in AxisValueLabel { if let d = v.as(Int.self) { Text("\(d)").font(.caption2) } } } }
+                    .chartPlotStyle { $0.clipped() }
                     .frame(height: 170)
                 }
             }

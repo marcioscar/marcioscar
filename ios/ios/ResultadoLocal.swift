@@ -206,7 +206,8 @@ enum ConstrutorResultado {
             planejado: nil,
             comparacao: nil,
             analise: nil,
-            analisadaEm: nil
+            analisadaEm: nil,
+            velocidades: p.rota?.vel
         )
     }
 }

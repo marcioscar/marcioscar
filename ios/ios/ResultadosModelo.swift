@@ -137,6 +137,8 @@ struct ResultadoCorrida: Codable {
     var comparacao: ComparacaoResultado?
     var analise: AnaliseIA?
     var analisadaEm: String?
+    /// velocidade (m/s) de cada ponto da rota, na mesma ordem da polyline; só no resultado montado no iPhone
+    var velocidades: [Double]? = nil
 
     var data: Date { ISO8601DateFormatter.comFracao.date(from: dataInicio) ?? ISO8601DateFormatter().date(from: dataInicio) ?? Date() }
 
