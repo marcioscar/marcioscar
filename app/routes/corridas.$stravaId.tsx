@@ -10,6 +10,7 @@ import type { RotaDetalhada } from "~/types/rota";
 import { Button } from "~/components/ui/button";
 import { CorridaPaceDesnivelChart } from "~/components/corridas/corrida-pace-desnivel-chart";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
+import { GraficosCorrida } from "~/components/corridas/graficos-corrida";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import type {
@@ -296,6 +297,9 @@ export default function CorridaDetalhe({ loaderData }: Route.ComponentProps) {
 					)}
 				</div>
 			)}
+
+			{/* PACE, FC E ALTITUDE AO LONGO DA CORRIDA (rota de alta resolução) */}
+			{rotaDetalhada && <GraficosCorrida detalhe={rotaDetalhada} distanciaMetros={corrida.distanciaMetros} />}
 
 			{/* PACE × SUBIDA */}
 			{splits && splits.length > 1 && <CorridaPaceDesnivelChart splits={splits} />}

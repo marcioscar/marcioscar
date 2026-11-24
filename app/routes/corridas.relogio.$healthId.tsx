@@ -5,6 +5,7 @@ import { getMapboxToken } from "~/lib/mapbox.server";
 import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from "~/models/treino-saude.server";
 import { compararKmComPlano, compararPlanoExecutado, resumirComparacao, textoPrescrito } from "~/lib/treino-manual";
 import { ComparacaoPace } from "~/components/corridas/comparacao-pace";
+import { GraficosCorrida } from "~/components/corridas/graficos-corrida";
 import { Button } from "~/components/ui/button";
 import { CorridaMetricasRelogio } from "~/components/corridas/corrida-metricas-relogio";
 import { AnaliseIaRelogio } from "~/components/corridas/analise-ia-relogio";
@@ -165,6 +166,8 @@ export default function CorridaRelogioDetalhe({ loaderData }: Route.ComponentPro
 					)}
 				</div>
 			)}
+
+			{detalhe && <GraficosCorrida detalhe={detalhe} distanciaMetros={corrida.distanciaMetros} />}
 
 			<div className="border-t border-border" />
 
