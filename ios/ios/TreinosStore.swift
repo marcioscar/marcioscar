@@ -1,3 +1,4 @@
+import CryptoKit
 import HealthKit
 import SwiftUI
 import WorkoutKit
@@ -58,6 +59,58 @@ final class TreinosStore {
             erro = error.localizedDescription
         }
         await atualizarAgendadas()
+        await enviarCorridasAutomaticamente()
+    }
+
+    // MARK: envio automático das corridas
+
+    private static let chaveAuto = "autoEnvioRelogio"
+
+    /// "Enviar sozinho para o relógio" (ligado por padrão; dá para desligar em Ajustes).
+    static var envioAutomaticoLigado: Bool {
+        get { UserDefaults.standard.object(forKey: chaveAuto) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: chaveAuto) }
+    }
+
+    /// Assinatura do conteúdo enviado por sessão: se o plano muda no site, a assinatura muda e o treino é reenviado.
+    private func assinatura(_ s: Sessao) -> String {
+        let dados = (try? JSONEncoder().encode(s)) ?? Data()
+        return Insecure.MD5.hash(data: dados).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private var enviadas: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: "assinaturasEnviadas") as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "assinaturasEnviadas") }
+    }
+
+    /// Manda ao relógio as corridas de hoje em diante que ainda não estão lá (ou que mudaram no site).
+    /// Musculação fica de fora: você escolhe o treino na hora. Não pede permissão sozinho.
+    func enviarCorridasAutomaticamente() async {
+        guard Self.envioAutomaticoLigado, WorkoutScheduler.isSupported else { return }
+        guard await WorkoutScheduler.shared.authorizationState == .authorized else { return }
+
+        let hoje = calendario.startOfDay(for: Date())
+        var registro = enviadas
+        let pendentes = sessoes.filter { s in
+            guard !s.ehMusculacao, s.dataComoDate >= hoje else { return false }
+            return !estaNoRelogio(s) || registro[s.id] != assinatura(s)
+        }
+        guard !pendentes.isEmpty else { return }
+
+        let existentes = await WorkoutScheduler.shared.scheduledWorkouts
+        let ids = Set(pendentes.map(ConstrutorWorkout.uuid(para:)))
+        for e in existentes where ids.contains(e.plan.id) {
+            await WorkoutScheduler.shared.remove(e.plan, at: e.date)
+        }
+        for s in pendentes {
+            await WorkoutScheduler.shared.schedule(ConstrutorWorkout.plano(para: s), at: ConstrutorWorkout.componentes(para: s))
+            registro[s.id] = assinatura(s)
+        }
+        enviadas = registro
+        await atualizarAgendadas()
+        mensagem = pendentes.count == 1
+            ? "“\(pendentes[0].titulo)” enviado automaticamente ao relógio."
+            : "\(pendentes.count) corridas enviadas automaticamente ao relógio."
     }
 
     func atualizarAgendadas() async {
@@ -103,9 +156,12 @@ final class TreinosStore {
         for e in existentes where ids.contains(e.plan.id) {
             await WorkoutScheduler.shared.remove(e.plan, at: e.date)
         }
+        var registro = enviadas
         for s in lista {
             await WorkoutScheduler.shared.schedule(ConstrutorWorkout.plano(para: s), at: ConstrutorWorkout.componentes(para: s))
+            registro[s.id] = assinatura(s)
         }
+        enviadas = registro
         await atualizarAgendadas()
         mensagem = lista.count == 1
             ? "“\(lista[0].titulo)” enviado. Abra o app Treino no Apple Watch."

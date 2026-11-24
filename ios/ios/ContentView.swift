@@ -563,6 +563,7 @@ struct AjustesView: View {
     @State private var confirmandoHistorico = false
     @State private var anoEscolhido = Calendar.current.component(.year, from: Date())
     @State private var limpo = false
+    @AppStorage("autoEnvioRelogio") private var envioAutomatico = true
     @State private var endereco = Servidor.endereco
     @State private var token = Servidor.token ?? ""
     @State private var testando = false
@@ -602,6 +603,11 @@ struct AjustesView: View {
                             .foregroundStyle(deuCerto ? .green : .red)
                             .font(.footnote)
                     }
+                }
+                Section {
+                    Toggle("Enviar corridas ao relógio sozinho", isOn: $envioAutomatico)
+                } footer: {
+                    Text("Ao abrir o app, as corridas planejadas de hoje em diante que ainda não estão no relógio (ou que mudaram no site) são enviadas. Musculação não entra: você escolhe na hora.")
                 }
                 Section {
                     Button("Sincronizar só os novos") { saude.iniciar(.novos) }
