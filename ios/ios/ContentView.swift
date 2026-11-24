@@ -9,23 +9,29 @@ struct ContentView: View {
     @State private var saude = SaudeSync()
     @State private var detalhe: Sessao?
     @State private var mostrarAjustes = false
+    @State private var aba: Aba = .resultados
+
+    enum Aba { case resultados, hoje, semana }
 
     var body: some View {
-        TabView {
+        TabView(selection: $aba) {
+            NavigationStack {
+                ResultadosView(saude: saude, ajustes: { mostrarAjustes = true })
+            }
+            .tabItem { Label("Resultados", systemImage: "chart.xyaxis.line") }
+            .tag(Aba.resultados)
+
             NavigationStack {
                 HojeView(store: store, abrir: { detalhe = $0 }, ajustes: { mostrarAjustes = true })
             }
             .tabItem { Label("Hoje", systemImage: "clock") }
+            .tag(Aba.hoje)
 
             NavigationStack {
                 SemanaView(store: store, abrir: { detalhe = $0 }, ajustes: { mostrarAjustes = true })
             }
             .tabItem { Label("Semana", systemImage: "calendar") }
-
-            NavigationStack {
-                ResultadosView(saude: saude, ajustes: { mostrarAjustes = true })
-            }
-            .tabItem { Label("Resultados", systemImage: "chart.xyaxis.line") }
+            .tag(Aba.semana)
         }
         .tint(Tema.texto)
         .preferredColorScheme(.light)

@@ -36,6 +36,9 @@ final class SaudeSync {
     }
 
     private var tarefa: Task<Void, Never>?
+    /// treinos da última listagem (para buscar a rota da miniatura sem nova consulta)
+    @ObservationIgnored var workoutsPorId: [String: HKWorkout] = [:]
+    @ObservationIgnored var miniaturas: [String: [CLLocationCoordinate2D]] = [:]
 
     private let store = HKHealthStore()
     var healthStore: HKHealthStore { store }
@@ -408,12 +411,35 @@ extension SaudeSync {
         return hora < 12 ? "Corrida matinal" : hora < 18 ? "Corrida da tarde" : "Corrida noturna"
     }
 
-    /// Corridas do Saúde (mais recentes primeiro), de um ano ou das últimas `limite`.
-    func listarCorridas(ano: Int?, limite: Int = 400) async throws -> [ResumoCorrida] {
+    private struct TipoTreino {
+        let chave: String
+        let nome: String
+        let icone: String
+    }
+
+    private func tipoDoTreino(_ t: HKWorkoutActivityType) -> TipoTreino {
+        switch t {
+        case .running: TipoTreino(chave: "corrida", nome: "Corrida", icone: "figure.run")
+        case .walking: TipoTreino(chave: "caminhada", nome: "Caminhada", icone: "figure.walk")
+        case .hiking: TipoTreino(chave: "caminhada", nome: "Trilha", icone: "figure.hiking")
+        case .traditionalStrengthTraining: TipoTreino(chave: "forca", nome: "Treino de força", icone: "figure.strengthtraining.traditional")
+        case .functionalStrengthTraining: TipoTreino(chave: "forca", nome: "Força funcional", icone: "figure.strengthtraining.functional")
+        case .coreTraining: TipoTreino(chave: "forca", nome: "Core", icone: "figure.core.training")
+        case .pilates: TipoTreino(chave: "outro", nome: "Pilates", icone: "figure.pilates")
+        case .yoga: TipoTreino(chave: "outro", nome: "Ioga", icone: "figure.yoga")
+        case .cycling: TipoTreino(chave: "outro", nome: "Ciclismo", icone: "figure.outdoor.cycle")
+        case .swimming: TipoTreino(chave: "outro", nome: "Natação", icone: "figure.pool.swim")
+        case .highIntensityIntervalTraining: TipoTreino(chave: "outro", nome: "HIIT", icone: "figure.highintensity.intervaltraining")
+        default: TipoTreino(chave: "outro", nome: "Treino", icone: "figure.mixed.cardio")
+        }
+    }
+
+    /// Todos os treinos do Saúde (mais recentes primeiro), de um ano ou os últimos `limite`.
+    func listarTreinos(ano: Int?, limite: Int = 600) async throws -> [ResumoCorrida] {
         guard HKHealthStore.isHealthDataAvailable() else { return [] }
         try await healthStore.requestAuthorization(toShare: [], read: tiposLeituraResultados)
 
-        var predicados: [NSPredicate] = [HKQuery.predicateForWorkouts(with: .running)]
+        var predicados: [NSPredicate] = []
         if let ano {
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = .current
@@ -422,27 +448,55 @@ extension SaudeSync {
             predicados.append(HKQuery.predicateForSamples(withStart: de, end: ate))
         }
         let descritor = HKSampleQueryDescriptor(
-            predicates: [.workout(NSCompoundPredicate(andPredicateWithSubpredicates: predicados))],
+            predicates: [.workout(predicados.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicados))],
             sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
             limit: limite
         )
         let treinos = try await descritor.result(for: healthStore)
         let bpm = HKUnit.count().unitDivided(by: .minute())
+        workoutsPorId = Dictionary(treinos.map { ($0.uuid.uuidString, $0) }, uniquingKeysWith: { a, _ in a })
 
         return treinos.map { w in
-            let metros = w.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter()) ?? 0
+            let tipo = tipoDoTreino(w.workoutActivityType)
+            let comDistancia = tipo.chave == "corrida" || tipo.chave == "caminhada"
+            let metros = comDistancia ? (w.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter()) ?? 0) : 0
             let fc = w.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?.doubleValue(for: bpm)
             return ResumoCorrida(
                 id: w.uuid.uuidString,
-                nome: nomeDaCorrida(w.startDate),
+                nome: tipo.nome,
                 dataInicio: ISO8601DateFormatter.comFracao.string(from: w.startDate),
                 distanciaM: metros,
                 tempoSeg: w.duration,
                 paceSegKm: metros >= 150 ? w.duration / (metros / 1000) : nil,
                 fcMedia: fc,
-                tipoSessao: nil
+                tipoSessao: nil,
+                tipo: tipo.chave,
+                icone: tipo.icone
             )
         }
+    }
+
+    /// Traçado reduzido (até ~70 pontos) para a miniatura da lista; guarda em cache.
+    func miniatura(id: String) async -> [CLLocationCoordinate2D] {
+        if let pronto = miniaturas[id] { return pronto }
+        guard let w = workoutsPorId[id] else { return [] }
+        var pontos: [CLLocationCoordinate2D] = []
+        do {
+            let descritor = HKAnchoredObjectQueryDescriptor(
+                predicates: [.workoutRoute(HKQuery.predicateForObjects(from: w))],
+                anchor: nil
+            )
+            let resultado = try await descritor.result(for: healthStore)
+            for rota in resultado.addedSamples {
+                for try await loc in HKWorkoutRouteQueryDescriptor(rota).results(for: healthStore) { pontos.append(loc.coordinate) }
+            }
+        } catch {
+            pontos = []
+        }
+        let passo = max(1, pontos.count / 70)
+        let reduzido = stride(from: 0, to: pontos.count, by: passo).map { pontos[$0] }
+        miniaturas[id] = reduzido
+        return reduzido
     }
 
     /// Todos os detalhes de uma corrida (rota, splits, etapas, métricas), os mesmos que vão para o site.

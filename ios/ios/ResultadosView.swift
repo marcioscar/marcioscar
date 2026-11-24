@@ -6,22 +6,56 @@ private let ptBR = Locale(identifier: "pt_BR")
 
 // MARK: - Lista
 
+enum FiltroTreino: String, CaseIterable, Identifiable {
+    case todos = "Todos"
+    case corrida = "Corrida"
+    case caminhada = "Caminhada"
+    case forca = "Força"
+    case outro = "Outros"
+    var id: String { rawValue }
+    var chave: String? {
+        switch self {
+        case .todos: nil
+        case .corrida: "corrida"
+        case .caminhada: "caminhada"
+        case .forca: "forca"
+        case .outro: "outro"
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class ResultadosStore {
-    var corridas: [ResumoCorrida] = []
+    var treinos: [ResumoCorrida] = []
     var ano = Calendar.current.component(.year, from: Date())
+    var filtro: FiltroTreino = .todos
     var carregando = false
     var erro: String?
     /// tipo de sessão da análise por IA, quando a corrida já está no site
     var tiposDoSite: [String: String] = [:]
+
+    var visiveis: [ResumoCorrida] {
+        guard let chave = filtro.chave else { return treinos }
+        return treinos.filter { ($0.tipo ?? "corrida") == chave }
+    }
+
+    /// Treinos agrupados por mês, mais recente primeiro.
+    var porMes: [(titulo: String, itens: [ResumoCorrida])] {
+        var grupos: [(titulo: String, itens: [ResumoCorrida])] = []
+        for t in visiveis {
+            let titulo = t.data.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "pt_BR"))).capitalized
+            if let i = grupos.firstIndex(where: { $0.titulo == titulo }) { grupos[i].itens.append(t) } else { grupos.append((titulo, [t])) }
+        }
+        return grupos
+    }
 
     func carregar(saude: SaudeSync) async {
         carregando = true
         defer { carregando = false }
         if saude.anosDisponiveis.isEmpty { await saude.carregarAnos() }
         do {
-            corridas = try await saude.listarCorridas(ano: ano)
+            treinos = try await saude.listarTreinos(ano: ano)
             erro = nil
         } catch {
             erro = error.localizedDescription
@@ -40,7 +74,7 @@ struct ResultadosView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 10, pinnedViews: []) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Direto do app Saúde").font(.subheadline).foregroundStyle(Tema.textoSuave)
@@ -59,17 +93,24 @@ struct ResultadosView: View {
                 }
                 .padding(.top, 8)
 
-                HStack {
-                    if saude.anosDisponiveis.count > 1 {
-                        Picker("Ano", selection: $store.ano) {
-                            ForEach(saude.anosDisponiveis, id: \.self) { Text(String($0)).tag($0) }
+                resumoDoPeriodo
+
+                // filtros por tipo de treino
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(FiltroTreino.allCases) { f in
+                            Button { store.filtro = f } label: {
+                                Text(f.rawValue)
+                                    .font(.subheadline.weight(.medium))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .foregroundStyle(store.filtro == f ? Color.white : Tema.texto)
+                                    .background(store.filtro == f ? Tema.texto : Tema.cartao, in: Capsule())
+                                    .overlay(Capsule().stroke(Tema.linha, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .pickerStyle(.menu)
-                        .tint(Tema.texto)
                     }
-                    Spacer()
-                    Text("\(store.corridas.count) corridas · \(String(format: "%.0f", store.corridas.reduce(0) { $0 + $1.distanciaM } / 1000)) km")
-                        .font(.subheadline).foregroundStyle(Tema.textoSuave)
                 }
 
                 if let erro = store.erro {
@@ -81,19 +122,20 @@ struct ResultadosView: View {
                         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
                 }
 
-                if store.carregando && store.corridas.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(.top, 30) }
+                if store.carregando && store.treinos.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(.top, 30) }
 
-                VStack(spacing: 8) {
-                    ForEach(store.corridas) { c in
-                        NavigationLink(value: c) {
-                            LinhaCorrida(corrida: c, tipoSessao: store.tiposDoSite[c.id.uppercased()])
+                ForEach(store.porMes, id: \.titulo) { grupo in
+                    Text(grupo.titulo).font(.title3.bold()).foregroundStyle(Tema.texto).padding(.top, 8)
+                    ForEach(grupo.itens) { t in
+                        NavigationLink(value: t) {
+                            LinhaTreino(treino: t, saude: saude, tipoSessao: store.tiposDoSite[t.id.uppercased()])
                         }
                         .buttonStyle(.plain)
                     }
                 }
 
-                if store.corridas.isEmpty && !store.carregando && store.erro == nil {
-                    Text("Nenhuma corrida de \(String(store.ano)) no app Saúde.")
+                if store.visiveis.isEmpty && !store.carregando && store.erro == nil {
+                    Text("Nenhum treino de \(String(store.ano)) neste filtro.")
                         .font(.footnote).foregroundStyle(Tema.textoSuave)
                 }
             }
@@ -106,36 +148,111 @@ struct ResultadosView: View {
         .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0, saude: saude) }
         .task(id: store.ano) { await store.carregar(saude: saude) }
     }
+
+    /// Ano, quantos treinos e quanto correu.
+    private var resumoDoPeriodo: some View {
+        let corridas = store.treinos.filter { ($0.tipo ?? "corrida") == "corrida" }
+        let km = corridas.reduce(0) { $0 + $1.distanciaM } / 1000
+        return HStack(spacing: 10) {
+            if saude.anosDisponiveis.count > 1 {
+                Picker("Ano", selection: $store.ano) {
+                    ForEach(saude.anosDisponiveis, id: \.self) { Text(String($0)).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .tint(Tema.texto)
+            } else {
+                Text(String(store.ano)).font(.headline).foregroundStyle(Tema.texto)
+            }
+            Spacer()
+            Text("\(store.treinos.count) treinos · \(corridas.count) corridas · \(String(format: "%.0f", km)) km")
+                .font(.subheadline).foregroundStyle(Tema.textoSuave)
+        }
+    }
 }
 
-struct LinhaCorrida: View {
-    let corrida: ResumoCorrida
-    var tipoSessao: String? = nil
+/// Miniatura do traçado, desenhada em linha fina (como no histórico do Fitness).
+private struct MiniRota: View {
+    let pontos: [CLLocationCoordinate2D]
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(spacing: 0) {
-                Text(corrida.data.formatted(.dateTime.weekday(.abbreviated).locale(ptBR)).uppercased().replacingOccurrences(of: ".", with: ""))
-                    .font(.caption2.weight(.bold)).foregroundStyle(Tema.textoSuave)
-                Text(corrida.data.formatted(.dateTime.day())).font(.title3.weight(.bold)).foregroundStyle(Tema.texto)
+        GeometryReader { g in
+            Path { path in
+                guard pontos.count >= 2 else { return }
+                let lats = pontos.map(\.latitude), lngs = pontos.map(\.longitude)
+                guard let minLat = lats.min(), let maxLat = lats.max(), let minLng = lngs.min(), let maxLng = lngs.max() else { return }
+                // longitude encolhe com a latitude: corrige para o desenho não ficar achatado
+                let k = cos(((minLat + maxLat) / 2) * .pi / 180)
+                let larg = max((maxLng - minLng) * k, 1e-6), alt = max(maxLat - minLat, 1e-6)
+                let escala = min(g.size.width / larg, g.size.height / alt) * 0.92
+                let ox = (g.size.width - larg * escala) / 2, oy = (g.size.height - alt * escala) / 2
+                for (i, p) in pontos.enumerated() {
+                    let x = ox + (p.longitude - minLng) * k * escala
+                    let y = oy + (maxLat - p.latitude) * escala
+                    if i == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+                }
             }
-            .frame(width: 40)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(format: "%.2f km", corrida.distanciaM / 1000).replacingOccurrences(of: ".", with: ","))
-                    .font(.body.weight(.semibold)).foregroundStyle(Tema.texto)
-                Text(tipoSessao ?? corrida.tipoSessao ?? corrida.nome)
-                    .font(.caption).foregroundStyle(Tema.textoSuave).lineLimit(1)
+            .stroke(Tema.textoSuave, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+        }
+    }
+}
+
+struct LinhaTreino: View {
+    let treino: ResumoCorrida
+    var saude: SaudeSync
+    var tipoSessao: String?
+    @State private var rota: [CLLocationCoordinate2D] = []
+
+    private var corIcone: Color {
+        switch treino.tipo ?? "corrida" {
+        case "corrida": Tema.laranja
+        case "caminhada": Tema.aqua
+        case "forca": Color(red: 0.36, green: 0.38, blue: 0.80)
+        default: Tema.cinzaPausa
+        }
+    }
+
+    private var titulo: String {
+        if treino.distanciaM >= 50 { return String(format: "%.2f km ", treino.distanciaM / 1000).replacingOccurrences(of: ".", with: ",") + treino.nome }
+        return treino.nome
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: treino.icone ?? "figure.run")
+                .font(.title2)
+                .foregroundStyle(corIcone)
+                .frame(width: 44)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
+                Text(treino.data.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(ptBR)).capitalized)
+                    .font(.subheadline).foregroundStyle(Tema.textoSuave)
+                HStack(spacing: 6) {
+                    chip(formatarDuracao(treino.tempoSeg))
+                    if treino.temPace, let p = treino.paceSegKm { chip("\(formatarPace(p)) /km") }
+                    if let f = treino.fcMedia { chip("\(Int(f.rounded())) bpm") }
+                }
+                if let t = tipoSessao ?? treino.tipoSessao {
+                    Text(t).font(.caption).foregroundStyle(Tema.laranja).lineLimit(1)
+                }
             }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(formatarPace(corrida.paceSegKm)) /km").font(.subheadline.weight(.semibold)).foregroundStyle(Tema.texto).monospacedDigit()
-                Text(formatarDuracao(corrida.tempoSeg)).font(.caption).foregroundStyle(Tema.textoSuave).monospacedDigit()
-            }
+            Spacer(minLength: 6)
+            if !rota.isEmpty { MiniRota(pontos: rota).frame(width: 64, height: 46) }
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
-        .cartao(raio: 16)
+        .cartao(raio: 18)
+        .task { if treino.tipo == "corrida" || treino.tipo == "caminhada" { rota = await saude.miniatura(id: treino.id) } }
+    }
+
+    private func chip(_ texto: String) -> some View {
+        Text(texto)
+            .font(.caption.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Tema.texto)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Tema.fundo, in: RoundedRectangle(cornerRadius: 7))
     }
 }
 
@@ -154,7 +271,7 @@ struct ResultadoCorridaView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let r = resultado {
-                    ConteudoResultado(r: r, aoAnalisar: r.analise == nil && Servidor.configurado ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
+                    ConteudoResultado(r: r, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
                 } else if let erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.orange).font(.footnote)
                 } else {
@@ -225,6 +342,12 @@ private struct ConteudoResultado: View {
         cabecalho
         if r.polyline != nil { MapaRota(r: r) }
         if let c = r.comparacao, let p = r.planejado { BlocoComparacao(comparacao: c, planejado: p) }
+        if r.serie.count > 10 { BlocoGraficos(serie: r.serie) }
+        BlocoZonas(zonas: r.zonas)
+        if r.splits.count >= 2 { BlocoSplits(splits: r.splits) }
+        if r.voltas.count > 1 { BlocoVoltas(voltas: r.voltas) }
+        BlocoMetricas(m: r.metricas)
+        // a análise por IA fica por último: primeiro os números, depois a leitura deles
         if let a = r.analise {
             BlocoAnalise(analise: a)
         } else if aoAnalisar != nil || analisando {
@@ -239,21 +362,22 @@ private struct ConteudoResultado: View {
                 if let avisoIA { Text(avisoIA).font(.footnote).foregroundStyle(Tema.vermelho) }
             }
         }
-        if r.serie.count > 10 { BlocoGraficos(serie: r.serie) }
-        BlocoZonas(zonas: r.zonas)
-        if r.splits.count >= 2 { BlocoSplits(splits: r.splits) }
-        if r.voltas.count > 1 { BlocoVoltas(voltas: r.voltas) }
-        BlocoMetricas(m: r.metricas)
     }
 
     private var cabecalho: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(String(format: "%.2f", r.distanciaM / 1000).replacingOccurrences(of: ".", with: ",") + " km")
+            // treinos sem distância (força, pilates...) destacam o tempo
+            Text(r.distanciaM >= 50
+                 ? String(format: "%.2f", r.distanciaM / 1000).replacingOccurrences(of: ".", with: ",") + " km"
+                 : formatarDuracao(r.tempoSeg))
                 .font(.system(size: 44, weight: .heavy)).foregroundStyle(Tema.texto)
             HStack(spacing: 10) {
-                Metrica(titulo: "Tempo", valor: formatarDuracao(r.tempoSeg))
-                Metrica(titulo: "Pace", valor: "\(formatarPace(r.paceSegKm)) /km")
+                if r.distanciaM >= 50 {
+                    Metrica(titulo: "Tempo", valor: formatarDuracao(r.tempoSeg))
+                    Metrica(titulo: "Pace", valor: "\(formatarPace(r.paceSegKm)) /km")
+                }
                 Metrica(titulo: "FC média", valor: r.metricas.fcMedia.map { "\(Int($0.rounded())) bpm" } ?? "—")
+                if r.distanciaM < 50, let kcal = r.metricas.caloriasKcal { Metrica(titulo: "Calorias", valor: "\(Int(kcal.rounded())) kcal") }
             }
         }
     }

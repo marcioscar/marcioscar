@@ -12,6 +12,13 @@ struct ResumoCorrida: Codable, Identifiable, Hashable {
     var paceSegKm: Double?
     var fcMedia: Double?
     var tipoSessao: String?
+    /// corrida, caminhada, forca ou outro (só no que vem direto do app Saúde)
+    var tipo: String? = nil
+    /// símbolo SF do tipo de treino
+    var icone: String? = nil
+
+    var ehCorrida: Bool { (tipo ?? "corrida") == "corrida" }
+    var temPace: Bool { tipo == nil || tipo == "corrida" || tipo == "caminhada" }
 
     var data: Date { ISO8601DateFormatter.comFracao.date(from: dataInicio) ?? ISO8601DateFormatter().date(from: dataInicio) ?? Date() }
 }
