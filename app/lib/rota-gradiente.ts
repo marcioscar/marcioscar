@@ -5,8 +5,8 @@ export type ModoCor = "km" | "ritmo" | "fc";
 
 type Coordenada = [number, number];
 
-// FC: azul-claro (baixa) → amarelo → vermelho (alta), vivos como a escala de ritmo
-export const CORES_FC = ["#1ab8ff", "#ffd60a", "#ff3b30"] as const;
+// FC: violeta (baixa) → amarelo → vermelho (alta); violeta para não repetir o azul do ritmo
+export const CORES_FC = ["#8a5cff", "#ffd60a", "#ff3b30"] as const;
 
 function hexParaRgb(hex: string): [number, number, number] {
 	const n = Number.parseInt(hex.slice(1), 16);

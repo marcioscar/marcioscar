@@ -30,8 +30,8 @@ export type RotaMontada = {
 };
 
 export const COR_ROTA_PADRAO = "#3b7f86";
-// rápido → médio → lento, cores vivas para se destacar no mapa e no satélite (verde, amarelo, vermelho)
-export const CORES_RITMO = ["#18d46b", "#ffd60a", "#ff3b30"] as const;
+// rápido → médio → lento: azul, amarelo, vermelho. Sem verde, que se confunde com parques e mata no mapa.
+export const CORES_RITMO = ["#00a8ff", "#ffd60a", "#ff3b30"] as const;
 const COR_PARADO = "#9a958c";
 // abaixo disso o trecho é caminhada/pausa e não entra na escala de cores
 export const VELOCIDADE_MINIMA_MPS = 1.4;
