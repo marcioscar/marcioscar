@@ -288,11 +288,10 @@ private struct RotaColorida {
     let paceRapido: Double?
     let paceLento: Double?
 
-    init(r: ResultadoCorrida) {
-        let coords = r.coordenadas
+    init(coordenadas coords: [CLLocationCoordinate2D], velocidades: [Double]?) {
         guard coords.count >= 2 else { trechos = []; paceRapido = nil; paceLento = nil; return }
 
-        guard let vel = r.velocidades, vel.count == coords.count else {
+        guard let vel = velocidades, vel.count == coords.count else {
             trechos = [TrechoColorido(id: 0, coordenadas: coords, cor: Tema.laranja)]
             paceRapido = nil
             paceLento = nil
@@ -316,8 +315,8 @@ private struct RotaColorida {
         paceRapido = rapido
         paceLento = lento
 
-        // ~150 trechos; cada um termina onde o próximo começa para a linha não ter falhas
-        let tamanho = max(3, coords.count / 150)
+        // ~90 trechos; cada um termina onde o próximo começa para a linha não ter falhas
+        let tamanho = max(3, coords.count / 90)
         var saida: [TrechoColorido] = []
         var inicio = 0
         var id = 0
@@ -358,32 +357,49 @@ private struct LegendaRitmo: View {
 }
 
 private struct MapaColorido: View {
-    let r: ResultadoCorrida
     var interativo: Bool
     var estilo: EstiloMapaApp = .padrao
+    // calculados uma vez ao criar a vista: decodificar a rota e montar os trechos a cada atualização travava o mapa
+    private let coords: [CLLocationCoordinate2D]
+    private let rota: RotaColorida
+    private let regiaoInicial: MKCoordinateRegion
+
+    init(r: ResultadoCorrida, interativo: Bool, estilo: EstiloMapaApp = .padrao) {
+        self.interativo = interativo
+        self.estilo = estilo
+        let c = r.coordenadas.filter { CLLocationCoordinate2DIsValid($0) && ($0.latitude != 0 || $0.longitude != 0) }
+        self.coords = c
+        self.rota = RotaColorida(coordenadas: c, velocidades: r.velocidades)
+        self.regiaoInicial = Self.regiao(c)
+    }
 
     var body: some View {
-        let rota = RotaColorida(r: r)
-        let coords = r.coordenadas
-        Map(initialPosition: .region(regiao(coords)), interactionModes: interativo ? [.pan, .zoom, .rotate] : []) {
-            // contorno branco por baixo, para a linha colorida se destacar
-            MapPolyline(coordinates: coords).stroke(.white, lineWidth: 9)
-            ForEach(rota.trechos) { t in
-                MapPolyline(coordinates: t.coordenadas).stroke(t.cor, lineWidth: 5.5)
+        if coords.count < 2 {
+            Text("Sem rota GPS nesta corrida.").font(.footnote).foregroundStyle(Tema.textoSuave)
+                .frame(maxWidth: .infinity, maxHeight: .infinity).background(Tema.cartao)
+        } else {
+            Map(initialPosition: .region(regiaoInicial), interactionModes: interativo ? [.pan, .zoom, .rotate] : []) {
+                // contorno branco por baixo, para a linha colorida se destacar
+                MapPolyline(coordinates: coords).stroke(.white, lineWidth: 9)
+                ForEach(rota.trechos) { t in
+                    MapPolyline(coordinates: t.coordenadas).stroke(t.cor, lineWidth: 5.5)
+                }
+                if let ini = coords.first { Annotation("Largada", coordinate: ini) { Circle().fill(Tema.aqua).frame(width: 13, height: 13).overlay(Circle().stroke(.white, lineWidth: 2.5)) } }
+                if let fim = coords.last { Annotation("Chegada", coordinate: fim) { Circle().fill(Tema.texto).frame(width: 13, height: 13).overlay(Circle().stroke(.white, lineWidth: 2.5)) } }
             }
-            if let ini = coords.first { Annotation("Largada", coordinate: ini) { Circle().fill(Tema.aqua).frame(width: 13, height: 13).overlay(Circle().stroke(.white, lineWidth: 2.5)) } }
-            if let fim = coords.last { Annotation("Chegada", coordinate: fim) { Circle().fill(Tema.texto).frame(width: 13, height: 13).overlay(Circle().stroke(.white, lineWidth: 2.5)) } }
-        }
-        .mapStyle(estilo == .padrao ? .standard(elevation: .realistic) : .hybrid(elevation: .realistic))
-        .overlay(alignment: .bottomLeading) {
-            if let rapido = rota.paceRapido, let lento = rota.paceLento {
-                LegendaRitmo(rapido: rapido, lento: lento).padding(10)
+            .mapStyle(estilo == .padrao ? .standard : .hybrid)
+            .overlay(alignment: .bottomLeading) {
+                if let rapido = rota.paceRapido, let lento = rota.paceLento {
+                    LegendaRitmo(rapido: rapido, lento: lento).padding(10)
+                }
             }
         }
     }
 
-    private func regiao(_ c: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
-        guard let primeiro = c.first else { return MKCoordinateRegion() }
+    private static func regiao(_ c: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
+        guard let primeiro = c.first else {
+            return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: -15.79, longitude: -47.88), span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
+        }
         var minLat = primeiro.latitude, maxLat = primeiro.latitude, minLng = primeiro.longitude, maxLng = primeiro.longitude
         for p in c {
             minLat = min(minLat, p.latitude); maxLat = max(maxLat, p.latitude)
@@ -629,6 +645,8 @@ private struct BlocoComparacao: View {
 
 private struct BlocoGraficos: View {
     let serie: [PontoSerie]
+    /// km escolhido ao tocar ou arrastar em qualquer um dos gráficos (a linha aparece nos três)
+    @State private var kmSel: Double?
 
     private var paces: [Double] { serie.compactMap(\.pace) }
     private var fcs: [Double] { serie.compactMap(\.fc) }
@@ -657,18 +675,53 @@ private struct BlocoGraficos: View {
         return saida
     }
 
+    /// Ponto da série mais perto do km tocado.
+    private var pontoSel: PontoSerie? {
+        guard let k = kmSel else { return nil }
+        return serie.min { abs($0.km - k) < abs($1.km - k) }
+    }
+
+    private func kmTexto(_ km: Double) -> String { String(format: "%.2f km", km).replacingOccurrences(of: ".", with: ",") }
+
     var body: some View {
         Secao(titulo: "Ritmo, FC e altitude") {
+            // leitura do ponto tocado: fica fixa no topo para não cobrir os gráficos
+            Group {
+                if let p = pontoSel {
+                    HStack(spacing: 14) {
+                        Text(kmTexto(p.km)).font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto)
+                        if let v = p.pace { Text("\(formatarPace(v)) /km").foregroundStyle(Tema.azul) }
+                        if let v = p.fc { Text("\(Int(v)) bpm").foregroundStyle(Tema.vermelho) }
+                        if let v = p.alt { Text("\(Int(v.rounded())) m").foregroundStyle(Tema.textoSuave) }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                } else {
+                    Text("Toque e arraste nos gráficos para ver o km, o pace, a FC e a altitude de cada ponto.")
+                        .font(.caption).foregroundStyle(Tema.textoSuave)
+                }
+            }
+            .frame(minHeight: 22, alignment: .leading)
+
             if !paces.isEmpty {
                 Text("PACE").font(.caption.weight(.heavy)).foregroundStyle(Tema.azul)
                 let lo = (percentil(paces, 0.03) / 10).rounded(.down) * 10 - 10
                 let hi = (percentil(paces, 0.97) / 10).rounded(.up) * 10 + 10
-                Chart(segmentos(lo: lo, hi: hi)) { p in
+                Chart {
                     // cada trecho contínuo é uma linha; paradas (sem pace) quebram a linha em vez de cruzar o gráfico
-                    LineMark(x: .value("km", p.km), y: .value("pace", p.y), series: .value("trecho", p.trecho))
-                        .foregroundStyle(Tema.azul)
-                        .interpolationMethod(.monotone)
+                    ForEach(segmentos(lo: lo, hi: hi)) { p in
+                        LineMark(x: .value("km", p.km), y: .value("pace", p.y), series: .value("trecho", p.trecho))
+                            .foregroundStyle(Tema.azul)
+                            .interpolationMethod(.monotone)
+                    }
+                    if let p = pontoSel {
+                        RuleMark(x: .value("km", p.km)).foregroundStyle(Tema.texto.opacity(0.45)).lineStyle(StrokeStyle(lineWidth: 1))
+                        if let v = p.pace {
+                            PointMark(x: .value("km", p.km), y: .value("pace", -min(max(v, lo), hi))).foregroundStyle(Tema.azul).symbolSize(70)
+                        }
+                    }
                 }
+                .chartXSelection(value: $kmSel)
                 .chartYScale(domain: -hi ... -lo)
                 .chartYAxis {
                     AxisMarks { v in
@@ -681,22 +734,37 @@ private struct BlocoGraficos: View {
             }
             if !fcs.isEmpty {
                 Text("FREQUÊNCIA CARDÍACA").font(.caption.weight(.heavy)).foregroundStyle(Tema.vermelho)
-                Chart(serie.filter { $0.fc != nil }) { p in
-                    LineMark(x: .value("km", p.km), y: .value("fc", p.fc ?? 0))
-                        .foregroundStyle(Tema.vermelho)
-                        .interpolationMethod(.monotone)
+                Chart {
+                    ForEach(serie.filter { $0.fc != nil }) { p in
+                        LineMark(x: .value("km", p.km), y: .value("fc", p.fc ?? 0))
+                            .foregroundStyle(Tema.vermelho)
+                            .interpolationMethod(.monotone)
+                    }
+                    if let p = pontoSel {
+                        RuleMark(x: .value("km", p.km)).foregroundStyle(Tema.texto.opacity(0.45)).lineStyle(StrokeStyle(lineWidth: 1))
+                        if let v = p.fc { PointMark(x: .value("km", p.km), y: .value("fc", v)).foregroundStyle(Tema.vermelho).symbolSize(70) }
+                    }
                 }
+                .chartXSelection(value: $kmSel)
                 .chartYScale(domain: ((fcs.min() ?? 60) - 5)...((fcs.max() ?? 180) + 5))
                 .chartXAxis(.hidden)
                 .frame(height: 120)
             }
             if !alts.isEmpty {
                 Text("ALTITUDE").font(.caption.weight(.heavy)).foregroundStyle(Tema.textoSuave)
-                Chart(serie.filter { $0.alt != nil }) { p in
-                    AreaMark(x: .value("km", p.km), yStart: .value("base", (alts.min() ?? 0) - 5), yEnd: .value("alt", p.alt ?? 0))
-                        .foregroundStyle(Tema.cinzaPausa.opacity(0.35))
+                let base = (alts.min() ?? 0) - 5
+                Chart {
+                    ForEach(serie.filter { $0.alt != nil }) { p in
+                        AreaMark(x: .value("km", p.km), yStart: .value("base", base), yEnd: .value("alt", p.alt ?? 0))
+                            .foregroundStyle(Tema.cinzaPausa.opacity(0.35))
+                    }
+                    if let p = pontoSel {
+                        RuleMark(x: .value("km", p.km)).foregroundStyle(Tema.texto.opacity(0.45)).lineStyle(StrokeStyle(lineWidth: 1))
+                        if let v = p.alt { PointMark(x: .value("km", p.km), y: .value("alt", v)).foregroundStyle(Tema.texto.opacity(0.7)).symbolSize(70) }
+                    }
                 }
-                .chartYScale(domain: ((alts.min() ?? 0) - 5)...((alts.max() ?? 0) + 5))
+                .chartXSelection(value: $kmSel)
+                .chartYScale(domain: base...((alts.max() ?? 0) + 5))
                 .chartXAxis { AxisMarks(values: .automatic(desiredCount: 5)) { v in AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d)) km").font(.caption2) } } } }
                 .frame(height: 90)
             }
@@ -768,8 +836,35 @@ private struct BlocoZonas: View {
 private struct BlocoSplits: View {
     let splits: [SplitKm]
     @State private var metrica = 0
+    /// km tocado nas barras (mostra os números daquele km logo abaixo)
+    @State private var kmBarra: Int?
 
     private var completos: [SplitKm] { splits.filter { $0.distanciaM >= 950 } }
+
+    /// Números do km tocado (ou uma dica, enquanto nada está selecionado).
+    @ViewBuilder
+    private func leituraKm(media: Double?) -> some View {
+        Group {
+            if let k = kmBarra, let s = completos.first(where: { $0.km == k }) {
+                HStack(spacing: 12) {
+                    Text("Km \(s.km)").font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto)
+                    if let p = s.paceSegKm {
+                        Text("\(formatarPace(p)) /km").foregroundStyle(Tema.azul)
+                        if let m = media {
+                            let d = Int((p - m).rounded())
+                            Text(d == 0 ? "na média" : (d < 0 ? "\(-d)s mais rápido" : "\(d)s mais lento")).foregroundStyle(Tema.textoSuave)
+                        }
+                    }
+                    if let f = s.fcMedia { Text("\(Int(f.rounded())) bpm").foregroundStyle(Tema.vermelho) }
+                }
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+            } else {
+                Text("Toque numa barra para ver os números do km.").font(.caption).foregroundStyle(Tema.textoSuave)
+            }
+        }
+        .frame(minHeight: 22, alignment: .leading)
+    }
 
     /// largura da barra conforme a quantidade de km, para caber em corridas longas
     private var larguraBarra: CGFloat { completos.count > 20 ? 6 : completos.count > 12 ? 9 : 14 }
@@ -815,13 +910,17 @@ private struct BlocoSplits: View {
             if metrica == 0, let media = mediaPace {
                 Text("Média \(formatarPace(media)) /km · barras mostram a diferença para a média (para cima = mais rápido)")
                     .font(.caption).foregroundStyle(Tema.textoSuave)
-                Chart(completos) { s in
-                    if let p = s.paceSegKm {
-                        BarMark(x: .value("Km", s.km), yStart: .value("zero", 0), yEnd: .value("Diferença", media - p), width: .fixed(larguraBarra))
-                            .foregroundStyle(corPace(p, media: media))
-                            .cornerRadius(3)
+                Chart {
+                    ForEach(completos) { s in
+                        if let p = s.paceSegKm {
+                            BarMark(x: .value("Km", s.km), yStart: .value("zero", 0), yEnd: .value("Diferença", media - p), width: .fixed(larguraBarra))
+                                .foregroundStyle(corPace(p, media: media))
+                                .opacity(kmBarra == nil || kmBarra == s.km ? 1 : 0.35)
+                                .cornerRadius(3)
+                        }
                     }
                 }
+                .chartXSelection(value: $kmBarra)
                 .chartXAxis { AxisMarks(values: marcasKm) { v in AxisValueLabel { if let d = v.as(Int.self) { Text("\(d)").font(.caption2) } } } }
                 .chartYAxis {
                     AxisMarks { v in
@@ -831,6 +930,7 @@ private struct BlocoSplits: View {
                 }
                 .chartPlotStyle { $0.clipped() }
                 .frame(height: 170)
+                leituraKm(media: media)
                 HStack(spacing: 14) {
                     Label("Mais rápido", systemImage: "circle.fill").foregroundStyle(Tema.azul)
                     Label("No ritmo", systemImage: "circle.fill").foregroundStyle(Tema.cinzaPausa)
@@ -845,17 +945,21 @@ private struct BlocoSplits: View {
                     // as barras começam no piso do eixo (não em zero) e o gráfico recorta o que passar
                     let piso = max(0, ((fcs.min() ?? 60) - 15) / 5).rounded(.down) * 5
                     let teto = (((fcs.max() ?? 180) + 5) / 5).rounded(.up) * 5
-                    Chart(completos) { s in
-                        if let f = s.fcMedia {
-                            BarMark(x: .value("Km", s.km), yStart: .value("piso", piso), yEnd: .value("FC", f), width: .fixed(larguraBarra))
-                                .foregroundStyle(Tema.vermelho.opacity(0.85))
-                                .cornerRadius(3)
+                    Chart {
+                        ForEach(completos) { s in
+                            if let f = s.fcMedia {
+                                BarMark(x: .value("Km", s.km), yStart: .value("piso", piso), yEnd: .value("FC", f), width: .fixed(larguraBarra))
+                                    .foregroundStyle(Tema.vermelho.opacity(kmBarra == nil || kmBarra == s.km ? 0.9 : 0.3))
+                                    .cornerRadius(3)
+                            }
                         }
                     }
+                    .chartXSelection(value: $kmBarra)
                     .chartYScale(domain: piso...teto)
                     .chartXAxis { AxisMarks(values: marcasKm) { v in AxisValueLabel { if let d = v.as(Int.self) { Text("\(d)").font(.caption2) } } } }
                     .chartPlotStyle { $0.clipped() }
                     .frame(height: 170)
+                    leituraKm(media: nil)
                 }
             }
 
