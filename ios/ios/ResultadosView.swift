@@ -301,7 +301,13 @@ struct ResultadosView: View {
             .foregroundStyle(Tema.texto)
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
-            .background(Tema.azul.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14).fill(Color.white)
+                    RoundedRectangle(cornerRadius: 14).fill(Tema.azul.opacity(0.10))
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Tema.azul.opacity(0.30), lineWidth: 1))
         }
     }
 
@@ -362,7 +368,12 @@ struct ResultadosView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .foregroundStyle(ativo ? Color.white : Tema.texto)
-                .background(ativo ? cor : cor.opacity(0.13), in: Capsule())
+                .background {
+                    ZStack {
+                        Capsule().fill(ativo ? cor : Color.white)
+                        if !ativo { Capsule().fill(cor.opacity(0.13)) }
+                    }
+                }
                 .overlay(Capsule().stroke(ativo ? cor : cor.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -530,11 +541,15 @@ struct TotalColorido: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 11)
-        .background(
-            LinearGradient(colors: [cor.opacity(0.26), cor.opacity(0.10)], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 16)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(cor.opacity(0.35), lineWidth: 1))
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16).fill(Color.white)
+                RoundedRectangle(cornerRadius: 16).fill(
+                    LinearGradient(colors: [cor.opacity(0.24), cor.opacity(0.09)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+            }
+        }
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(cor.opacity(0.40), lineWidth: 1))
     }
 }
 
