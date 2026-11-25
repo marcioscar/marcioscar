@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Zonas de ritmo do Marcio (Canova + Daniels). Mesmas de app/lib/zonas-pace.ts.
+/// Zonas de ritmo do Marcio, derivadas do VPONTO 42 de Jack Daniels. Mesmas de app/lib/zonas-pace.ts.
 enum Zona: Int, Codable, CaseIterable {
     case z1 = 1, z2, z3, z4, z5, z6
 
@@ -18,23 +18,23 @@ enum Zona: Int, Codable, CaseIterable {
     /// pace (mais lento – mais rápido), min/km
     var pace: String {
         switch self {
-        case .z1: "7:15–6:30"
-        case .z2: "6:30–5:45"
-        case .z3: "5:45–5:05"
-        case .z4: "5:05–4:40"
-        case .z5: "4:40–4:15"
-        case .z6: "4:15–3:50"
+        case .z1: "7:15–6:15"
+        case .z2: "6:15–5:40"
+        case .z3: "5:40–5:05"
+        case .z4: "5:05–4:45"
+        case .z5: "4:45–4:25"
+        case .z6: "4:25–3:50"
         }
     }
 
     var kmh: ClosedRange<Double> {
         switch self {
-        case .z1: 8.28...9.23
-        case .z2: 9.23...10.43
-        case .z3: 10.43...11.80
-        case .z4: 11.80...12.86
-        case .z5: 12.86...14.12
-        case .z6: 14.12...15.65
+        case .z1: 8.28...9.60
+        case .z2: 9.60...10.59
+        case .z3: 10.59...11.80
+        case .z4: 11.80...12.63
+        case .z5: 12.63...13.58
+        case .z6: 13.58...15.65
         }
     }
 

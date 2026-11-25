@@ -49,6 +49,7 @@ export const navGroups: NavGroup[] = [
 			{ title: "Maratonas", href: "/maratonas", icon: Medal01Icon },
 			{ title: "Treinos", href: "/treinos", icon: Calendar03Icon },
 			{ title: "Plano de prova", href: "/treinamento", icon: Target01Icon },
+			{ title: "VPONTO e zonas", href: "/vpontos", icon: Analytics01Icon },
 		],
 	},
 	{

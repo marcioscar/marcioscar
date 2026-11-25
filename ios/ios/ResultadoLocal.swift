@@ -62,8 +62,8 @@ enum ConstrutorResultado {
     // MARK: tempo por zona
 
     private static let limitesPace: [(id: String, nome: String, lento: Double, rapido: Double)] = [
-        ("Z1", "Recuperação", 435, 390), ("Z2", "Fácil / Longão", 390, 345), ("Z3", "Maratona", 345, 305),
-        ("Z4", "Limiar", 305, 280), ("Z5", "VO2 máx", 280, 255), ("Z6", "Velocidade", 255, 230),
+        ("Z1", "Recuperação", 435, 375), ("Z2", "Fácil / Longão", 375, 340), ("Z3", "Maratona", 340, 305),
+        ("Z4", "Limiar", 305, 285), ("Z5", "VO2 máx", 285, 265), ("Z6", "Velocidade", 265, 230),
     ]
 
     private static func rotuloPace(_ s: Double) -> String { "\(Int(s) / 60):" + String(format: "%02d", Int(s) % 60) }

@@ -12,6 +12,7 @@ export default [
   route("biblioteca", "routes/biblioteca.tsx"),
   route("treinamento", "routes/treinamento.tsx"),
   route("treinos", "routes/treinos.tsx"),
+  route("vpontos", "routes/vpontos.tsx"),
   route("api/analisar-corrida", "routes/api.analisar-corrida.ts"),
   route("api/interpretar-treino", "routes/api.interpretar-treino.ts"),
   route("api/buscar-splits", "routes/api.buscar-splits.ts"),

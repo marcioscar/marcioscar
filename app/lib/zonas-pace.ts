@@ -1,5 +1,7 @@
-// Zonas de ritmo do atleta (Canova + Jack Daniels), em pace absoluto.
-// Fonte: tabela combinada com o Marcio; usar em análises de treino.
+// Zonas de ritmo do atleta, em pace absoluto, derivadas do VPONTO de Jack Daniels (app/lib/vdot.ts).
+// Usar em análises de treino.
+
+import { VPONTO_ATUAL, formatarPace, limitesDasZonas, ritmosChave } from "~/lib/vdot";
 
 export type ZonaRitmo = {
 	id: "Z1" | "Z2" | "Z3" | "Z4" | "Z5" | "Z6";
@@ -13,14 +15,41 @@ export type ZonaRitmo = {
 	uso: string;
 };
 
-export const ZONAS_RITMO: ZonaRitmo[] = [
-	{ id: "Z1", nome: "Recuperação", lentoSeg: 435, rapidoSeg: 390, kmh: [8.28, 9.23], uso: "Trote no dia seguinte a treino forte, aquecimento" },
-	{ id: "Z2", nome: "Fácil / Longão", lentoSeg: 390, rapidoSeg: 345, kmh: [9.23, 10.43], uso: "Maior parte do volume. Ritmo da ultra: 5:55–6:10" },
-	{ id: "Z3", nome: "Maratona", lentoSeg: 345, rapidoSeg: 305, kmh: [10.43, 11.8], uso: "Blocos em ritmo M: 5:15–5:20" },
-	{ id: "Z4", nome: "Limiar", lentoSeg: 305, rapidoSeg: 280, kmh: [11.8, 12.86], uso: "Intervalos de limiar (cruise intervals): 4:45–4:50. O ritmo de meia fica aqui" },
-	{ id: "Z5", nome: "VO2 máx", lentoSeg: 280, rapidoSeg: 255, kmh: [12.86, 14.12], uso: "Tiros de 800 m a 1.200 m: ~4:25" },
-	{ id: "Z6", nome: "Velocidade", lentoSeg: 255, rapidoSeg: 230, kmh: [14.12, 15.65], uso: "Tiros curtos de 200–400 m e strides" },
+const NOMES_ZONAS: { id: ZonaRitmo["id"]; nome: string }[] = [
+	{ id: "Z1", nome: "Recuperação" },
+	{ id: "Z2", nome: "Fácil / Longão" },
+	{ id: "Z3", nome: "Maratona" },
+	{ id: "Z4", nome: "Limiar" },
+	{ id: "Z5", nome: "VO2 máx" },
+	{ id: "Z6", nome: "Velocidade" },
 ];
+
+const kmhDoPace = (seg: number) => Math.round((3600 / seg) * 100) / 100;
+
+function montarZonas(vponto: number): ZonaRitmo[] {
+	const limites = limitesDasZonas(vponto);
+	const k = ritmosChave(vponto);
+	const p = formatarPace;
+	const usos = [
+		"Trote no dia seguinte a treino forte, aquecimento",
+		`Maior parte do volume. Ritmo F do livro: ${p(k.F)}. Ritmo da ultra: 5:55–6:10`,
+		`Blocos em ritmo de maratona (M do livro: ${p(k.M)})`,
+		`Limiar (L do livro: ${p(k.L)}). Cruise intervals e corridas ritmadas. O ritmo de meia fica aqui`,
+		`Intervalados de 3 a 5 min (I do livro: ${p(k.I)}). Tiros de 800 m a 1.200 m`,
+		`Repetições curtas de 200–400 m e strides (R do livro: ${p(k.R)} por km, ${Math.round(k.R400)} s por 400 m)`,
+	];
+	return NOMES_ZONAS.map((z, i) => ({
+		id: z.id,
+		nome: z.nome,
+		lentoSeg: limites[i].lento,
+		rapidoSeg: limites[i].rapido,
+		kmh: [kmhDoPace(limites[i].lento), kmhDoPace(limites[i].rapido)],
+		uso: usos[i],
+	}));
+}
+
+/** Zonas derivadas do VPONTO em uso (ver app/lib/vdot.ts). */
+export const ZONAS_RITMO: ZonaRitmo[] = montarZonas(VPONTO_ATUAL);
 
 function paceStr(seg: number): string {
 	return `${String(Math.floor(seg / 60)).padStart(2, "0")}:${String(seg % 60).padStart(2, "0")}`;
