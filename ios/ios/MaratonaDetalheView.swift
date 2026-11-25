@@ -13,13 +13,18 @@ struct MaratonaDetalheView: View {
     @State private var colorida: RotaColorida?
     @State private var fotos: [FotoMaratona] = []
     @State private var mapaCheio = false
+    @State private var replay: CorridaReplay?
     @State private var foto: FotoMaratona?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 topo
-                if coords.count > 1 { mapa }
+                if coords.count > 1 {
+                    mapa
+                    Button { if let colorida { replay = CorridaReplay(m: m, coords: coords, rota: rota, colorida: colorida) } } label: { Label("Reviver a prova no mapa", systemImage: "figure.run") }
+                        .buttonStyle(BotaoPrincipal())
+                }
                 if !fotos.isEmpty { galeria }
                 metricas
                 if let l = m.leitura { BlocoLeitura(l: l) }
@@ -51,6 +56,7 @@ struct MaratonaDetalheView: View {
         }
         .task(id: m.id) { await carregar() }
         .fullScreenCover(isPresented: $mapaCheio) { MapaCheio(coords: coords, colorida: colorida) }
+        .fullScreenCover(item: $replay) { ReplayView($0) }
         .fullScreenCover(item: $foto) { GaleriaCheia(fotos: fotos, inicial: $0.id) }
     }
 

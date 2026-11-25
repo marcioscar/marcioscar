@@ -659,7 +659,7 @@ struct ResultadoCorridaView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let r = resultado {
-                    ConteudoResultado(r: r, nomeExibido: marca?.nome ?? (marca?.prova == true ? resumo.nome : nil), selo: marca?.prova == true ? marca?.rotulo(distanciaMedidaM: r.distanciaM) : nil, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
+                    ConteudoResultado(r: r, nomeExibido: marca?.nome ?? (marca?.prova == true ? resumo.nome : nil), tituloReplay: resumo.nome, icone: resumo.icone ?? "figure.run", selo: marca?.prova == true ? marca?.rotulo(distanciaMedidaM: r.distanciaM) : nil, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
                 } else if let erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.orange).font(.footnote)
                 } else {
@@ -740,10 +740,28 @@ struct ResultadoCorridaView: View {
     }
 }
 
+/// Abre o replay da corrida no mapa.
+private struct BotaoReplay: View {
+    let r: ResultadoCorrida
+    let titulo: String
+    let icone: String
+    @State private var corrida: CorridaReplay?
+    var body: some View {
+        Button {
+            corrida = CorridaReplay(r: r, titulo: titulo, icone: icone)
+        } label: { Label("Reviver no mapa", systemImage: "play.fill") }
+            .buttonStyle(BotaoPrincipal())
+            .fullScreenCover(item: $corrida) { ReplayView($0) }
+    }
+}
+
 private struct ConteudoResultado: View {
     let r: ResultadoCorrida
     /// nome e selo escolhidos pelo Marcio (nil = padrão)
     var nomeExibido: String? = nil
+    /// nome e símbolo do treino usados no replay
+    var tituloReplay: String? = nil
+    var icone = "figure.run"
     var selo: String? = nil
     var aoAnalisar: (() -> Void)?
     var analisando = false
@@ -751,7 +769,10 @@ private struct ConteudoResultado: View {
 
     var body: some View {
         cabecalho
-        if r.polyline != nil { MapaRota(r: r) }
+        if r.polyline != nil {
+            MapaRota(r: r)
+            if r.distanciaM > 200, r.tempoSeg > 60 { BotaoReplay(r: r, titulo: nomeExibido ?? tituloReplay ?? r.nome, icone: icone) }
+        }
         if let c = r.comparacao, let p = r.planejado { BlocoComparacao(comparacao: c, planejado: p) }
         if r.serie.count > 10 { BlocoGraficos(serie: r.serie) }
         BlocoZonas(zonas: r.zonas)
