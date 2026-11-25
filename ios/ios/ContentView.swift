@@ -12,7 +12,7 @@ struct ContentView: View {
     @State private var aba: Aba = .resultados
     @Environment(\.scenePhase) private var fase
 
-    enum Aba { case resultados, vponto, hoje, semana }
+    enum Aba { case resultados, maratonas, vponto, hoje, semana }
 
     var body: some View {
         TabView(selection: $aba) {
@@ -21,6 +21,12 @@ struct ContentView: View {
             }
             .tabItem { Label("Resultados", systemImage: "chart.xyaxis.line") }
             .tag(Aba.resultados)
+
+            NavigationStack {
+                MaratonasView(ajustes: { mostrarAjustes = true })
+            }
+            .tabItem { Label("Maratonas", systemImage: "medal.fill") }
+            .tag(Aba.maratonas)
 
             NavigationStack {
                 VpontoView(ajustes: { mostrarAjustes = true })

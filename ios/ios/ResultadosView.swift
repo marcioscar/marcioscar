@@ -802,13 +802,13 @@ private struct ConteudoResultado: View {
 
 // MARK: - Mapa
 
-private enum EstiloMapaApp: String, CaseIterable {
+enum EstiloMapaApp: String, CaseIterable {
     case padrao = "Mapa"
     case satelite = "Satélite"
 }
 
 /// Cor do pace: azul (rápido) → amarelo → vermelho (lento), vivas para se destacar no mapa.
-private func corDoPace(_ t: Double) -> Color {
+func corDoPace(_ t: Double) -> Color {
     let azul = (0.0, 0.66, 1.0), amarelo = (1.0, 0.84, 0.04), vermelho = (1.0, 0.23, 0.19)
     let x = min(1, max(0, t))
     func mix(_ a: (Double, Double, Double), _ b: (Double, Double, Double), _ f: Double) -> Color {
@@ -817,13 +817,13 @@ private func corDoPace(_ t: Double) -> Color {
     return x <= 0.5 ? mix(azul, amarelo, x * 2) : mix(amarelo, vermelho, (x - 0.5) * 2)
 }
 
-private struct TrechoColorido: Identifiable {
+struct TrechoColorido: Identifiable {
     let id: Int
     let coordenadas: [CLLocationCoordinate2D]
     let cor: Color
 }
 
-private struct RotaColorida {
+struct RotaColorida {
     let trechos: [TrechoColorido]
     /// faixa de pace usada na legenda (seg/km); nil quando a rota não tem velocidade por ponto
     let paceRapido: Double?
@@ -879,7 +879,7 @@ private struct RotaColorida {
     }
 }
 
-private struct LegendaRitmo: View {
+struct LegendaRitmo: View {
     let rapido: Double
     let lento: Double
 
