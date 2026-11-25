@@ -6,8 +6,10 @@ import WorkoutKit
 /// Converte uma `Sessao` em plano do WorkoutKit, com alerta de pace (faixa da zona) em cada etapa.
 enum ConstrutorWorkout {
     /// Id estável por sessão: reenviar a mesma sessão substitui em vez de duplicar.
-    static func uuid(para sessao: Sessao) -> UUID {
-        let hash = Insecure.MD5.hash(data: Data(sessao.id.utf8))
+    static func uuid(para sessao: Sessao) -> UUID { uuid(id: sessao.id) }
+
+    static func uuid(id: String) -> UUID {
+        let hash = Insecure.MD5.hash(data: Data(id.utf8))
         let b = Array(hash)
         return UUID(uuid: (b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]))
     }

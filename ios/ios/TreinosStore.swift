@@ -56,6 +56,7 @@ final class TreinosStore {
             TabelaZonas.atualizar(r.zonas)
             sessoes = r.sessoes.sorted { $0.data < $1.data }
             erro = nil
+            await removerOrfaosDoRelogio(r)
         } catch {
             erro = error.localizedDescription
         }
@@ -89,13 +90,16 @@ final class TreinosStore {
     /// Manda ao relógio as corridas de hoje em diante que ainda não estão lá (ou que mudaram no site).
     /// Musculação fica de fora: você escolhe o treino na hora. Não pede permissão sozinho.
     func enviarCorridasAutomaticamente() async {
-        guard Self.envioAutomaticoLigado, WorkoutScheduler.isSupported else { return }
+        guard WorkoutScheduler.isSupported else { return }
+        let automatico = Self.envioAutomaticoLigado
         guard await WorkoutScheduler.shared.authorizationState == .authorized else { return }
 
         let hoje = calendario.startOfDay(for: Date())
         var registro = enviadas
         let pendentes = sessoes.filter { s in
             guard !s.ehMusculacao, s.dataComoDate >= hoje else { return false }
+            // com o envio automático desligado, só atualiza o que já foi mandado ao relógio e mudou
+            if !automatico { return estaNoRelogio(s) && registro[s.id] != nil && registro[s.id] != assinatura(s) }
             return !estaNoRelogio(s) || registro[s.id] != assinatura(s)
         }
         guard !pendentes.isEmpty else { return }
@@ -114,6 +118,25 @@ final class TreinosStore {
         mensagem = pendentes.count == 1
             ? "“\(pendentes[0].titulo)” enviado automaticamente ao relógio."
             : "\(pendentes.count) corridas enviadas automaticamente ao relógio."
+    }
+
+    /// Treino desta semana que o app mandou ao relógio e que saiu do planejado (excluído ou mudado de dia): sai do relógio também.
+    private func removerOrfaosDoRelogio(_ r: RespostaSemana) async {
+        guard WorkoutScheduler.isSupported, let semana = r.semana else { return }
+        var registro = enviadas
+        let atuais = Set(r.sessoes.map(\.id))
+        // o id da sessão termina na data: "manual-2026-11-26"
+        let orfaos = registro.keys.filter { id in
+            let dia = String(id.suffix(10))
+            return !atuais.contains(id) && dia >= max(semana.inicio, Sessao.chave(Date())) && dia <= semana.fim
+        }
+        guard !orfaos.isEmpty, await WorkoutScheduler.shared.authorizationState == .authorized else { return }
+        let ids = Set(orfaos.map { ConstrutorWorkout.uuid(id: $0) })
+        for e in await WorkoutScheduler.shared.scheduledWorkouts where ids.contains(e.plan.id) {
+            await WorkoutScheduler.shared.remove(e.plan, at: e.date)
+        }
+        for id in orfaos { registro[id] = nil }
+        enviadas = registro
     }
 
     func atualizarAgendadas() async {

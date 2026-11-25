@@ -238,7 +238,7 @@ struct DiaLivre: View {
                     .font(.subheadline).foregroundStyle(Tema.textoSuave)
                 Button("Ver treino") { abrir(proximo) }.buttonStyle(BotaoSecundario())
             } else {
-                Text("Nenhum treino planejado. Monte a semana no site, em Treinos.")
+                Text("Nenhum treino planejado. Crie na aba Semana ou monte no site, em Treinos.")
                     .font(.subheadline).foregroundStyle(Tema.textoSuave)
             }
         }
@@ -286,6 +286,7 @@ struct SemanaView: View {
     var store: TreinosStore
     var abrir: (Sessao) -> Void
     var ajustes: () -> Void
+    @State private var planejar: PlanejarAlvo?
 
     var body: some View {
         ScrollView {
@@ -334,6 +335,15 @@ struct SemanaView: View {
                                     ForEach(store.sessoes(em: dia)) { s in
                                         LinhaCompacta(store: store, sessao: s) { abrir(s) }
                                     }
+                                    // dia só com musculação também pode ganhar uma corrida
+                                    if podePlanejar(dia), !store.sessoes(em: dia).contains(where: { !$0.ehMusculacao }) {
+                                        Button { planejar = .novo(dia) } label: {
+                                            Label("Adicionar corrida", systemImage: "plus")
+                                                .font(.footnote.weight(.semibold)).foregroundStyle(Tema.textoSuave)
+                                                .frame(maxWidth: .infinity).padding(.vertical, 8)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
                             }
                         } else {
@@ -342,7 +352,16 @@ struct SemanaView: View {
                                     IconeTreino(simbolo: "moon.zzz.fill", cor: Tema.cinzaPausa, tamanho: 38)
                                     Text("Descanso").font(.body.weight(.medium)).foregroundStyle(Tema.textoSuave)
                                     Spacer()
-                                    Text("—").foregroundStyle(Tema.textoSuave)
+                                    if podePlanejar(dia) {
+                                        Button { planejar = .novo(dia) } label: {
+                                            Image(systemName: "plus").font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto)
+                                                .frame(width: 36, height: 36).background(Tema.lima, in: Circle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Criar treino")
+                                    } else {
+                                        Text("—").foregroundStyle(Tema.textoSuave)
+                                    }
                                 }
                                 .padding(.vertical, 12)
                                 .padding(.horizontal, 14)
@@ -358,6 +377,11 @@ struct SemanaView: View {
         .background(Tema.fundo)
         .refreshable { await store.carregar() }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $planejar) { PlanejarTreinoView(alvo: $0, store: store) }
+    }
+
+    private func podePlanejar(_ dia: Date) -> Bool {
+        Servidor.configurado && store.info != nil && dia >= Calendar.current.startOfDay(for: Date())
     }
 
     private var periodo: String {
@@ -430,6 +454,11 @@ struct DetalheView: View {
     // ela ficava por baixo da folha de detalhe e o "X" não voltava para a tela inicial.
     @State private var planoPrevia: WorkoutPlan?
     @State private var mostrarPrevia = false
+    @State private var planejar: PlanejarAlvo?
+    @State private var mudandoDia = false
+    @State private var confirmarExclusao = false
+    @State private var excluindo = false
+    @State private var erroExclusao: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -439,6 +468,17 @@ struct DetalheView: View {
                         Text(sessao.dataComoDate.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(ptBR)).capitalized)
                             .font(.subheadline).foregroundStyle(Tema.textoSuave)
                         Spacer()
+                        if sessao.editavelNoApp {
+                            Menu {
+                                Button("Editar", systemImage: "pencil") { planejar = .editar(sessao) }
+                                Button("Mudar de dia", systemImage: "calendar") { mudandoDia = true }
+                                Button("Excluir", systemImage: "trash", role: .destructive) { confirmarExclusao = true }
+                            } label: {
+                                Image(systemName: "ellipsis.circle").font(.title3).foregroundStyle(Tema.texto).frame(width: 44, height: 36)
+                            }
+                            .disabled(excluindo)
+                            .accessibilityLabel("Opções do treino")
+                        }
                         Button("Fechar") { dismiss() }.foregroundStyle(Tema.texto)
                     }
 
@@ -485,6 +525,7 @@ struct DetalheView: View {
             }
 
             VStack(spacing: 8) {
+                if let erroExclusao { Text(erroExclusao).font(.footnote).foregroundStyle(Tema.vermelho) }
                 if let msg = store.mensagem {
                     Text(msg).font(.footnote).foregroundStyle(Tema.textoSuave).multilineTextAlignment(.center)
                 }
@@ -513,6 +554,27 @@ struct DetalheView: View {
         .background(Tema.fundo)
         .preferredColorScheme(.light)
         .workoutPreview(planoPrevia ?? ConstrutorWorkout.plano(para: sessao), isPresented: $mostrarPrevia)
+        // a sessão mostrada ficou velha depois de mudar: volta para a lista
+        .sheet(item: $planejar) { PlanejarTreinoView(alvo: $0, store: store, aoSalvar: { dismiss() }) }
+        .sheet(isPresented: $mudandoDia) { MudarDiaView(sessao: sessao, store: store, concluir: { dismiss() }) }
+        .confirmationDialog("Excluir “\(sessao.titulo)”? Ele sai do site e do relógio.", isPresented: $confirmarExclusao, titleVisibility: .visible) {
+            Button("Excluir", role: .destructive) { Task { await excluir() } }
+            Button("Cancelar", role: .cancel) {}
+        }
+    }
+
+    private func excluir() async {
+        excluindo = true
+        erroExclusao = nil
+        do {
+            try await Servidor.excluirPlanejado(data: sessao.data)
+            await store.carregar()
+            excluindo = false
+            dismiss()
+        } catch {
+            excluindo = false
+            erroExclusao = error.localizedDescription
+        }
     }
 }
 
