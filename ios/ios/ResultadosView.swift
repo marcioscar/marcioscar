@@ -299,6 +299,9 @@ struct ResultadosView: View {
                 .accessibilityLabel("Próximo período")
             }
             .foregroundStyle(Tema.texto)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(Tema.azul.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
         }
     }
 
@@ -307,17 +310,19 @@ struct ResultadosView: View {
     private var totalizadores: some View {
         let t = store.totais
         let tipoRotulo = store.filtro == .todos ? "corridas" : store.filtro.rotulo.lowercased()
-        return VStack(alignment: .leading, spacing: 10) {
+        let verde = Color(red: 0.30, green: 0.68, blue: 0.38)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("TOTAIS DO PERÍODO").font(.caption.weight(.heavy)).tracking(0.6).foregroundStyle(Tema.textoSuave)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                Metrica(titulo: "Treinos", valor: "\(t.treinos)")
-                Metrica(titulo: "Tempo", valor: formatarDuracaoLonga(t.tempoSeg))
+                TotalColorido(titulo: "Treinos", valor: "\(t.treinos)", icone: "figure.mixed.cardio", cor: Tema.azul)
+                TotalColorido(titulo: "Tempo", valor: formatarDuracaoLonga(t.tempoSeg), icone: "clock.fill", cor: Tema.roxo)
                 if t.comDistancia > 0 {
-                    Metrica(titulo: "Distância (\(tipoRotulo))", valor: String(format: "%.1f km", t.distanciaKm).replacingOccurrences(of: ".", with: ","))
-                    Metrica(titulo: "Pace médio", valor: "\(formatarPace(t.paceSegKm)) /km")
-                    if t.subidaM > 0 { Metrica(titulo: "Subida", valor: "\(Int(t.subidaM.rounded())) m") }
-                    if store.filtro == .todos { Metrica(titulo: "Corridas", valor: "\(t.comDistancia)") }
+                    TotalColorido(titulo: "Distância (\(tipoRotulo))", valor: String(format: "%.1f km", t.distanciaKm).replacingOccurrences(of: ".", with: ","), icone: "map.fill", cor: Tema.laranja)
+                    TotalColorido(titulo: "Pace médio", valor: "\(formatarPace(t.paceSegKm)) /km", icone: "speedometer", cor: Tema.aqua)
+                    if t.subidaM > 0 { TotalColorido(titulo: "Subida", valor: "\(Int(t.subidaM.rounded())) m", icone: "mountain.2.fill", cor: verde) }
+                    if store.filtro == .todos { TotalColorido(titulo: "Corridas", valor: "\(t.comDistancia)", icone: "figure.run", cor: Tema.vermelho) }
                 } else if t.caloriasKcal > 0 {
-                    Metrica(titulo: "Calorias ativas", valor: "\(Int(t.caloriasKcal.rounded())) kcal")
+                    TotalColorido(titulo: "Calorias ativas", valor: "\(Int(t.caloriasKcal.rounded())) kcal", icone: "flame.fill", cor: Tema.vermelho)
                 }
             }
         }
@@ -357,7 +362,7 @@ struct ResultadosView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .foregroundStyle(ativo ? Color.white : Tema.texto)
-                .background(ativo ? cor : Tema.cartao, in: Capsule())
+                .background(ativo ? cor : cor.opacity(0.13), in: Capsule())
                 .overlay(Capsule().stroke(ativo ? cor : cor.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -485,6 +490,36 @@ struct LinhaTreino: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(corIcone.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+/// Total do período: bloco colorido com ícone, bem diferente dos cards de treino (brancos com faixa lateral).
+struct TotalColorido: View {
+    let titulo: String
+    let valor: String
+    let icone: String
+    let cor: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icone)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(cor, in: Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(titulo).font(.caption.weight(.medium)).foregroundStyle(Tema.texto.opacity(0.65)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(valor).font(.title3.weight(.heavy)).foregroundStyle(Tema.texto).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(colors: [cor.opacity(0.26), cor.opacity(0.10)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 16)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(cor.opacity(0.35), lineWidth: 1))
     }
 }
 
