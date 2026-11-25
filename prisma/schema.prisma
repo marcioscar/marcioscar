@@ -266,3 +266,14 @@ model TreinoFoto {
 
     @@index([chave])
 }
+
+/// Última escolha do "Sugerir semana" em /treinos (um registro só).
+model ConfigSugestao {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    /// 0 = segunda … 6 = domingo
+    dias      Int[]
+    diaLongao Int
+    volumeKm  Float
+    fase      String
+    updatedAt DateTime @updatedAt
+}

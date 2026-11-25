@@ -246,126 +246,153 @@ function rodagem(data: string, titulo: string, kmTotal: number, zona: number, ti
 	}
 }
 
-export type DiasPorSemana = 3 | 4 | 5 | 6
-
-type Slot = {
-	/** 0 = segunda … 6 = domingo */
-	dia: number
-	tipo: 'q1' | 'q2' | 'strides' | 'leve' | 'longao' | 'facil'
-	peso: number
+export type ConfigSugestaoDados = {
+	/** dias de corrida marcados: 0 = segunda … 6 = domingo */
+	dias: number[]
+	diaLongao: number
+	volumeKm: number
+	fase: FaseSugestao
 }
 
-/**
- * Quais dias e que tipo de treino entram em cada quantidade de dias. Sempre preserva o longão e
- * a qualidade 1 (Canova: com poucos dias o volume fácil sai, nunca o trabalho específico) e
- * separa os dias fortes por pelo menos um dia leve ou de descanso.
- */
-const SEMANAS: Record<DiasPorSemana, Slot[]> = {
-	3: [
-		{ dia: 1, tipo: 'q1', peso: 0.3 },
-		{ dia: 3, tipo: 'strides', peso: 0.28 },
-		{ dia: 5, tipo: 'longao', peso: 0.42 },
-	],
-	4: [
-		{ dia: 1, tipo: 'q1', peso: 0.22 },
-		{ dia: 3, tipo: 'q2', peso: 0.24 },
-		{ dia: 5, tipo: 'longao', peso: 0.36 },
-		{ dia: 6, tipo: 'facil', peso: 0.18 },
-	],
-	5: [
-		{ dia: 1, tipo: 'q1', peso: 0.16 },
-		{ dia: 2, tipo: 'strides', peso: 0.15 },
-		{ dia: 3, tipo: 'q2', peso: 0.18 },
-		{ dia: 5, tipo: 'longao', peso: 0.33 },
-		{ dia: 6, tipo: 'facil', peso: 0.18 },
-	],
-	6: [
-		{ dia: 1, tipo: 'q1', peso: 0.14 },
-		{ dia: 2, tipo: 'strides', peso: 0.13 },
-		{ dia: 3, tipo: 'q2', peso: 0.16 },
-		{ dia: 4, tipo: 'leve', peso: 0.09 },
-		{ dia: 5, tipo: 'longao', peso: 0.3 },
-		{ dia: 6, tipo: 'facil', peso: 0.18 },
-	],
+export type SemanaSugerida = {
+	/** treinos a gravar: só os dias marcados que estavam vazios */
+	novos: TreinoManualDados[]
+	/** km dos treinos que já estavam na semana */
+	kmExistente: number
+	/** km da semana completa (existentes + novos) */
+	kmTotal: number
+	kmAlvo: number
 }
 
+/** Fração do volume que vai para o longão, conforme a quantidade de dias de corrida. */
+const FRACAO_LONGAO: Record<number, number> = { 1: 0.42, 2: 0.42, 3: 0.42, 4: 0.36, 5: 0.33, 6: 0.3, 7: 0.28 }
+const LIMITE_FACIL_KM = 16
+const MIN_FACIL_KM = 4
+const MIN_LONGAO_KM = 12
+
 /**
- * Semana-modelo (3 a 6 dias) a partir do volume e da fase. Os dias fora da escala viram descanso.
- * Qualidade 1 e 2 mudam com a fase; o volume restante vai para os treinos fáceis e o longão.
+ * Completa a semana a partir dos dias marcados, do volume e da fase, contando o que já está cadastrado:
+ * os treinos existentes não mudam, descontam o volume e ocupam o lugar do longão e da qualidade.
+ * "Descanso" não conta como treino: dia marcado com descanso é preenchido.
  */
 export function sugerirSemana(
 	segunda: string,
-	opcoes: { dias: DiasPorSemana; volumeKm: number; fase: FaseSugestao },
-): TreinoManualDados[] {
-	const dia = (n: number) => {
+	opcoes: ConfigSugestaoDados & { existentes: TreinoManualDados[] },
+): SemanaSugerida {
+	const data = (n: number) => {
 		const d = new Date(`${segunda}T12:00:00Z`)
 		d.setUTCDate(d.getUTCDate() + n)
 		return d.toISOString().slice(0, 10)
 	}
-	const v = opcoes.fase === 'polimento' ? opcoes.volumeKm * 0.6 : opcoes.volumeKm
-	const arredonda = (x: number) => Math.round(x)
+	const alvo = opcoes.fase === 'polimento' ? opcoes.volumeKm * 0.6 : opcoes.volumeKm
 
-	const qualidade1 = (data: string): TreinoManualDados =>
-		opcoes.fase === 'base'
-			? modeloPorId('tempo')!.criar(data)
-			: opcoes.fase === 'especifico'
-				? modeloPorId('intervalado')!.criar(data)
-				: modeloPorId('cruise')!.criar(data)
-	const qualidade2 = (data: string): TreinoManualDados =>
-		opcoes.fase === 'base' ? modeloPorId('strides')!.criar(data) : modeloPorId('maratona')!.criar(data)
+	const existentes = new Map<number, TreinoManualDados>()
+	for (const t of opcoes.existentes) {
+		if (t.tipo === 'descanso') continue
+		for (let n = 0; n < 7; n++) if (data(n) === t.data) existentes.set(n, t)
+	}
+	const jaTem = [...existentes.values()]
+	const kmExistente = jaTem.reduce((acc, t) => acc + estimarKm(t), 0)
+	const livres = [...new Set(opcoes.dias)].filter(n => n >= 0 && n <= 6 && !existentes.has(n)).sort((a, b) => a - b)
+	const totalDias = existentes.size + livres.length
 
-	// Qualidade tem tamanho fixo e o longão fica com a sua fatia do volume (nunca menor que 12 km);
-	// o que sobra é dividido entre os treinos fáceis, na proporção dos pesos.
-	const slots = SEMANAS[opcoes.dias]
-	const ehQualidade = (sl: Slot) => sl.tipo === 'q1' || sl.tipo === 'q2'
-	const fixos = slots
-		.filter(ehQualidade)
-		.reduce((acc, sl) => acc + estimarKm(sl.tipo === 'q1' ? qualidade1(dia(sl.dia)) : qualidade2(dia(sl.dia))), 0)
-	const slotLongao = slots.find(sl => sl.tipo === 'longao')
-	const longaoBase = slotLongao ? Math.min(Math.max(arredonda(v * slotLongao.peso), 12), 42) : 0
-	const faceis = slots.filter(sl => !ehQualidade(sl) && sl.tipo !== 'longao')
-	const somaPesos = faceis.reduce((acc, sl) => acc + sl.peso, 0) || 1
-	const restante = Math.max(v - fixos - longaoBase, 3 * faceis.length)
-	// treino fácil passa de 16 km? o excesso vai para o longão (até 42 km)
-	const LIMITE_FACIL = 16
-	const compartilhado = (sl: Slot) => Math.max(arredonda((restante * sl.peso) / somaPesos), 3)
-	const excesso = faceis.reduce((acc, sl) => acc + Math.max(compartilhado(sl) - LIMITE_FACIL, 0), 0)
-	const longaoKm = slotLongao ? Math.min(longaoBase + arredonda(excesso), 42) : 0
+	const qualidade1 = (d: string) =>
+		modeloPorId(opcoes.fase === 'base' ? 'tempo' : opcoes.fase === 'especifico' ? 'intervalado' : 'cruise')!.criar(d)
+	const qualidade2 = (d: string) => modeloPorId(opcoes.fase === 'base' ? 'strides' : 'maratona')!.criar(d)
 
 	const porDia = new Map<number, TreinoManualDados>()
-	for (const slot of slots) {
-		const data = dia(slot.dia)
-		const kmSlot = Math.min(compartilhado(slot), LIMITE_FACIL)
-		switch (slot.tipo) {
-			case 'q1':
-				porDia.set(slot.dia, qualidade1(data))
-				break
-			case 'q2':
-				porDia.set(slot.dia, qualidade2(data))
-				break
-			case 'strides':
-				porDia.set(slot.dia, {
-					...modeloPorId('strides')!.criar(data),
-					titulo: `Fácil ${Math.max(kmSlot, 4)} km + 6 strides`,
-					blocos: [
-						{ repeticoes: 1, etapas: [etapaZona('trabalho', km(Math.max(kmSlot, 4)), 2)] },
-						{ repeticoes: 6, etapas: [etapaZona('trabalho', seg(20), 6), etapaZona('recuperacao', seg(40), 1)] },
-					],
-				})
-				break
-			case 'leve':
-				porDia.set(slot.dia, rodagem(data, `Leve ${kmSlot} km`, kmSlot, 1))
-				break
-			case 'longao':
-				porDia.set(slot.dia, rodagem(data, `Longão ${longaoKm} km`, longaoKm, 2, 'longao'))
-				break
-			case 'facil':
-				porDia.set(slot.dia, rodagem(data, `Fácil ${kmSlot} km`, kmSlot, 2))
-				break
+	const fortes = new Set([...existentes].filter(([, t]) => t.tipo !== 'leve').map(([n]) => n))
+
+	// 1. longão: um por semana (a prova ocupa o lugar dele)
+	const temLongao = jaTem.some(t => t.tipo === 'longao' || t.tipo === 'prova')
+	const diaLongao = !temLongao && livres.includes(opcoes.diaLongao) ? opcoes.diaLongao : null
+	if (diaLongao !== null) fortes.add(diaLongao)
+
+	// 2. qualidade: 1 com até 3 dias, 2 a partir de 4, nunca colada em outro dia forte
+	// (no polimento, uma só); a 2ª também precisa caber no volume junto com o longão e os fáceis mínimos
+	const metaQualidade = totalDias <= 3 || opcoes.fase === 'polimento' ? 1 : 2
+	const longaoPrevisto =
+		diaLongao === null ? 0 : Math.min(Math.max(Math.round(alvo * (FRACAO_LONGAO[totalDias] ?? 0.3)), MIN_LONGAO_KM), 42)
+	let kmQualidadeNova = 0
+	let qualidades = jaTem.filter(t => t.tipo === 'limiar' || t.tipo === 'tiros' || t.tipo === 'prova').length
+	for (const n of [1, 3, 2, 4, 0, 6, 5]) {
+		if (qualidades >= metaQualidade) break
+		if (!livres.includes(n) || n === diaLongao || fortes.has(n - 1) || fortes.has(n + 1)) continue
+		const treino = qualidades === 0 ? qualidade1(data(n)) : qualidade2(data(n))
+		const outrosFaceis = livres.length - porDia.size - 1 - (diaLongao === null ? 0 : 1)
+		const kmComEla = kmExistente + kmQualidadeNova + estimarKm(treino) + longaoPrevisto + outrosFaceis * MIN_FACIL_KM
+		if (qualidades > 0 && kmComEla > alvo + 5) break
+		qualidades++
+		kmQualidadeNova += estimarKm(treino)
+		if (treino.tipo === 'leve') continue // na base a 2ª "qualidade" são só strides: entra como dia fácil
+		porDia.set(n, treino)
+		fortes.add(n)
+	}
+
+	// 3. o que sobra do volume vai para o longão (a fatia dele) e os dias fáceis
+	const faceis = livres.filter(n => n !== diaLongao && !porDia.has(n))
+	const kmQualidade = [...porDia.values()].reduce((acc, t) => acc + estimarKm(t), 0)
+	const disponivel = alvo - kmExistente - kmQualidade
+	let longaoKm = longaoPrevisto
+
+	// véspera do dia do longão: mais leve; depois de um forte: um dia de strides na semana
+	const ehVespera = (n: number) => {
+		const t = existentes.get(n + 1)
+		return n + 1 === diaLongao || t?.tipo === 'longao' || t?.tipo === 'prova'
+	}
+	const temStrides = jaTem.some(t => /strides/i.test(t.titulo))
+	const diaStrides = temStrides
+		? undefined
+		: faceis.find(n => !ehVespera(n) && n - 1 !== diaLongao && existentes.get(n - 1)?.tipo !== 'longao')
+	const peso = (n: number) => (ehVespera(n) ? 0.55 : 1)
+	const somaPesos = faceis.reduce((acc, n) => acc + peso(n), 0)
+	const restante = Math.max(disponivel - longaoKm, 0)
+	const bruto = (n: number) => (somaPesos > 0 ? Math.round((restante * peso(n)) / somaPesos) : 0)
+	// fácil passa de 16 km? o excesso vai para o longão novo (até 42 km)
+	if (diaLongao !== null) {
+		const excesso = faceis.reduce((acc, n) => acc + Math.max(bruto(n) - LIMITE_FACIL_KM, 0), 0)
+		longaoKm = Math.min(longaoKm + excesso, 42)
+		porDia.set(diaLongao, rodagem(data(diaLongao), `Longão ${longaoKm} km`, longaoKm, 2, 'longao'))
+	}
+	// com o longão já cadastrado, dia fácil não passa de 75% dele
+	const longaoFixo = jaTem.find(t => t.tipo === 'longao')
+	const limiteFacil = longaoFixo ? Math.min(LIMITE_FACIL_KM, Math.round(estimarKm(longaoFixo) * 0.75)) : LIMITE_FACIL_KM
+	for (const n of faceis) {
+		const kmDia = Math.max(Math.min(bruto(n), limiteFacil), MIN_FACIL_KM)
+		if (n === diaStrides) {
+			porDia.set(n, {
+				...modeloPorId('strides')!.criar(data(n)),
+				titulo: `Fácil ${kmDia} km + 6 strides`,
+				blocos: [
+					{ repeticoes: 1, etapas: [etapaZona('trabalho', km(kmDia), 2)] },
+					{ repeticoes: 6, etapas: [etapaZona('trabalho', seg(20), 6), etapaZona('recuperacao', seg(40), 1)] },
+				],
+			})
+		} else if (ehVespera(n)) {
+			porDia.set(n, rodagem(data(n), `Leve ${kmDia} km`, kmDia, 1))
+		} else {
+			porDia.set(n, rodagem(data(n), `Fácil ${kmDia} km`, kmDia, 2))
 		}
 	}
 
-	return Array.from({ length: 7 }, (_, i) => porDia.get(i) ?? modeloPorId('descanso')!.criar(dia(i)))
+	const novos = [...porDia].sort((a, b) => a[0] - b[0]).map(([, t]) => t)
+	return {
+		novos,
+		kmExistente,
+		kmTotal: kmExistente + novos.reduce((acc, t) => acc + estimarKm(t), 0),
+		kmAlvo: alvo,
+	}
+}
+
+/** Valida o que veio do formulário (ou do banco). */
+export function sanearConfigSugestao(bruto: unknown): ConfigSugestaoDados | null {
+	const c = bruto as Partial<ConfigSugestaoDados> | null
+	if (!c || !Array.isArray(c.dias) || typeof c.fase !== 'string' || !(c.fase in ROTULO_FASE)) return null
+	const ehDia = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 6
+	const dias = [...new Set(c.dias.filter(ehDia))].sort((a, b) => a - b)
+	const volumeKm = Number(c.volumeKm)
+	if (dias.length === 0 || !ehDia(c.diaLongao) || !Number.isFinite(volumeKm)) return null
+	return { dias, diaLongao: c.diaLongao, volumeKm: Math.min(Math.max(volumeKm, 10), 200), fase: c.fase }
 }
 
 // ── Utilidades ────────────────────────────────────────────────────────────

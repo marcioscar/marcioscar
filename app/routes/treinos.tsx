@@ -14,6 +14,8 @@ import {
 	DialogTitle,
 } from "~/components/ui/dialog";
 import { db } from "../../db.server";
+import { obterConfigSugestao, salvarConfigSugestao } from "~/models/config-sugestao.server";
+import { obterProvaAtiva } from "~/models/provas.server";
 import { garantirVponto } from "~/models/vdot-config.server";
 import { listarTreinosSaude } from "~/models/treino-saude.server";
 import { RELOGIO_DESDE } from "~/lib/fonte-dados";
@@ -28,7 +30,8 @@ import {
 	formatarPaceSeg,
 	sanearTreino,
 	sugerirSemana,
-	type DiasPorSemana,
+	sanearConfigSugestao,
+	type ConfigSugestaoDados,
 	type FaseSugestao,
 	type TipoTreino,
 	type TreinoManualDados,
@@ -106,7 +109,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const inicio = segundaDe(primeiro);
 	const fim = somarDias(segundaDe(ultimoDoMes), 6);
 
-	const [treinos, musculacaoLista, saude, corridas] = await Promise.all([
+	const [configSugestao, treinos, musculacaoLista, saude, corridas] = await Promise.all([
+		obterConfigSugestao(),
 		listarTreinosManuais(inicio, fim),
 		listarMusculacao(inicio, fim),
 		listarTreinosSaude(new Date(`${somarDias(inicio, -1)}T00:00:00Z`), new Date(`${somarDias(fim, 2)}T00:00:00Z`)),
@@ -183,7 +187,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const musculacao: Record<string, TreinoMusculacaoDados> = {};
 	for (const m of musculacaoLista) musculacao[m.data] = m;
 
-	return { hoje, mes, inicio, fim, treinos, musculacao, atividades };
+	return { hoje, mes, inicio, fim, treinos, musculacao, atividades, configSugestao };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -222,23 +226,41 @@ export async function action({ request }: Route.ActionArgs) {
 
 		if (intent === "sugerir") {
 			const segunda = String(form.get("segunda") ?? "");
-			const dias = Math.min(Math.max(Math.round(Number(form.get("dias")) || 5), 3), 6) as DiasPorSemana;
-			const volumeKm = Math.min(Math.max(Number(form.get("volumeKm")) || 0, 15), 200);
-			const fase = String(form.get("fase")) as FaseSugestao;
-			if (!/^\d{4}-\d{2}-\d{2}$/.test(segunda) || !(fase in ROTULO_FASE)) {
-				return { ok: false, message: "Parâmetros inválidos." };
+			const config = sanearConfigSugestao(JSON.parse(String(form.get("config") ?? "null")));
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(segunda) || segundaDe(segunda) !== segunda || !config) {
+				return { ok: false, message: "Marque pelo menos um dia e confira o volume." };
 			}
-			const existentes = new Set(
-				(await listarTreinosManuais(segunda, somarDias(segunda, 6))).map((t) => t.data),
-			);
-			const novos = sugerirSemana(segunda, { dias, volumeKm, fase }).filter((t) => !existentes.has(t.data));
+			await salvarConfigSugestao(config);
+			const existentes = await listarTreinosManuais(segunda, somarDias(segunda, 6));
+			const hoje = chaveDia(new Date());
+			const sugestao = sugerirSemana(segunda, { ...config, existentes });
+			const novos = sugestao.novos.filter((t) => t.data >= hoje);
 			for (const t of novos) await salvarTreinoManual(t);
+
+			// com um plano de prova em andamento, dia vazio receberia o treino do plano: marca descanso
+			const prova = await obterProvaAtiva();
+			if (novos.length > 0 && prova && prova.dataProva.toISOString().slice(0, 10) >= segunda) {
+				const ocupados = new Set([...existentes, ...sugestao.novos].map((t) => t.data));
+				for (let i = 0; i < 7; i++) {
+					const data = somarDias(segunda, i);
+					if (data < hoje || ocupados.has(data)) continue;
+					await salvarTreinoManual({
+						data,
+						titulo: "Descanso",
+						tipo: "descanso",
+						observacao: null,
+						aquecimento: null,
+						blocos: [],
+						desaquecimento: null,
+					});
+				}
+			}
 			return {
 				ok: true,
 				message:
 					novos.length === 0
-						? "A semana já está toda preenchida. Exclua um dia para receber a sugestão dele."
-						: `${novos.length} dia(s) preenchidos com a sugestão.`,
+						? "Nada a preencher: os dias marcados já têm treino ou já passaram. A escolha ficou salva."
+						: `${novos.length} treino(s) adicionados. A semana ficou com ${Math.round(sugestao.kmTotal)} km.`,
 			};
 		}
 
@@ -409,11 +431,24 @@ function CartaoAtividade({ a }: { a: AtividadeDia }) {
 	);
 }
 
-function SugestaoDialog({ segunda, onClose }: { segunda: string | null; onClose: () => void }) {
+function SugestaoDialog({
+	segunda,
+	hoje,
+	treinos,
+	inicial,
+	onClose,
+}: {
+	segunda: string;
+	hoje: string;
+	treinos: TreinoManualDados[];
+	inicial: ConfigSugestaoDados;
+	onClose: () => void;
+}) {
 	const fetcher = useFetcher<{ ok: boolean; message?: string }>();
-	const [dias, setDias] = useState("5");
-	const [volume, setVolume] = useState("60");
-	const [fase, setFase] = useState<FaseSugestao>("construcao");
+	const [dias, setDias] = useState<number[]>(inicial.dias);
+	const [longaoEscolhido, setLongao] = useState(inicial.diaLongao);
+	const [volume, setVolume] = useState(String(inicial.volumeKm));
+	const [fase, setFase] = useState<FaseSugestao>(inicial.fase);
 	const [esperando, setEsperando] = useState(false);
 
 	useEffect(() => {
@@ -427,34 +462,95 @@ function SugestaoDialog({ segunda, onClose }: { segunda: string | null; onClose:
 		}
 	}, [fetcher.state, fetcher.data, esperando, onClose]);
 
-	if (!segunda) return null;
+	const datas = Array.from({ length: 7 }, (_, i) => somarDias(segunda, i));
+	const existentes = treinos.filter((t) => t.data >= datas[0] && t.data <= datas[6]);
+	const ocupado = datas.map((d) => existentes.find((t) => t.data === d && t.tipo !== "descanso") ?? null);
+	const longaoCadastrado = existentes.find((t) => t.tipo === "longao" || t.tipo === "prova");
+	const marcadosLivres = dias.filter((i) => !ocupado[i]);
+	// o longão só pode cair num dia marcado e livre
+	const diaLongao = marcadosLivres.includes(longaoEscolhido)
+		? longaoEscolhido
+		: (marcadosLivres[marcadosLivres.length - 1] ?? longaoEscolhido);
+
+	const config = sanearConfigSugestao({
+		dias,
+		diaLongao,
+		volumeKm: Number(volume.replace(",", ".")) || Number.NaN,
+		fase,
+	});
+	const sugestao = config ? sugerirSemana(segunda, { ...config, existentes }) : null;
+	const novos = sugestao?.novos.filter((t) => t.data >= hoje) ?? [];
+	const totalDias = ocupado.filter(Boolean).length + marcadosLivres.length;
+	const acima = sugestao ? sugestao.kmTotal - sugestao.kmAlvo : 0;
+
 	const seletor = "border-input bg-background h-9 rounded-md border px-2 text-sm";
 	return (
 		<Dialog open onOpenChange={(aberto) => !aberto && onClose()}>
-			<DialogContent className="max-w-md">
+			<DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>
 						Sugestão para a semana de {formatarDia(segunda, { day: "numeric", month: "long" })}
 					</DialogTitle>
 					<DialogDescription>
-						Preenche só os dias vazios com uma semana-modelo (Jack Daniels + Canova): qualidade, longão no fim de semana e o
-						resto fácil. Não mexe no que você já preencheu.
+						Marque os dias em que quer correr. O que já está cadastrado não muda: conta nos km da semana, e só os dias
+						vazios são preenchidos.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid gap-3">
+					<fieldset className="grid gap-1.5 text-sm">
+						<legend className="mb-1.5">Dias de corrida ({totalDias})</legend>
+						<div className="grid grid-cols-7 gap-1">
+							{DIAS.map((nome, i) => {
+								const fixo = ocupado[i];
+								const passou = datas[i] < hoje;
+								const marcado = !!fixo || dias.includes(i);
+								return (
+									<button
+										key={nome}
+										type="button"
+										aria-pressed={marcado}
+										disabled={!!fixo}
+										title={fixo ? `Já cadastrado: ${fixo.titulo}` : passou ? "Dia que já passou: não é preenchido" : undefined}
+										onClick={() =>
+											setDias((ds) => (ds.includes(i) ? ds.filter((x) => x !== i) : [...ds, i].sort((a, b) => a - b)))
+										}
+										className={`flex h-11 flex-col items-center justify-center rounded-md border text-xs font-medium ${
+											fixo
+												? "border-border bg-muted text-muted-foreground"
+												: marcado
+													? "border-primary bg-primary text-primary-foreground"
+													: "border-input bg-background"
+										} ${passou && !fixo ? "opacity-50" : ""}`}>
+										{nome}
+										{fixo && <Check size={12} aria-hidden />}
+									</button>
+								);
+							})}
+						</div>
+					</fieldset>
 					<label className="grid gap-1 text-sm">
-						Dias de treino por semana
-						<select className={seletor} value={dias} onChange={(e) => setDias(e.target.value)}>
-							{[3, 4, 5, 6].map((n) => (
-								<option key={n} value={n}>
-									{n} dias
-								</option>
-							))}
-						</select>
+						Dia do longão
+						{longaoCadastrado ? (
+							<span className="text-muted-foreground text-xs">
+								Já cadastrado: {longaoCadastrado.titulo} ({formatarDia(longaoCadastrado.data, { weekday: "long" })})
+							</span>
+						) : (
+							<select
+								className={seletor}
+								value={diaLongao}
+								disabled={marcadosLivres.length === 0}
+								onChange={(e) => setLongao(Number(e.target.value))}>
+								{marcadosLivres.map((i) => (
+									<option key={i} value={i}>
+										{formatarDia(datas[i], { weekday: "long" })}
+									</option>
+								))}
+							</select>
+						)}
 					</label>
 					<label className="grid gap-1 text-sm">
-						Volume (km/semana)
-						<input className={seletor} inputMode="numeric" value={volume} onChange={(e) => setVolume(e.target.value)} />
+						Volume da semana inteira (km)
+						<input className={seletor} inputMode="decimal" value={volume} onChange={(e) => setVolume(e.target.value)} />
 					</label>
 					<label className="grid gap-1 text-sm">
 						Fase
@@ -466,6 +562,47 @@ function SugestaoDialog({ segunda, onClose }: { segunda: string | null; onClose:
 							))}
 						</select>
 					</label>
+
+					<div className="bg-muted/40 grid gap-1 rounded-md border p-3 text-sm">
+						<p className="font-medium">Como a semana fica</p>
+						{datas.map((d, i) => {
+							const novo = novos.find((t) => t.data === d);
+							const t = ocupado[i] ?? novo;
+							if (!t) return null;
+							return (
+								<p key={d} className="flex items-baseline gap-2">
+									<span className="text-muted-foreground w-8 shrink-0">{DIAS[i]}</span>
+									<span className={`min-w-0 flex-1 ${novo ? "font-semibold" : "text-muted-foreground"}`}>
+										{novo ? "+ " : ""}
+										{t.titulo}
+									</span>
+									<span className="text-muted-foreground tabular-nums">{Math.round(estimarKm(t))} km</span>
+								</p>
+							);
+						})}
+						{sugestao && (
+							<p className="mt-1 border-t pt-1 tabular-nums">
+								Total:{" "}
+								<strong>
+									{Math.round(sugestao.kmExistente + novos.reduce((acc, t) => acc + estimarKm(t), 0))} km
+								</strong>{" "}
+								<span className="text-muted-foreground">(alvo {Math.round(sugestao.kmAlvo)} km)</span>
+							</p>
+						)}
+						{novos.length === 0 && (
+							<p className="text-muted-foreground text-xs">Nenhum dia marcado está livre daqui para a frente.</p>
+						)}
+						{novos.length > 0 && acima > 3 && (
+							<p className="text-muted-foreground text-xs">
+								Passa do alvo porque os treinos fixos e os mínimos (fácil 4 km, longão 12 km) já somam mais.
+							</p>
+						)}
+						{novos.length > 0 && acima < -3 && (
+							<p className="text-muted-foreground text-xs">
+								Fica abaixo do alvo: dia fácil vai até 16 km (ou 75% do longão já cadastrado). Marque mais dias ou aumente o longão para completar.
+							</p>
+						)}
+					</div>
 				</div>
 				<DialogFooter>
 					<Button type="button" variant="outline" onClick={onClose}>
@@ -473,12 +610,12 @@ function SugestaoDialog({ segunda, onClose }: { segunda: string | null; onClose:
 					</Button>
 					<Button
 						type="button"
-						disabled={fetcher.state !== "idle"}
+						disabled={fetcher.state !== "idle" || !config || novos.length === 0}
 						onClick={() => {
 							setEsperando(true);
-							fetcher.submit({ intent: "sugerir", segunda, dias, volumeKm: volume, fase }, { method: "post" });
+							fetcher.submit({ intent: "sugerir", segunda, config: JSON.stringify(config) }, { method: "post" });
 						}}>
-						{fetcher.state !== "idle" ? "Preenchendo..." : "Preencher dias vazios"}
+						{fetcher.state !== "idle" ? "Preenchendo..." : `Adicionar ${novos.length} treino(s)`}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -487,7 +624,7 @@ function SugestaoDialog({ segunda, onClose }: { segunda: string | null; onClose:
 }
 
 export default function Treinos() {
-	const { hoje, mes, inicio, fim, treinos, musculacao, atividades } = useLoaderData<typeof loader>();
+	const { hoje, mes, inicio, fim, treinos, musculacao, atividades, configSugestao } = useLoaderData<typeof loader>();
 	const [editando, setEditando] = useState<string | null>(null);
 	const [sugerindo, setSugerindo] = useState<string | null>(null);
 
@@ -631,7 +768,16 @@ export default function Treinos() {
 				rotuloData={editando ? formatarDia(editando, { weekday: "long", day: "numeric", month: "long" }) : ""}
 				onClose={() => setEditando(null)}
 			/>
-			<SugestaoDialog segunda={sugerindo} onClose={() => setSugerindo(null)} />
+			{sugerindo && (
+				<SugestaoDialog
+					key={sugerindo}
+					segunda={sugerindo}
+					hoje={hoje}
+					treinos={treinos as TreinoManualDados[]}
+					inicial={configSugestao}
+					onClose={() => setSugerindo(null)}
+				/>
+			)}
 		</main>
 	);
 }
