@@ -32,7 +32,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 	if (!t) throw new Response("Corrida não encontrada", { status: 404 });
 
 	const fcMaximaReferencia = Math.max(await obterFcMaximaReferencia(), t.fcMaxima ?? 0);
-	const plano = await planejadoDoDia(t.inicio);
+	const plano = await planejadoDoDia(t.inicio, t.tipo);
 	const corrida = paraCorridaRelogio(t, plano);
 	// comparação planejado × executado: por etapa (treino estruturado) ou por km (corrida contínua)
 	const voltasDoRelogio = corrida.laps.map((l) => ({ distanciaM: l.distance, tempoSeg: l.moving_time }));

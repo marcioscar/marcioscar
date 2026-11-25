@@ -94,7 +94,7 @@ export async function montarResultadoParaApp(healthId: string): Promise<Resultad
 	const t = await buscarTreinoSaudePorId(healthId)
 	if (!t) return null
 
-	const plano = await planejadoDoDia(t.inicio)
+	const plano = await planejadoDoDia(t.inicio, t.tipo)
 	const corrida = paraCorridaRelogio(t, plano)
 	const fcMax = Math.max(await obterFcMaximaReferencia(), t.fcMaxima ?? 0)
 	const detalhe: RotaDetalhada | null = t.polyline

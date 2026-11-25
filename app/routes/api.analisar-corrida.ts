@@ -336,7 +336,7 @@ async function analisarCorridaDoRelogio(healthId: string, treinusPlano: string |
 		const t = await buscarTreinoSaudePorId(healthId)
 		if (!t) return Response.json({ error: 'Corrida do relógio não encontrada.' }, { status: 404 })
 
-		const planejado = await planejadoDoDia(t.inicio)
+		const planejado = await planejadoDoDia(t.inicio, t.tipo)
 		const c = paraCorridaRelogio(t, planejado)
 		// treino planejado no site vira o "planejado" da análise, salvo se você colou outro texto
 		const planoTexto = treinusPlano ?? (planejado ? `${planejado.titulo}\n${textoPrescrito(planejado)}` : null)

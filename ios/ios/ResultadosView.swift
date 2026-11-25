@@ -482,8 +482,11 @@ struct ResultadoCorridaView: View {
         var r = local
         r.analise = remoto.analise
         r.analisadaEm = remoto.analisadaEm
-        r.planejado = remoto.planejado
-        r.comparacao = remoto.comparacao
+        // plano e comparação só valem para corridas: caminhada, força etc. do mesmo dia não são planejadas
+        if resumo.ehCorrida {
+            r.planejado = remoto.planejado
+            r.comparacao = remoto.comparacao
+        }
         // as etapas locais têm todas as métricas; do site só entram os nomes (que levam o plano em conta)
         if remoto.voltas.count == r.voltas.count { for i in r.voltas.indices { r.voltas[i].rotulo = remoto.voltas[i].rotulo } }
         else if r.voltas.isEmpty { r.voltas = remoto.voltas }

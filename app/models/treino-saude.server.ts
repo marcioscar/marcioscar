@@ -391,8 +391,12 @@ export async function listarCorridasRelogio(de: Date, inicio?: Date, fim?: Date)
 		.map(t => paraCorridaRelogio(t, planos.get(chaveDia(t.inicio)) ?? null))
 }
 
-/** Treino planejado no site para o dia da corrida (null se não houver ou se for descanso). */
-export async function planejadoDoDia(inicio: Date) {
+/**
+ * Treino planejado no site para o dia da corrida (null se não houver ou se for descanso).
+ * Só corridas têm plano: caminhada, musculação e outros treinos do mesmo dia não são comparados com ele.
+ */
+export async function planejadoDoDia(inicio: Date, tipo?: string) {
+	if (tipo !== undefined && tipo !== 'corrida') return null
 	const dia = chaveDia(inicio)
 	const [plano] = await listarTreinosManuais(dia, dia)
 	return plano && plano.tipo !== 'descanso' && plano.blocos.length > 0 ? plano : null
