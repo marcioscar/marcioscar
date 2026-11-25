@@ -301,13 +301,8 @@ struct ResultadosView: View {
             .foregroundStyle(Tema.texto)
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
-            .background {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14).fill(Color.white)
-                    RoundedRectangle(cornerRadius: 14).fill(Tema.azul.opacity(0.10))
-                }
-            }
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Tema.azul.opacity(0.30), lineWidth: 1))
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Tema.linha, lineWidth: 1))
         }
     }
 
@@ -317,9 +312,10 @@ struct ResultadosView: View {
         let t = store.totais
         let tipoRotulo = store.filtro == .todos ? "corridas" : store.filtro.rotulo.lowercased()
         let verde = Color(red: 0.30, green: 0.68, blue: 0.38)
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("TOTAIS DO PERÍODO").font(.caption.weight(.heavy)).tracking(0.6).foregroundStyle(Tema.textoSuave)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+        // um painel escuro só para os totais: nada na lista abaixo se parece com ele
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("TOTAIS DO PERÍODO").font(.caption.weight(.heavy)).tracking(0.8).foregroundStyle(Color.white.opacity(0.6))
+            LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 16) {
                 TotalColorido(titulo: "Treinos", valor: "\(t.treinos)", icone: "figure.mixed.cardio", cor: Tema.azul)
                 TotalColorido(titulo: "Tempo", valor: formatarDuracaoLonga(t.tempoSeg), icone: "clock.fill", cor: Tema.roxo)
                 if t.comDistancia > 0 {
@@ -332,6 +328,12 @@ struct ResultadosView: View {
                 }
             }
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [Color(red: 0.09, green: 0.10, blue: 0.14), Color(red: 0.14, green: 0.15, blue: 0.23)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 24)
+        )
     }
 
     // MARK: filtros
@@ -519,7 +521,7 @@ struct LinhaTreino: View {
     }
 }
 
-/// Total do período: bloco colorido com ícone, bem diferente dos cards de treino (brancos com faixa lateral).
+/// Total do período: ícone colorido e número em branco, dentro do painel escuro do topo.
 struct TotalColorido: View {
     let titulo: String
     let valor: String
@@ -531,25 +533,14 @@ struct TotalColorido: View {
             Image(systemName: icone)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
+                .frame(width: 36, height: 36)
                 .background(cor, in: Circle())
             VStack(alignment: .leading, spacing: 1) {
-                Text(titulo).font(.caption.weight(.medium)).foregroundStyle(Tema.texto.opacity(0.65)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(valor).font(.title3.weight(.heavy)).foregroundStyle(Tema.texto).lineLimit(1).minimumScaleFactor(0.7)
+                Text(titulo).font(.caption.weight(.medium)).foregroundStyle(Color.white.opacity(0.65)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(valor).font(.title3.weight(.heavy)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
-        .background {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16).fill(Color.white)
-                RoundedRectangle(cornerRadius: 16).fill(
-                    LinearGradient(colors: [cor.opacity(0.24), cor.opacity(0.09)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
-            }
-        }
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(cor.opacity(0.40), lineWidth: 1))
     }
 }
 

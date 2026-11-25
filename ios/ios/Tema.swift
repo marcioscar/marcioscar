@@ -90,21 +90,11 @@ struct Selo: View {
     }
 }
 
-/// Fundo do app: o off-white de sempre com um respingo de cor no topo (lima e aqua), bem suave.
+/// Fundo do app: cinza neutro e chapado.
 struct FundoColorido: View {
     var body: some View {
-        // cinza-azulado um tom mais escuro que o branco dos cartões, para eles se destacarem;
-        // só um sopro de cor bem no topo
-        let base = Color(red: 0.885, green: 0.895, blue: 0.915)
-        ZStack(alignment: .top) {
-            base
-            LinearGradient(
-                colors: [Tema.lima.opacity(0.22), Tema.aqua.opacity(0.07), base.opacity(0)],
-                startPoint: .topLeading,
-                endPoint: .bottom
-            )
-            .frame(height: 260)
-        }
+        // cinza neutro e chapado (o de listas do iOS): os cartões brancos e coloridos se destacam sem competir com o fundo
+        Color(red: 0.945, green: 0.947, blue: 0.960)
         .ignoresSafeArea()
     }
 }
