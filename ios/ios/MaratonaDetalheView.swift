@@ -192,7 +192,7 @@ private struct MapaProva: View {
             if let i = coords.first { Annotation("Largada", coordinate: i) { bolinha(Tema.aqua) } }
             if let f = coords.last { Annotation("Chegada", coordinate: f) { bolinha(Tema.texto) } }
         }
-        .mapStyle(satelite ? .hybrid(elevation: .realistic) : .standard(elevation: .realistic, pointsOfInterest: .excludingAll))
+        .mapStyle(satelite ? .hybrid : .standard)
         .overlay(alignment: .bottomLeading) {
             if let r = colorida?.paceRapido, let l = colorida?.paceLento { LegendaRitmo(rapido: r, lento: l).padding(10) }
         }

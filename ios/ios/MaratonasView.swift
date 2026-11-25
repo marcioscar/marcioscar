@@ -134,61 +134,83 @@ private struct GloboMaratonas: View {
     let store: MaratonasStore
     @Binding var selecionada: String?
     var abrir: (Maratona) -> Void
+    /// nil = já está em tela cheia
     var ampliar: (() -> Void)?
 
-    @State private var camera: MapCameraPosition = .camera(Self.mundo)
-    @State private var satelite = true
-    @State private var passeio: Task<Void, Never>?
+    private static let inicio = (lat: 5.0, lng: -50.0)
 
-    private static let mundo = MapCamera(centerCoordinate: CLLocationCoordinate2D(latitude: 8, longitude: -50), distance: 26_000_000)
+    @State private var lat = Self.inicio.lat
+    @State private var lng = Self.inicio.lng
+    @State private var zoom = 1.0
+    @State private var base: (lat: Double, lng: Double)?
+    @State private var baseZoom: Double?
+    /// prova cujo mapa da cidade está aberto por cima do globo
+    @State private var cidade: Maratona?
+    @State private var satelite = false
+    @State private var passeio: Task<Void, Never>?
+    @State private var voo: Task<Void, Never>?
 
     private var atual: Maratona? { store.todas.first { $0.id == selecionada } }
 
     var body: some View {
-        Map(position: $camera) {
-            ForEach(Array(zip(store.todas, store.todas.dropFirst())), id: \.0.id) { a, b in
-                if let pa = store.pontos[a.id], let pb = store.pontos[b.id] {
-                    MapPolyline(coordinates: [pa, pb], contourStyle: .geodesic)
-                        .stroke(Tema.lima.opacity(selecionada == nil ? 0.7 : 0.25), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                }
+        ZStack {
+            RadialGradient(colors: [Color(red: 0.10, green: 0.13, blue: 0.24), Color(red: 0.03, green: 0.04, blue: 0.09)], center: .center, startRadius: 40, endRadius: 420)
+            GloboDesenho(store: store, lat: lat, lng: lng, zoom: zoom, selecionada: selecionada) { m in
+                parar()
+                if m.id == selecionada { voar(m) } else { selecionada = m.id }
             }
-            if let m = atual, let c = store.rotas[m.id] {
-                MapPolyline(coordinates: c).stroke(.white, lineWidth: 7)
-                MapPolyline(coordinates: c).stroke(Tema.laranja, lineWidth: 4)
-            }
-            ForEach(store.todas) { m in
-                if let p = store.pontos[m.id] {
-                    Annotation(m.local, coordinate: p) {
-                        Button { passeio?.cancel(); passeio = nil; selecionada = m.id } label: {
-                            Pino(m: m, ativo: m.id == selecionada, recorde: m.id == store.melhor?.id)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(m.nome), \(m.ano)")
-                    }
-                    .annotationTitles(m.id == selecionada ? .hidden : .automatic)
-                }
+            .contentShape(Rectangle())
+            .simultaneousGesture(arrastar)
+            .simultaneousGesture(pinca)
+            if let c = cidade, let p = store.pontos[c.id] {
+                MapaCidade(m: c, ponto: p, rota: store.rotas[c.id] ?? [], satelite: satelite)
+                    .id(c.id)
+                    .transition(.opacity)
             }
         }
-        .mapStyle(satelite ? .imagery(elevation: .realistic) : .standard(elevation: .realistic, pointsOfInterest: .excludingAll))
-        .mapControls {}
         .overlay(alignment: .topTrailing) { botoes }
         .overlay(alignment: .bottom) { rodape }
+        .clipped()
         .onAppear { if let m = atual { voar(m) } }
         .onChange(of: selecionada) { _, _ in
-            if let m = atual { voar(m) } else {
-                withAnimation(.easeInOut(duration: 1.6)) { camera = .camera(Self.mundo) }
-            }
+            if let m = atual { voar(m) } else { voltar() }
         }
-        .onDisappear { passeio?.cancel(); passeio = nil }
+        .onDisappear { parar(); voo?.cancel() }
+    }
+
+    private var arrastar: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { v in
+                if base == nil { base = (lat, lng); parar(); voo?.cancel() }
+                guard let b = base else { return }
+                lng = b.lng - v.translation.width * 0.35 / zoom
+                // na página, o arrasto vertical é da rolagem
+                if ampliar == nil { lat = min(80, max(-80, b.lat + v.translation.height * 0.35 / zoom)) }
+            }
+            .onEnded { _ in base = nil }
+    }
+
+    private var pinca: some Gesture {
+        MagnifyGesture()
+            .onChanged { v in
+                if baseZoom == nil { baseZoom = zoom; parar(); voo?.cancel() }
+                zoom = min(6, max(0.8, (baseZoom ?? 1) * v.magnification))
+            }
+            .onEnded { _ in baseZoom = nil }
     }
 
     private var botoes: some View {
         VStack(spacing: 8) {
             if let ampliar { BotaoMapa(icone: "arrow.up.left.and.arrow.down.right", rotulo: "Tela cheia", acao: ampliar) }
-            BotaoMapa(icone: satelite ? "map.fill" : "globe.americas.fill", rotulo: "Trocar mapa") { satelite.toggle() }
             BotaoMapa(icone: passeio == nil ? "play.fill" : "pause.fill", rotulo: "Passeio pelas provas", acao: alternarPasseio)
-            if selecionada != nil {
-                BotaoMapa(icone: "globe", rotulo: "Ver o mundo") { parar(); selecionada = nil }
+            if cidade != nil {
+                BotaoMapa(icone: satelite ? "map.fill" : "photo.fill", rotulo: "Trocar mapa") { satelite.toggle() }
+            }
+            if selecionada != nil || zoom > 1.2 {
+                BotaoMapa(icone: "globe", rotulo: "Ver o mundo") {
+                    parar()
+                    if selecionada == nil { voltar() } else { selecionada = nil }
+                }
             }
         }
         .padding(12)
@@ -221,28 +243,36 @@ private struct GloboMaratonas: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
             .padding(10)
         } else {
-            Text("Toque numa bandeira ou em ▶ para o passeio")
+            Text("Gire, aproxime e toque numa bandeira")
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(.regularMaterial, in: Capsule())
                 .padding(.bottom, 14)
+                .allowsHitTesting(false)
         }
     }
 
+    /// Gira até a cidade, aproxima e só então abre o mapa dela.
     private func voar(_ m: Maratona) {
         guard let p = store.pontos[m.id] else { return }
-        var centro = p
-        var distancia = 45_000.0
-        if let c = store.rotas[m.id] {
-            let lats = c.map(\.latitude), lngs = c.map(\.longitude)
-            centro = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lngs.min()! + lngs.max()!) / 2)
-            let diagonal = CLLocation(latitude: lats.min()!, longitude: lngs.min()!).distance(from: CLLocation(latitude: lats.max()!, longitude: lngs.max()!))
-            distancia = max(diagonal * 2.9, 12_000)
+        voo?.cancel()
+        withAnimation(.easeOut(duration: 0.25)) { cidade = nil }
+        // pelo caminho mais curto em volta do globo
+        let delta = (p.longitude - lng + 540).truncatingRemainder(dividingBy: 360) - 180
+        let alvo = lng + (delta < -180 ? delta + 360 : delta)
+        withAnimation(.easeInOut(duration: 1.4)) { lat = p.latitude; lng = alvo; zoom = 2.6 }
+        voo = Task {
+            try? await Task.sleep(for: .seconds(1.8))
+            if Task.isCancelled { return }
+            withAnimation(.easeIn(duration: 0.5)) { cidade = m }
         }
-        withAnimation(.easeInOut(duration: 2)) {
-            camera = .camera(MapCamera(centerCoordinate: centro, distance: distancia, heading: 0, pitch: 35))
-        }
+    }
+
+    private func voltar() {
+        voo?.cancel()
+        withAnimation(.easeOut(duration: 0.3)) { cidade = nil }
+        withAnimation(.easeInOut(duration: 1.2)) { zoom = 1 }
     }
 
     private func andar(_ passo: Int) {
@@ -261,7 +291,7 @@ private struct GloboMaratonas: View {
         passeio = Task {
             for m in ordem[comeco...] {
                 selecionada = m.id
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(6))
                 if Task.isCancelled { return }
             }
             selecionada = nil
@@ -270,23 +300,31 @@ private struct GloboMaratonas: View {
     }
 }
 
-private struct Pino: View {
+/// Mapa plano da cidade com o percurso (o mesmo tipo de mapa dos Resultados).
+private struct MapaCidade: View {
     let m: Maratona
-    let ativo: Bool
-    let recorde: Bool
+    let ponto: CLLocationCoordinate2D
+    let rota: [CLLocationCoordinate2D]
+    let satelite: Bool
+
+    private var regiao: MKCoordinateRegion {
+        guard rota.count > 1 else { return MKCoordinateRegion(center: ponto, latitudinalMeters: 25_000, longitudinalMeters: 25_000) }
+        let la = rota.map(\.latitude), ln = rota.map(\.longitude)
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (la.min()! + la.max()!) / 2, longitude: (ln.min()! + ln.max()!) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max((la.max()! - la.min()!) * 1.7, 0.01), longitudeDelta: max((ln.max()! - ln.min()!) * 1.5, 0.01))
+        )
+    }
+
     var body: some View {
-        Text(m.bandeira)
-            .font(.system(size: ativo ? 24 : 16))
-            .frame(width: ativo ? 44 : 30, height: ativo ? 44 : 30)
-            .background(.white, in: Circle())
-            .overlay(Circle().stroke(recorde ? Tema.ouro : (ativo ? Tema.laranja : .white), lineWidth: recorde || ativo ? 3 : 1))
-            .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
-            .overlay(alignment: .topTrailing) {
-                if recorde {
-                    Image(systemName: "star.fill").font(.system(size: 9)).foregroundStyle(.white)
-                        .padding(3).background(Tema.ouro, in: Circle()).offset(x: 5, y: -5)
-                }
+        Map(initialPosition: .region(regiao), interactionModes: [.pan, .zoom]) {
+            if rota.count > 1 {
+                MapPolyline(coordinates: rota).stroke(.white, lineWidth: 7)
+                MapPolyline(coordinates: rota).stroke(Tema.laranja, lineWidth: 4)
             }
+            Annotation(m.local, coordinate: rota.first ?? ponto) { Pino(m: m, ativo: true, recorde: false) }
+        }
+        .mapStyle(satelite ? .hybrid : .standard)
     }
 }
 
@@ -614,19 +652,27 @@ private struct BlocoMetades: View {
     var body: some View {
         let provas = todas.filter { $0.leitura != nil }
         Secao(titulo: "Primeira × segunda metade", icone: "circle.lefthalf.filled", tom: Tema.roxo) {
-            Chart(provas) { m in
-                let d = (m.leitura?.diferencaSeg ?? 0) / 60
-                BarMark(x: .value("Minutos", d), y: .value("Prova", m.rotuloCurto))
-                    .foregroundStyle(d < 4 ? Tema.aqua : (d < 20 ? Tema.ouro : Tema.vermelho))
-                    .cornerRadius(5)
-                    .annotation(position: .trailing) {
-                        Text(formatarDiferenca(m.leitura?.diferencaSeg ?? 0)).font(.caption2.weight(.bold)).monospacedDigit().foregroundStyle(Tema.texto)
+            let maior = max(provas.map { abs($0.leitura?.diferencaSeg ?? 0) }.max() ?? 1, 1)
+            VStack(spacing: 8) {
+                ForEach(provas) { m in
+                    let d = m.leitura?.diferencaSeg ?? 0
+                    HStack(spacing: 8) {
+                        Text("\(m.bandeira) \(m.rotuloCurto)")
+                            .font(.caption.weight(.medium)).foregroundStyle(Tema.texto)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .frame(width: 108, alignment: .leading)
+                        GeometryReader { g in
+                            Capsule()
+                                .fill(d < 240 ? Tema.aqua : (d < 1200 ? Tema.ouro : Tema.vermelho))
+                                .frame(width: max(8, g.size.width * abs(d) / maior))
+                        }
+                        .frame(height: 14)
+                        Text(formatarDiferenca(d))
+                            .font(.caption.weight(.bold)).monospacedDigit().foregroundStyle(Tema.texto)
+                            .frame(width: 54, alignment: .trailing)
                     }
+                }
             }
-            .chartXScale(domain: min(0, (provas.map { $0.leitura!.diferencaSeg }.min() ?? 0) / 60)...max(50, (provas.map { $0.leitura!.diferencaSeg }.max() ?? 0) / 60 * 1.3))
-            .chartXAxis(.hidden)
-            .chartYAxis { AxisMarks(position: .leading) { _ in AxisValueLabel().font(.caption) } }
-            .frame(height: CGFloat(provas.count) * 32 + 10)
             let quedas = provas.compactMap { $0.leitura?.kmQueda }.sorted()
             if !quedas.isEmpty {
                 Text("Minutos a mais na segunda metade. Em \(quedas.count) de \(provas.count) provas o ritmo caiu e não voltou, tipicamente no km \(quedas[quedas.count / 2]).")
