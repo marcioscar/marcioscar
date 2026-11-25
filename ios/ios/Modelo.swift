@@ -1,6 +1,37 @@
 import SwiftUI
 
-/// Zonas de ritmo do Marcio, derivadas do VPONTO 42 de Jack Daniels. Mesmas de app/lib/zonas-pace.ts.
+/// Uma zona como o site manda (pace em seg/km).
+struct ZonaServidor: Codable {
+    var id: String
+    var nome: String
+    var lentoSeg: Double
+    var rapidoSeg: Double
+}
+
+/// Limites das zonas Z1–Z6 (pace seg/km, do mais lento ao mais rápido). Vêm do site (derivados do VPONTO) e
+/// ficam guardados no aparelho; sem resposta do site vale a tabela do VPONTO 42.
+enum TabelaZonas {
+    private static let chave = "zonasLimites"
+    private static let padrao: [[Double]] = [[435, 375], [375, 340], [340, 305], [305, 285], [285, 265], [265, 230]]
+
+    static var limites: [(lento: Double, rapido: Double)] {
+        let salvo = UserDefaults.standard.array(forKey: chave) as? [[Double]]
+        let lista = (salvo?.count == 6 && salvo!.allSatisfy { $0.count == 2 }) ? salvo! : padrao
+        return lista.map { (lento: $0[0], rapido: $0[1]) }
+    }
+
+    static func atualizar(_ zonas: [ZonaServidor]?) {
+        guard let zonas, zonas.count == 6 else { return }
+        UserDefaults.standard.set(zonas.map { [$0.lentoSeg, $0.rapidoSeg] }, forKey: chave)
+    }
+
+    static func rotulo(_ seg: Double) -> String {
+        let t = Int(seg.rounded())
+        return "\(t / 60):" + String(format: "%02d", t % 60)
+    }
+}
+
+/// Zonas de ritmo do Marcio, derivadas do VPONTO de Jack Daniels (ver `TabelaZonas`). Mesmas de app/lib/zonas-pace.ts.
 enum Zona: Int, Codable, CaseIterable {
     case z1 = 1, z2, z3, z4, z5, z6
 
@@ -17,25 +48,13 @@ enum Zona: Int, Codable, CaseIterable {
 
     /// pace (mais lento – mais rápido), min/km
     var pace: String {
-        switch self {
-        case .z1: "7:15–6:15"
-        case .z2: "6:15–5:40"
-        case .z3: "5:40–5:05"
-        case .z4: "5:05–4:45"
-        case .z5: "4:45–4:25"
-        case .z6: "4:25–3:50"
-        }
+        let l = TabelaZonas.limites[rawValue - 1]
+        return "\(TabelaZonas.rotulo(l.lento))–\(TabelaZonas.rotulo(l.rapido))"
     }
 
     var kmh: ClosedRange<Double> {
-        switch self {
-        case .z1: 8.28...9.60
-        case .z2: 9.60...10.59
-        case .z3: 10.59...11.80
-        case .z4: 11.80...12.63
-        case .z5: 12.63...13.58
-        case .z6: 13.58...15.65
-        }
+        let l = TabelaZonas.limites[rawValue - 1]
+        return (3600 / l.lento)...(3600 / l.rapido)
     }
 
     var cor: Color {
@@ -201,4 +220,7 @@ struct RespostaSemana: Codable {
     var prova: ProvaInfo?
     var sessoes: [Sessao]
     var aviso: String?
+    /// zonas em uso no site (derivadas do VPONTO)
+    var zonas: [ZonaServidor]?
+    var vponto: Double?
 }

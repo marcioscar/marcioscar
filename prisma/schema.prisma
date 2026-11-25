@@ -226,3 +226,16 @@ model biblioteca {
 
     @@index([data])
 }
+
+/// VPONTO (Jack Daniels) em uso: a linha mais recente vale. Dele saem as zonas Z1–Z6 (app/lib/vdot.ts).
+model ConfigVponto {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    vponto    Float
+    /// de onde veio (prova, treinos, manual...)
+    origem    String
+    /// treinos futuros que tiveram o pace da zona atualizado ao aplicar
+    treinosAjustados Int @default(0)
+    createdAt DateTime @default(now())
+
+    @@index([createdAt])
+}

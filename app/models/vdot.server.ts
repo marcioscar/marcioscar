@@ -1,7 +1,10 @@
 import { db } from "../../db.server";
+import { RELOGIO_DESDE_DATA } from "~/lib/fonte-dados";
+import { semDuplicadasDoStrava } from "~/models/corridas-unificadas.server";
+import { listarCorridasRelogio } from "~/models/treino-saude.server";
+import { obterVpontoConfigurado } from "~/models/vdot-config.server";
+import { vpontoEmUso } from "~/lib/zonas-pace";
 import {
-	VPONTO_ATUAL,
-	VPONTO_DESDE,
 	fracaoVo2PelaFc,
 	vo2DoPace,
 	vpontoDaProva,
@@ -38,6 +41,9 @@ export type EstimativaFc = {
 export type PainelVponto = {
 	atual: number;
 	desde: string;
+	origem: string;
+	/** quantas corridas entraram nas estimativas (Strava + relógio) */
+	corridasAnalisadas: number;
 	fcMaxima: number;
 	provas: EstimativaProva[];
 	esforcos: MelhorEsforco[];
@@ -73,21 +79,42 @@ function percentil(valores: number[], p: number): number {
 
 export async function montarPainelVponto(): Promise<PainelVponto> {
 	const agora = Date.now();
-	const corridas = await db.corrida.findMany({
-		where: { dataInicio: { gte: new Date(agora - 365 * DIA) } },
-		orderBy: { dataInicio: "asc" },
-		select: {
-			nome: true,
-			dataInicio: true,
-			distanciaMetros: true,
-			tempoMovimentoSeg: true,
-			tempoTotalSeg: true,
-			elevacaoGanhoMetros: true,
-			frequenciaMedia: true,
-			frequenciaMaxima: true,
-			splits: true,
-		},
-	});
+	const desde365 = new Date(agora - 365 * DIA);
+	const [doStrava, doRelogio, config] = await Promise.all([
+		db.corrida.findMany({
+			where: { dataInicio: { gte: desde365 } },
+			orderBy: { dataInicio: "asc" },
+			select: {
+				nome: true,
+				dataInicio: true,
+				distanciaMetros: true,
+				tempoMovimentoSeg: true,
+				tempoTotalSeg: true,
+				elevacaoGanhoMetros: true,
+				frequenciaMedia: true,
+				frequenciaMaxima: true,
+				splits: true,
+			},
+		}),
+		listarCorridasRelogio(RELOGIO_DESDE_DATA, desde365),
+		obterVpontoConfigurado(),
+	]);
+	// de 23/11 em diante a fonte é o relógio; o Strava só entra se o relógio não tiver a mesma corrida
+	const corridas = [
+		...semDuplicadasDoStrava(doStrava, doRelogio),
+		...doRelogio.map((r) => ({
+			nome: r.nome,
+			dataInicio: new Date(r.dataInicio),
+			distanciaMetros: r.distanciaMetros,
+			tempoMovimentoSeg: r.tempoMovimentoSeg,
+			tempoTotalSeg: r.tempoMovimentoSeg,
+			elevacaoGanhoMetros: r.elevacaoGanhoMetros,
+			frequenciaMedia: r.fcMedia,
+			frequenciaMaxima: null as number | null,
+			splits: r.splits as unknown,
+		})),
+	].sort((a, b) => a.dataInicio.getTime() - b.dataInicio.getTime());
+	const atual = vpontoEmUso();
 
 	// FC máxima de referência: percentil 95 dos picos por corrida (um pico isolado de sensor não conta)
 	const picos = corridas.map((c) => c.frequenciaMaxima).filter((v): v is number => !!v && v > 120);
@@ -160,25 +187,27 @@ export async function montarPainelVponto(): Promise<PainelVponto> {
 
 	const recentes = provas.filter((p) => p.idadeDias <= 120);
 	const melhorProvaRecente = recentes.length ? Math.max(...recentes.map((p) => p.vponto)) : null;
-	const diasDesdeMudanca = Math.max(0, Math.floor((agora - new Date(`${VPONTO_DESDE}T12:00:00`).getTime()) / DIA));
+	const diasDesdeMudanca = Math.max(0, Math.floor((agora - new Date(`${config.desde}T12:00:00`).getTime()) / DIA));
 
 	// regra do livro: mantém o valor por 3 a 6 semanas; só sugere mudar com prova melhor ou treino consistentemente acima
 	let sugestao: PainelVponto["sugestao"] = null;
-	if (melhorProvaRecente !== null && Math.round(melhorProvaRecente) > VPONTO_ATUAL) {
+	if (melhorProvaRecente !== null && Math.round(melhorProvaRecente) > atual) {
 		sugestao = {
 			vponto: Math.round(melhorProvaRecente),
 			texto: `Uma prova recente indica VPONTO ${melhorProvaRecente.toFixed(1).replace(".", ",")}, acima do atual.`,
 		};
-	} else if (diasDesdeMudanca >= 28 && medianaFc !== null && medianaFc >= VPONTO_ATUAL + 1.5) {
+	} else if (diasDesdeMudanca >= 28 && medianaFc !== null && medianaFc >= atual + 1.5) {
 		sugestao = {
-			vponto: VPONTO_ATUAL + 1,
+			vponto: atual + 1,
 			texto: `Há ${diasDesdeMudanca} dias no mesmo VPONTO e a estimativa pela FC dos treinos está em ${medianaFc.toFixed(1).replace(".", ",")}. Dá para subir 1 ponto.`,
 		};
 	}
 
 	return {
-		atual: VPONTO_ATUAL,
-		desde: VPONTO_DESDE,
+		atual,
+		desde: config.desde,
+		origem: config.origem,
+		corridasAnalisadas: corridas.length,
 		fcMaxima,
 		provas,
 		esforcos,

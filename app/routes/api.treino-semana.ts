@@ -8,6 +8,8 @@ import { musculacaoParaSessao } from '~/lib/musculacao'
 import { listarMusculacao } from '~/models/musculacao.server'
 import { montarPlanoSemanaAtual } from '~/models/plano-semana.server'
 import { listarProvas } from '~/models/provas.server'
+import { garantirVponto } from '~/models/vdot-config.server'
+import { ZONAS_RITMO, vpontoEmUso } from '~/lib/zonas-pace'
 
 // GET /api/treino-semana — treinos da semana atual no formato do app do Apple Watch (ios/).
 // Autenticação: header `Authorization: Bearer <TREINO_API_TOKEN>`.
@@ -23,6 +25,7 @@ const SEM_CACHE = { 'Cache-Control': 'no-store' }
 export async function loader({ request }: Route.LoaderArgs) {
 	const negado = exigirTokenTreino(request)
 	if (negado) return negado
+	await garantirVponto()
 
 	// segunda-feira da semana corrente, no fuso de São Paulo
 	const hoje = chaveDia(new Date())
@@ -78,6 +81,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 				fase: plano?.fase ?? 'Manual',
 			},
 			prova: prova ? { nome: prova.nome, paceAlvo: prova.paceAlvo } : null,
+			// zonas em uso (derivadas do VPONTO): o app mostra e usa as mesmas faixas
+			vponto: vpontoEmUso(),
+			zonas: ZONAS_RITMO.map(z => ({ id: z.id, nome: z.nome, lentoSeg: z.lentoSeg, rapidoSeg: z.rapidoSeg })),
 			sessoes,
 			aviso: sessoes.length === 0 ? 'Nenhum treino nesta semana. Monte em Treinos no site.' : null,
 		},

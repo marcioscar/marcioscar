@@ -61,10 +61,10 @@ enum ConstrutorResultado {
 
     // MARK: tempo por zona
 
-    private static let limitesPace: [(id: String, nome: String, lento: Double, rapido: Double)] = [
-        ("Z1", "Recuperação", 435, 375), ("Z2", "Fácil / Longão", 375, 340), ("Z3", "Maratona", 340, 305),
-        ("Z4", "Limiar", 305, 285), ("Z5", "VO2 máx", 285, 265), ("Z6", "Velocidade", 265, 230),
-    ]
+    private static var limitesPace: [(id: String, nome: String, lento: Double, rapido: Double)] {
+        let nomes = [("Z1", "Recuperação"), ("Z2", "Fácil / Longão"), ("Z3", "Maratona"), ("Z4", "Limiar"), ("Z5", "VO2 máx"), ("Z6", "Velocidade")]
+        return zip(nomes, TabelaZonas.limites).map { (id: $0.0, nome: $0.1, lento: $1.lento, rapido: $1.rapido) }
+    }
 
     private static func rotuloPace(_ s: Double) -> String { "\(Int(s) / 60):" + String(format: "%02d", Int(s) % 60) }
 

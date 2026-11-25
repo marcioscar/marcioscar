@@ -53,6 +53,7 @@ final class TreinosStore {
         do {
             let r = try await Servidor.buscarSemana()
             info = r
+            TabelaZonas.atualizar(r.zonas)
             sessoes = r.sessoes.sorted { $0.data < $1.data }
             erro = nil
         } catch {

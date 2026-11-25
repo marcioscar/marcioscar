@@ -2,13 +2,12 @@
 // "Fórmula de corrida de Daniels" (2ª ed.), para derivar as zonas de ritmo de um número só.
 
 /**
- * VPONTO em uso. Para mudar as zonas do site e das análises, troque este número
- * (e a data/origem abaixo). Aprovado em 25/11/2026 a partir da 15k de 01/11, das meias de 2026
- * e dos treinos recentes (ver a página /vpontos).
+ * VPONTO inicial (aprovado em 25/11/2026). O valor em uso fica no banco (modelo ConfigVponto) e é
+ * trocado na página /vpontos; este número só vale enquanto nada tiver sido gravado.
  */
-export const VPONTO_ATUAL = 42;
-export const VPONTO_DESDE = "2026-11-25";
-export const VPONTO_ORIGEM = "15k de 01/11, meias de 2026 e treinos recentes";
+export const VPONTO_PADRAO = 42;
+export const VPONTO_PADRAO_DESDE = "2026-11-25";
+export const VPONTO_PADRAO_ORIGEM = "15k de 01/11, meias de 2026 e treinos recentes";
 
 // ── Fórmulas ──────────────────────────────────────────────────────────────
 

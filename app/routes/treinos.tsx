@@ -14,6 +14,7 @@ import {
 	DialogTitle,
 } from "~/components/ui/dialog";
 import { db } from "../../db.server";
+import { garantirVponto } from "~/models/vdot-config.server";
 import { listarTreinosSaude } from "~/models/treino-saude.server";
 import { RELOGIO_DESDE } from "~/lib/fonte-dados";
 import { sanearMusculacao, estimarMinutosMusculacao, type TreinoMusculacaoDados } from "~/lib/musculacao";
@@ -94,6 +95,7 @@ function mesValido(v: string | null): v is string {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+	await garantirVponto();
 	const hoje = chaveDia(new Date());
 	const param = new URL(request.url).searchParams.get("mes");
 	const mes = mesValido(param) ? param : hoje.slice(0, 7);
@@ -185,6 +187,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+	await garantirVponto();
 	const form = await request.formData();
 	const intent = form.get("intent");
 

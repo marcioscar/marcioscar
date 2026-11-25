@@ -2,6 +2,7 @@ import type { Route } from "./+types/corridas.relogio.$healthId";
 import * as React from "react";
 import { Link } from "react-router";
 import { getMapboxToken } from "~/lib/mapbox.server";
+import { garantirVponto } from "~/models/vdot-config.server";
 import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from "~/models/treino-saude.server";
 import { compararKmComPlano, compararPlanoExecutado, resumirComparacao, textoPrescrito } from "~/lib/treino-manual";
 import { ComparacaoPace } from "~/components/corridas/comparacao-pace";
@@ -28,6 +29,7 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
+	await garantirVponto();
 	const t = await buscarTreinoSaudePorId(params.healthId);
 	if (!t) throw new Response("Corrida não encontrada", { status: 404 });
 

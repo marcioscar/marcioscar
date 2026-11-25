@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { db } from '../../db.server'
 import { buscarAtividadeDetalhada } from '~/services/strava/client.server'
 import { tabelaZonasParaPrompt } from '~/lib/zonas-pace'
+import { garantirVponto } from '~/models/vdot-config.server'
 import { obterProvaAtiva } from '~/models/provas.server'
 import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from '~/models/treino-saude.server'
 import { textoPrescrito } from '~/lib/treino-manual'
@@ -392,6 +393,7 @@ async function analisarCorridaDoRelogio(healthId: string, treinusPlano: string |
 }
 
 export async function action({ request }: { request: Request }) {
+	await garantirVponto()
 	if (request.method !== 'POST') {
 		return Response.json({ error: 'Method not allowed' }, { status: 405 })
 	}

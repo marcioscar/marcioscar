@@ -1,7 +1,7 @@
 // Zonas de ritmo do atleta, em pace absoluto, derivadas do VPONTO de Jack Daniels (app/lib/vdot.ts).
 // Usar em análises de treino.
 
-import { VPONTO_ATUAL, formatarPace, limitesDasZonas, ritmosChave } from "~/lib/vdot";
+import { VPONTO_PADRAO, formatarPace, limitesDasZonas, ritmosChave } from "~/lib/vdot";
 
 export type ZonaRitmo = {
 	id: "Z1" | "Z2" | "Z3" | "Z4" | "Z5" | "Z6";
@@ -48,8 +48,28 @@ function montarZonas(vponto: number): ZonaRitmo[] {
 	}));
 }
 
-/** Zonas derivadas do VPONTO em uso (ver app/lib/vdot.ts). */
-export const ZONAS_RITMO: ZonaRitmo[] = montarZonas(VPONTO_ATUAL);
+/**
+ * Zonas derivadas do VPONTO em uso (ver app/lib/vdot.ts). O array é o mesmo objeto o tempo todo:
+ * `definirVponto` troca o conteúdo no lugar, então quem já importou enxerga as zonas novas.
+ */
+export const ZONAS_RITMO: ZonaRitmo[] = montarZonas(VPONTO_PADRAO);
+let vpontoAtivo = VPONTO_PADRAO;
+
+export function vpontoEmUso(): number {
+	return vpontoAtivo;
+}
+
+/** Zonas de um VPONTO qualquer, sem mexer nas que estão em uso (para comparar antes e depois). */
+export function zonasDoVponto(vponto: number): ZonaRitmo[] {
+	return montarZonas(vponto);
+}
+
+/** Passa a usar este VPONTO: servidor (após ler o banco) e navegador (valor vindo do loader) chamam isto. */
+export function definirVponto(vponto: number): void {
+	if (!Number.isFinite(vponto) || vponto === vpontoAtivo) return;
+	vpontoAtivo = vponto;
+	ZONAS_RITMO.splice(0, ZONAS_RITMO.length, ...montarZonas(vponto));
+}
 
 function paceStr(seg: number): string {
 	return `${String(Math.floor(seg / 60)).padStart(2, "0")}:${String(seg % 60).padStart(2, "0")}`;

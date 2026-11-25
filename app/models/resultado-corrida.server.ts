@@ -1,4 +1,5 @@
 import { montarDadosGrafico } from '~/lib/dados-grafico-rota'
+import { garantirVponto } from '~/models/vdot-config.server'
 import {
 	compararKmComPlano,
 	compararPlanoExecutado,
@@ -91,6 +92,7 @@ export type ResultadoCorridaApp = {
 }
 
 export async function montarResultadoParaApp(healthId: string): Promise<ResultadoCorridaApp | null> {
+	await garantirVponto()
 	const t = await buscarTreinoSaudePorId(healthId)
 	if (!t) return null
 

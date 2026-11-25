@@ -1,6 +1,8 @@
-import { useLoaderData } from "react-router";
+import { useState } from "react";
+import { useFetcher, useLoaderData } from "react-router";
 import type { Route } from "./+types/vpontos";
 import { montarPainelVponto } from "~/models/vdot.server";
+import { aplicarVponto, garantirVponto, historicoVponto } from "~/models/vdot-config.server";
 import { ZONAS_RITMO } from "~/lib/zonas-pace";
 import { formatarPace, ritmosChave } from "~/lib/vdot";
 import { formatarData } from "~/lib/formatar-corrida";
@@ -13,7 +15,22 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader({}: Route.LoaderArgs) {
-	return montarPainelVponto();
+	await garantirVponto();
+	const [painel, historico] = await Promise.all([montarPainelVponto(), historicoVponto()]);
+	return { ...painel, historico };
+}
+
+export async function action({ request }: Route.ActionArgs) {
+	await garantirVponto();
+	const form = await request.formData();
+	const vponto = Number(String(form.get("vponto") ?? "").replace(",", "."));
+	const origem = String(form.get("origem") ?? "").trim() || "manual";
+	try {
+		const r = await aplicarVponto(vponto, origem);
+		return { ok: true as const, ...r };
+	} catch (e) {
+		return { ok: false as const, erro: e instanceof Error ? e.message : "Não foi possível aplicar." };
+	}
 }
 
 const fmt1 = (n: number) => n.toFixed(1).replace(".", ",");
@@ -32,6 +49,49 @@ function Cartao({ titulo, children, nota }: { titulo: string; children: React.Re
 			{nota && <p className="mt-1 text-sm text-muted-foreground">{nota}</p>}
 			<div className="mt-3 overflow-x-auto">{children}</div>
 		</section>
+	);
+}
+
+function AplicarVponto({ atual, sugerido, origemSugerida }: { atual: number; sugerido: number | null; origemSugerida: string }) {
+	const fetcher = useFetcher<typeof action>();
+	const [valor, setValor] = useState(String(sugerido ?? atual).replace(".", ","));
+	const enviando = fetcher.state !== "idle";
+	const resposta = fetcher.data;
+	return (
+		<fetcher.Form method="post" className="flex flex-wrap items-end gap-3">
+			<label className="text-sm">
+				<span className="mb-1 block text-muted-foreground">Novo VPONTO</span>
+				<input
+					name="vponto"
+					value={valor}
+					onChange={(e) => setValor(e.target.value)}
+					inputMode="decimal"
+					className="w-24 rounded-md border bg-background px-3 py-2 text-base tabular-nums"
+				/>
+			</label>
+			<label className="min-w-[14rem] flex-1 text-sm">
+				<span className="mb-1 block text-muted-foreground">Motivo</span>
+				<input
+					name="origem"
+					defaultValue={sugerido ? origemSugerida : ""}
+					placeholder="ex.: prova de 10 km em 29/12"
+					className="w-full rounded-md border bg-background px-3 py-2 text-base"
+				/>
+			</label>
+			<button
+				type="submit"
+				disabled={enviando}
+				className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+			>
+				{enviando ? "Aplicando…" : "Aplicar"}
+			</button>
+			{resposta?.ok && (
+				<p className="w-full text-sm text-emerald-600">
+					VPONTO {fmt1(resposta.vponto)} aplicado. {resposta.treinosAjustados} treino(s) futuro(s) ajustado(s). As zonas do site, das análises e do app já mudaram.
+				</p>
+			)}
+			{resposta && !resposta.ok && <p className="w-full text-sm text-red-600">{resposta.erro}</p>}
+		</fetcher.Form>
 	);
 }
 
@@ -71,7 +131,7 @@ export default function VpontosPage() {
 				<div className="rounded-xl border bg-card p-4">
 					<div className="text-sm text-muted-foreground">Estimativa pela FC dos treinos</div>
 					<div className="text-4xl font-extrabold">{p.medianaFc ? fmt1(p.medianaFc) : "—"}</div>
-					<div className="text-xs text-muted-foreground">mediana de {p.porFc.length} corridas · FC máx. {p.fcMaxima}</div>
+					<div className="text-xs text-muted-foreground">mediana de {p.porFc.length} corridas · FC máx. {p.fcMaxima} · {p.corridasAnalisadas} corridas lidas (Strava + relógio)</div>
 				</div>
 			</section>
 
@@ -80,8 +140,7 @@ export default function VpontosPage() {
 			>
 				{p.sugestao ? (
 					<>
-						<strong>Sugestão: VPONTO {p.sugestao.vponto}.</strong> {p.sugestao.texto} Para aplicar, é só pedir: as zonas do site, do
-						app e das análises mudam juntas.
+						<strong>Sugestão: VPONTO {p.sugestao.vponto}.</strong> {p.sugestao.texto}
 					</>
 				) : (
 					<>
@@ -90,6 +149,29 @@ export default function VpontosPage() {
 					</>
 				)}
 			</section>
+
+			<Cartao
+				titulo="Aplicar um novo VPONTO"
+				nota="Troca as zonas no site, nas análises por IA e no app do iPhone. Treinos planejados de hoje em diante que ainda usam o pace padrão da zona são atualizados; paces escolhidos à mão ficam como estão."
+			>
+				<AplicarVponto
+					atual={p.atual}
+					sugerido={p.sugestao?.vponto ?? null}
+					origemSugerida={p.sugestao?.texto ?? ""}
+				/>
+				<div className="mt-4 text-sm">
+					<div className="mb-1 font-medium">Histórico</div>
+					<ul className="space-y-0.5 text-muted-foreground">
+						{p.historico.map((h) => (
+							<li key={h.desde + h.vponto + h.origem}>
+								<span className="tabular-nums">{formatarData(`${h.desde}T12:00:00`)}</span> · VPONTO{" "}
+								<strong className="text-foreground">{fmt1(h.vponto)}</strong> · {h.origem}
+								{h.treinosAjustados > 0 && ` · ${h.treinosAjustados} treino(s) ajustado(s)`}
+							</li>
+						))}
+					</ul>
+				</div>
+			</Cartao>
 
 			<Cartao titulo="Zonas de ritmo (derivadas do VPONTO)" nota="Z2 e Z3 vêm do %VO2 máx de Daniels; os ritmos-chave abaixo são os valores exatos da tabela do livro.">
 				<table className="w-full min-w-[34rem] text-sm">

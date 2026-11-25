@@ -9,6 +9,8 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { garantirVponto } from "~/models/vdot-config.server";
+import { definirVponto, vpontoEmUso } from "~/lib/zonas-pace";
 import { AppSidebar, getNavAtual } from "./components/app-sidebar";
 import {
 	SidebarInset,
@@ -53,7 +55,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 	);
 }
 
-export default function App() {
+/** O VPONTO em uso vem do banco; as zonas do navegador são derivadas dele. */
+export async function loader({}: Route.LoaderArgs) {
+	await garantirVponto();
+	return { vponto: vpontoEmUso() };
+}
+
+export default function App({ loaderData }: Route.ComponentProps) {
+	definirVponto(loaderData.vponto);
 	const location = useLocation();
 	const isKioskRoute = location.pathname === "/kiosk";
 	const navAtual = getNavAtual(location.pathname);
