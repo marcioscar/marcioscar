@@ -14,6 +14,15 @@ enum FiltroTreino: String, CaseIterable, Identifiable {
     case outro = "Outros"
     var id: String { rawValue }
     var rotulo: String { rawValue }
+    var cor: Color {
+        switch self {
+        case .todos: Tema.texto
+        case .corrida: corDoTreino(tipo: "corrida", icone: nil)
+        case .caminhada: corDoTreino(tipo: "caminhada", icone: nil)
+        case .forca: corDoTreino(tipo: "forca", icone: nil)
+        case .outro: corDoTreino(tipo: "outro", icone: nil)
+        }
+    }
     var chave: String? {
         switch self {
         case .todos: nil
@@ -308,7 +317,7 @@ struct ResultadosView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(FiltroTreino.allCases) { f in
-                        ficha(f.rotulo, ativo: store.filtro == f) {
+                        ficha(f.rotulo, ativo: store.filtro == f, cor: f.cor) {
                             store.filtro = f
                             if f != .corrida { store.categoria = .todas }
                         }
@@ -320,7 +329,7 @@ struct ResultadosView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(CategoriaCorrida.allCases) { c in
-                            ficha("\(c.rawValue) \(store.contagem(c))", ativo: store.categoria == c) { store.categoria = c }
+                            ficha("\(c.rawValue) \(store.contagem(c))", ativo: store.categoria == c, cor: Tema.laranja) { store.categoria = c }
                         }
                     }
                 }
@@ -328,15 +337,15 @@ struct ResultadosView: View {
         }
     }
 
-    private func ficha(_ texto: String, ativo: Bool, acao: @escaping () -> Void) -> some View {
+    private func ficha(_ texto: String, ativo: Bool, cor: Color = Tema.texto, acao: @escaping () -> Void) -> some View {
         Button(action: acao) {
             Text(texto)
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .foregroundStyle(ativo ? Color.white : Tema.texto)
-                .background(ativo ? Tema.texto : Tema.cartao, in: Capsule())
-                .overlay(Capsule().stroke(Tema.linha, lineWidth: 1))
+                .background(ativo ? cor : Tema.cartao, in: Capsule())
+                .overlay(Capsule().stroke(ativo ? cor : cor.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -368,20 +377,31 @@ private struct MiniRota: View {
     }
 }
 
+/// Cor de cada exercício: o tipo geral (corrida, caminhada, força) e, nos "outros", o símbolo da atividade.
+func corDoTreino(tipo: String?, icone: String?) -> Color {
+    switch tipo ?? "corrida" {
+    case "corrida": return Tema.laranja
+    case "caminhada": return Tema.aqua
+    case "forca": return Color(red: 0.36, green: 0.38, blue: 0.80)
+    default:
+        switch icone ?? "" {
+        case "figure.pilates": return Color(red: 0.90, green: 0.42, blue: 0.62)
+        case "figure.yoga": return Tema.roxo
+        case "figure.outdoor.cycle": return Tema.azul
+        case "figure.pool.swim": return Color(red: 0.20, green: 0.68, blue: 0.85)
+        case "figure.highintensity.intervaltraining": return Tema.vermelho
+        default: return Tema.cinzaPausa
+        }
+    }
+}
+
 struct LinhaTreino: View {
     let treino: ResumoCorrida
     var saude: SaudeSync
     var tipoSessao: String?
     @State private var rota: [CLLocationCoordinate2D] = []
 
-    private var corIcone: Color {
-        switch treino.tipo ?? "corrida" {
-        case "corrida": Tema.laranja
-        case "caminhada": Tema.aqua
-        case "forca": Color(red: 0.36, green: 0.38, blue: 0.80)
-        default: Tema.cinzaPausa
-        }
-    }
+    private var corIcone: Color { corDoTreino(tipo: treino.tipo, icone: treino.icone) }
 
     private var titulo: String {
         if treino.distanciaM >= 50 { return String(format: "%.2f km ", treino.distanciaM / 1000).replacingOccurrences(of: ".", with: ",") + treino.nome }
@@ -391,9 +411,10 @@ struct LinhaTreino: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: treino.icone ?? "figure.run")
-                .font(.title2)
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(corIcone)
-                .frame(width: 44)
+                .frame(width: 46, height: 46)
+                .background(corIcone.opacity(0.16), in: RoundedRectangle(cornerRadius: 13))
             VStack(alignment: .leading, spacing: 5) {
                 Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
                 Text(treino.data.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(ptBR)).capitalized)
@@ -412,8 +433,15 @@ struct LinhaTreino: View {
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }
         .padding(.vertical, 14)
-        .padding(.horizontal, 16)
-        .cartao(raio: 18)
+        .padding(.leading, 22)
+        .padding(.trailing, 16)
+        // cada exercício tem a sua cor: faixa na lateral, tom leve no fundo e borda da mesma cor
+        .background(Tema.cartao, in: RoundedRectangle(cornerRadius: 18))
+        .background(corIcone.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(alignment: .leading) {
+            Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8)
+        }
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(corIcone.opacity(0.22), lineWidth: 1))
         .task { if treino.tipo == "corrida" || treino.tipo == "caminhada" { rota = await saude.miniatura(id: treino.id) } }
     }
 
@@ -424,7 +452,7 @@ struct LinhaTreino: View {
             .foregroundStyle(Tema.texto)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Tema.fundo, in: RoundedRectangle(cornerRadius: 7))
+            .background(corIcone.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
     }
 }
 
