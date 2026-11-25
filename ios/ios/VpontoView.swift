@@ -202,7 +202,7 @@ struct VpontoView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
-        .background(Tema.fundo)
+        .background(FundoColorido())
         .refreshable { await store.carregar() }
         .toolbar(.hidden, for: .navigationBar)
         .task { await store.carregar() }
@@ -253,7 +253,11 @@ private struct Heroi: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cartao(raio: 20)
+        .background(
+            LinearGradient(colors: [Tema.lima.opacity(0.55), Tema.aqua.opacity(0.28), Color.white], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 22)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Tema.aqua.opacity(0.3), lineWidth: 1))
     }
 }
 
@@ -286,7 +290,7 @@ private struct GraficoZonas: View {
         // o eixo é invertido (mais rápido à direita): plota -pace e escreve o pace nos rótulos
         let lento = (p.zonas.map(\.lentoSeg).max() ?? 435) + 10
         let rapido = (p.zonas.map(\.rapidoSeg).min() ?? 230) - 10
-        Secao(titulo: "Zonas de ritmo") {
+        Secao(titulo: "Zonas de ritmo", icone: "speedometer", tom: Tema.aqua) {
             Chart {
                 ForEach(p.zonas) { z in
                     BarMark(
@@ -357,7 +361,7 @@ private struct BlocoRitmosChave: View {
     }
 
     var body: some View {
-        Secao(titulo: "Ritmos-chave do livro") {
+        Secao(titulo: "Ritmos-chave do livro", icone: "target", tom: Tema.roxo) {
             Text("O ritmo que define cada tipo de treino de Daniels para o seu VPONTO.")
                 .font(.footnote).foregroundStyle(Tema.textoSuave)
             ForEach(p.ritmosChave) { r in
@@ -396,7 +400,7 @@ private struct GraficoEvolucao: View {
     var body: some View {
         let lo = (todos.min() ?? 38).rounded(.down) - 1
         let hi = (todos.max() ?? 46).rounded(.up) + 1
-        Secao(titulo: "VPONTO nas provas") {
+        Secao(titulo: "VPONTO nas provas", icone: "flag.checkered", tom: Tema.azul) {
             Group {
                 if let s = provaSel {
                     HStack(spacing: 10) {
@@ -508,7 +512,7 @@ private struct BlocoEvolucaoAtleta: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Secao(titulo: "Evolução do atleta") {
+            Secao(titulo: "Evolução do atleta", icone: "chart.line.uptrend.xyaxis", tom: Tema.laranja) {
                 Picker("Visão", selection: $visao) {
                     ForEach(VisaoEvolucao.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -524,11 +528,15 @@ private struct BlocoEvolucaoAtleta: View {
 
             Criterios(
                 titulo: "Critérios de Daniels",
+                icone: "checklist",
+                tom: Tema.azul,
                 subtitulo: "Últimas 4 semanas completas, só treino (provas ficam de fora). Limites da Tabela 2.1 do livro.",
                 itens: e.criteriosDaniels
             )
             Criterios(
                 titulo: "Indicadores no estilo Canova",
+                icone: "figure.run",
+                tom: Tema.roxo,
                 subtitulo: "Canova não publica limites numéricos como Daniels: estes indicadores seguem os princípios dele (volume por ciclos, trabalho específico, longão).",
                 itens: e.indicadoresCanova
             )
@@ -688,6 +696,8 @@ private struct BlocoEvolucaoAtleta: View {
 
 private struct Criterios: View {
     let titulo: String
+    var icone: String = "checklist"
+    var tom: Color = Tema.azul
     let subtitulo: String
     let itens: [Evolucao.Criterio]
 
@@ -700,7 +710,7 @@ private struct Criterios: View {
     }
 
     var body: some View {
-        Secao(titulo: titulo) {
+        Secao(titulo: titulo, icone: icone, tom: tom) {
             Text(subtitulo).font(.footnote).foregroundStyle(Tema.textoSuave)
             ForEach(itens) { c in
                 let (nome, cor) = icone(c.status)
@@ -728,7 +738,7 @@ private struct BlocoPrevisoes: View {
     let p: PainelVpontoApp
 
     var body: some View {
-        Secao(titulo: "Previsão de prova") {
+        Secao(titulo: "Previsão de prova", icone: "stopwatch.fill", tom: Tema.aqua) {
             Text("Quanto o seu VPONTO \(Int(p.vponto)) sustenta em cada distância, em condição boa e preparo específico.")
                 .font(.footnote).foregroundStyle(Tema.textoSuave)
             ForEach(p.previsoes) { r in
@@ -752,7 +762,7 @@ private struct BlocoEvidencias: View {
     let p: PainelVpontoApp
 
     var body: some View {
-        Secao(titulo: "De onde vem") {
+        Secao(titulo: "De onde vem", icone: "doc.text.magnifyingglass", tom: Tema.azul) {
             Text("PROVAS").font(.caption.weight(.heavy)).foregroundStyle(Tema.azul)
             ForEach(p.provas.sorted { $0.data > $1.data }.prefix(5)) { r in
                 HStack(alignment: .firstTextBaseline) {
@@ -801,7 +811,7 @@ private struct BlocoComoFunciona: View {
     let p: PainelVpontoApp
 
     var body: some View {
-        Secao(titulo: "Como funciona") {
+        Secao(titulo: "Como funciona", icone: "lightbulb.fill", tom: Tema.laranja) {
             Text("O VPONTO resume a sua forma num número. Ele sai de um desempenho recente em prova (tempo e distância) e dele vêm todas as zonas e os ritmos de treino.")
             Text("Treinos servem de conferência: o melhor esforço sustentado é um piso, e a FC dá uma estimativa que oscila de corrida para corrida.")
             Text("O livro manda manter o mesmo valor por 3 a 6 semanas e só mudar com uma prova melhor, ou com treinos ficando mais fáceis no mesmo ritmo. A mudança é aplicada na página VPONTO e zonas, no site.")

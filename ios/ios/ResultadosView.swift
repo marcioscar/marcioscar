@@ -234,7 +234,7 @@ struct ResultadosView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
-        .background(Tema.fundo)
+        .background(FundoColorido())
         .refreshable { await store.carregar(saude: saude) }
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0, saude: saude) }
@@ -778,16 +778,30 @@ private struct MapaTelaCheia: View {
 struct Secao<Conteudo: View>: View {
     let titulo: String
     var cor: Color = Tema.texto
+    /// símbolo SF e cor de destaque (opcionais): dão um respingo de cor ao cartão
+    var icone: String? = nil
+    var tom: Color? = nil
     @ViewBuilder var conteudo: () -> Conteudo
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(titulo).font(.title3.bold()).foregroundStyle(cor)
+            HStack(spacing: 10) {
+                if let icone, let tom {
+                    Image(systemName: icone)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(tom)
+                        .frame(width: 30, height: 30)
+                        .background(tom.opacity(0.16), in: RoundedRectangle(cornerRadius: 9))
+                }
+                Text(titulo).font(.title3.bold()).foregroundStyle(cor)
+            }
             conteudo()
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cartao(raio: 20)
+        .background(Tema.cartao, in: RoundedRectangle(cornerRadius: 20))
+        .background((tom ?? .clear).opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke((tom ?? Tema.texto).opacity(tom == nil ? 0.07 : 0.22), lineWidth: 1))
     }
 }
 

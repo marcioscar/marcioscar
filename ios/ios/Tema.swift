@@ -87,3 +87,24 @@ struct Selo: View {
             .background(cor, in: Capsule())
     }
 }
+
+/// Fundo do app: o off-white de sempre com um respingo de cor no topo (lima e aqua), bem suave.
+struct FundoColorido: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            Tema.fundo
+            LinearGradient(
+                colors: [Tema.lima.opacity(0.38), Tema.aqua.opacity(0.14), Tema.fundo.opacity(0)],
+                startPoint: .topLeading,
+                endPoint: .bottom
+            )
+            .frame(height: 380)
+            Circle()
+                .fill(Tema.azul.opacity(0.10))
+                .frame(width: 260, height: 260)
+                .blur(radius: 50)
+                .offset(x: 140, y: -60)
+        }
+        .ignoresSafeArea()
+    }
+}
