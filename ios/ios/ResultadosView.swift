@@ -484,7 +484,7 @@ struct LinhaTreino: View {
             }
         }
         .padding(.vertical, 14)
-        .padding(.leading, ehProva ? 22 : 14)
+        .padding(.leading, 22)
         .padding(.trailing, 14)
         // cada exercício tem a sua cor: faixa na lateral, tom leve no fundo e borda da mesma cor
         .background {
@@ -494,12 +494,12 @@ struct LinhaTreino: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
             } else {
-                // lista limpa: cartão branco, só o ícone leva a cor do exercício
+                // lista limpa: cartão branco; a cor do exercício fica na faixa lateral e no ícone
                 RoundedRectangle(cornerRadius: 18).fill(Tema.cartao)
             }
         }
         .overlay(alignment: .leading) {
-            if ehProva { Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8) }
+            Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8)
         }
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(ehProva ? Tema.ouro.opacity(0.75) : Tema.linha, lineWidth: ehProva ? 1.5 : 1))
         .task { if treino.tipo == "corrida" || treino.tipo == "caminhada" { rota = await saude.miniatura(id: treino.id) } }
