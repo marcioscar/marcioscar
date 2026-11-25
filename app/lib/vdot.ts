@@ -32,6 +32,19 @@ export function vpontoDaProva(distanciaM: number, tempoSeg: number): number {
 	return vo2NaVelocidade(v) / fracao;
 }
 
+/** Tempo previsto (seg) para uma distância (m) com um dado VPONTO (inverso de `vpontoDaProva`). */
+export function tempoPrevisto(vponto: number, distanciaM: number): number {
+	let baixo = 60; // 1 min
+	let alto = 8 * 3600;
+	for (let i = 0; i < 60; i++) {
+		const meio = (baixo + alto) / 2;
+		// quanto mais lento o tempo, menor o VPONTO que ele indica
+		if (vpontoDaProva(distanciaM, meio) > vponto) baixo = meio;
+		else alto = meio;
+	}
+	return (baixo + alto) / 2;
+}
+
 /** Pace (seg/km) correspondente a uma fração do VPONTO (1 = 100% do VO2 máx). */
 export function paceNaFracao(vponto: number, fracao: number): number {
 	return 60000 / velocidadeDoVo2(vponto * fracao);

@@ -57,6 +57,28 @@ enum Servidor {
         }
     }
 
+    static func buscarVpontos() async throws -> PainelVpontoApp {
+        guard let token, !token.isEmpty else { throw Erro.semToken }
+        guard let url = URL(string: endereco)?.appendingPathComponent("api/vpontos"), url.scheme?.hasPrefix("http") == true else {
+            throw Erro.urlInvalida
+        }
+        var req = URLRequest(url: url, timeoutInterval: 30)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            let (dados, resp) = try await URLSession.shared.data(for: req)
+            let codigo = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            if codigo == 401 { throw Erro.token }
+            guard codigo == 200 else { throw Erro.servidor(codigo) }
+            return try JSONDecoder().decode(PainelVpontoApp.self, from: dados)
+        } catch let e as Erro {
+            throw e
+        } catch let e as DecodingError {
+            throw Erro.rede("resposta inesperada (\(e.localizedDescription))")
+        } catch {
+            throw Erro.rede(error.localizedDescription)
+        }
+    }
+
     static func buscarSemana() async throws -> RespostaSemana {
         guard let token, !token.isEmpty else { throw Erro.semToken }
         guard let url = URL(string: endereco)?.appendingPathComponent("api/treino-semana"), url.scheme?.hasPrefix("http") == true else {

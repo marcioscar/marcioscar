@@ -775,7 +775,7 @@ private struct MapaTelaCheia: View {
 
 // MARK: - Seções
 
-private struct Secao<Conteudo: View>: View {
+struct Secao<Conteudo: View>: View {
     let titulo: String
     var cor: Color = Tema.texto
     @ViewBuilder var conteudo: () -> Conteudo

@@ -46,6 +46,8 @@ export type PainelVponto = {
 	corridasAnalisadas: number;
 	fcMaxima: number;
 	provas: EstimativaProva[];
+	/** todas as provas de 12 meses (para o gráfico de evolução) */
+	evolucao: EstimativaProva[];
 	esforcos: MelhorEsforco[];
 	porFc: EstimativaFc[];
 	medianaFc: number | null;
@@ -122,9 +124,9 @@ export async function montarPainelVponto(): Promise<PainelVponto> {
 
 	const ehProva = (c: (typeof corridas)[number]) => c.distanciaMetros >= 5000 && !NOME_DE_TREINO.test(c.nome ?? "");
 
-	// provas: distância medida pelo relógio e tempo total
-	const provas: EstimativaProva[] = corridas
-		.filter((c) => ehProva(c) && c.dataInicio.getTime() >= agora - 180 * DIA)
+	// provas: distância oficial (ou a do relógio) e tempo total
+	const evolucao: EstimativaProva[] = corridas
+		.filter((c) => ehProva(c))
 		.map((c) => ({
 			data: c.dataInicio.toISOString().slice(0, 10),
 			nome: c.nome,
@@ -133,8 +135,8 @@ export async function montarPainelVponto(): Promise<PainelVponto> {
 			fcMedia: c.frequenciaMedia,
 			vponto: vpontoDaProva(distanciaDaProva(c.distanciaMetros), c.tempoTotalSeg ?? c.tempoMovimentoSeg),
 			idadeDias: Math.round((agora - c.dataInicio.getTime()) / DIA),
-		}))
-		.reverse();
+		}));
+	const provas = evolucao.filter((p) => p.idadeDias <= 180).reverse();
 
 	// melhores esforços sustentados em treino (km seguidos, últimas 12 semanas): piso do VPONTO
 	const corte = agora - 84 * DIA;
@@ -210,6 +212,7 @@ export async function montarPainelVponto(): Promise<PainelVponto> {
 		corridasAnalisadas: corridas.length,
 		fcMaxima,
 		provas,
+		evolucao,
 		esforcos,
 		porFc: porFc.reverse(),
 		medianaFc,
