@@ -210,8 +210,10 @@ struct CartaoHoje: View {
                     .frame(maxWidth: 130)
             }
         }
-        .padding(18)
-        .cartao(raio: 24)
+        .padding(.vertical, 18)
+        .padding(.leading, 26)
+        .padding(.trailing, 18)
+        .cartaoTreino(cor: sessao.tipo.cor, raio: 24)
     }
 }
 
@@ -250,7 +252,7 @@ struct LinhaDia: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Tema.textoSuave)
                     .frame(width: 38, alignment: .leading)
-                Circle().fill(sessao.tipo.cor).frame(width: 10, height: 10)
+                IconeTreino(simbolo: sessao.tipo.icone, cor: sessao.tipo.cor, tamanho: 38)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(sessao.titulo).font(.body.weight(.semibold)).foregroundStyle(Tema.texto).lineLimit(1)
                     Text(sessao.tipo.rotulo).font(.caption).foregroundStyle(Tema.textoSuave)
@@ -261,9 +263,10 @@ struct LinhaDia: View {
                 }
                 Text(sessao.kmTexto).font(.subheadline.weight(.medium)).foregroundStyle(Tema.texto).monospacedDigit()
             }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .cartao(raio: 16)
+            .padding(.vertical, 12)
+            .padding(.leading, 22)
+            .padding(.trailing, 14)
+            .cartaoTreino(cor: sessao.tipo.cor)
         }
         .buttonStyle(.plain)
     }
@@ -328,13 +331,13 @@ struct SemanaView: View {
                         } else {
                             DiaDaSemana(dia: dia) {
                                 HStack {
-                                    Circle().fill(Tema.cinzaPausa).frame(width: 10, height: 10)
+                                    IconeTreino(simbolo: "moon.zzz.fill", cor: Tema.cinzaPausa, tamanho: 38)
                                     Text("Descanso").font(.body.weight(.medium)).foregroundStyle(Tema.textoSuave)
                                     Spacer()
                                     Text("—").foregroundStyle(Tema.textoSuave)
                                 }
-                                .padding(.vertical, 14)
-                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .padding(.horizontal, 14)
                                 .cartao(raio: 16)
                             }
                         }
@@ -388,7 +391,7 @@ struct LinhaCompacta: View {
     var body: some View {
         Button(action: acao) {
             HStack(spacing: 12) {
-                Circle().fill(sessao.tipo.cor).frame(width: 10, height: 10)
+                IconeTreino(simbolo: sessao.tipo.icone, cor: sessao.tipo.cor, tamanho: 38)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(sessao.titulo).font(.body.weight(.semibold)).foregroundStyle(Tema.texto).lineLimit(1)
                     Text([sessao.tipo.rotulo, sessao.paceTrabalho.map { "\($0) /km" }].compactMap { $0 }.joined(separator: " · "))
@@ -400,9 +403,10 @@ struct LinhaCompacta: View {
                 }
                 Text(sessao.kmTexto).font(.subheadline.weight(.medium)).foregroundStyle(Tema.texto).monospacedDigit()
             }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .cartao(raio: 16)
+            .padding(.vertical, 12)
+            .padding(.leading, 22)
+            .padding(.trailing, 14)
+            .cartaoTreino(cor: sessao.tipo.cor)
         }
         .buttonStyle(.plain)
     }
@@ -538,7 +542,7 @@ struct LinhaEtapa: View {
 
     var body: some View {
         let conteudo = HStack(spacing: 12) {
-            Circle().fill(etapa.papel.cor).frame(width: 12, height: 12)
+            if semCartao { Circle().fill(etapa.papel.cor).frame(width: 12, height: 12) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(nome).font(.body.weight(.semibold)).foregroundStyle(Tema.texto)
                 Text(meta).font(.subheadline).foregroundStyle(Tema.textoSuave)
@@ -556,7 +560,11 @@ struct LinhaEtapa: View {
         if semCartao {
             conteudo
         } else {
-            conteudo.padding(16).cartao(raio: 16)
+            conteudo
+                .padding(.vertical, 16)
+                .padding(.leading, 24)
+                .padding(.trailing, 16)
+                .cartaoTreino(cor: etapa.papel.cor)
         }
     }
 }

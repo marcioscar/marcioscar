@@ -762,7 +762,7 @@ private struct ConteudoResultado: View {
         if let a = r.analise {
             BlocoAnalise(analise: a)
         } else if aoAnalisar != nil || analisando {
-            Secao(titulo: "Treinador IA", cor: Tema.laranja) {
+            Secao(titulo: "Treinador IA", icone: "sparkles", tom: Tema.laranja) {
                 Text("Envia esta corrida ao site e pede uma análise com a sua metodologia, usando as etapas, os splits e as métricas do relógio.")
                     .font(.subheadline).foregroundStyle(Tema.textoSuave)
                 Button { aoAnalisar?() } label: {
@@ -1058,7 +1058,7 @@ private struct BlocoAnalise: View {
     }
 
     var body: some View {
-        Secao(titulo: "Treinador IA", cor: Tema.laranja) {
+        Secao(titulo: "Treinador IA", icone: "sparkles", tom: Tema.laranja) {
             HStack(alignment: .firstTextBaseline) {
                 Text(analise.tipoSessao).font(.headline).foregroundStyle(Tema.texto)
                 Spacer()
@@ -1132,7 +1132,7 @@ private struct BlocoComparacao: View {
     }
 
     var body: some View {
-        Secao(titulo: "Planejado × executado") {
+        Secao(titulo: "Planejado × executado", icone: "target", tom: Tema.roxo) {
             Text(textoResumo).font(.subheadline).foregroundStyle(Tema.textoSuave)
 
             if !pontos.isEmpty {
@@ -1325,7 +1325,7 @@ private struct BlocoGraficos: View {
     }
 
     var body: some View {
-        Secao(titulo: "Ritmo, FC e altitude") {
+        Secao(titulo: "Ritmo, FC e altitude", icone: "waveform.path.ecg", tom: Tema.azul) {
             // leitura do ponto tocado: fica fixa no topo para não cobrir os gráficos
             Group {
                 if let p = pontoSel {
@@ -1454,7 +1454,7 @@ private struct BlocoZonas: View {
 
     var body: some View {
         if zonas.pace != nil || zonas.fc != nil {
-            Secao(titulo: "Tempo por zona") {
+            Secao(titulo: "Tempo por zona", icone: "chart.bar.fill", tom: Tema.aqua) {
                 if zonas.pace != nil && zonas.fc != nil {
                     Picker("Zona", selection: $aba) {
                         Text("Pace").tag(0)
@@ -1692,7 +1692,7 @@ private struct BlocoSplits: View {
         let topo = max(15.0, min(limiteBarra, (lista.compactMap { $0.pace }.map { abs((media ?? $0) - $0) }.max() ?? 15) + 5))
         let faixa = faixaSobreposicao(lista)
 
-        Secao(titulo: "Variação por \(granularidade == .km || !temIntervalos ? "km" : "etapa")", cor: Tema.laranja) {
+        Secao(titulo: "Variação por \(granularidade == .km || !temIntervalos ? "km" : "etapa")", icone: "arrow.up.arrow.down", tom: Tema.laranja) {
             if temIntervalos && !completos.isEmpty {
                 Picker("Agrupar por", selection: $granularidade) {
                     ForEach(Granularidade.allCases) { Text($0.rawValue).tag($0) }
@@ -1850,7 +1850,7 @@ private struct BlocoVoltas: View {
     let voltas: [VoltaResultado]
 
     var body: some View {
-        Secao(titulo: "Etapas") {
+        Secao(titulo: "Etapas", icone: "list.number", tom: Tema.roxo) {
             ForEach(voltas) { v in
                 HStack {
                     Text(v.rotulo).font(.subheadline.weight(.medium)).foregroundStyle(Tema.texto)
@@ -1884,7 +1884,7 @@ private struct BlocoMetricas: View {
 
     var body: some View {
         if !itens.isEmpty {
-            Secao(titulo: "Métricas do Apple Watch") {
+            Secao(titulo: "Métricas do Apple Watch", icone: "applewatch", tom: Tema.vermelho) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(itens, id: \.0) { Metrica(titulo: $0.0, valor: $0.1) }
                 }

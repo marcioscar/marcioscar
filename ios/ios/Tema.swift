@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Tema claro, inspirado nos mockups (laranja = esforço, verde-água = fácil, lima = ação principal).
 enum Tema {
-    static let fundo = Color(red: 0.965, green: 0.965, blue: 0.945)
+    /// cinza neutro das listas do iOS: os cartões brancos se destacam
+    static let fundo = Color(red: 0.945, green: 0.947, blue: 0.960)
     static let cartao = Color.white
     static let linha = Color.black.opacity(0.07)
     static let texto = Color(red: 0.08, green: 0.09, blue: 0.11)
@@ -70,6 +71,15 @@ struct BotaoSecundario: ButtonStyle {
 }
 
 extension View {
+    /// Cartão de treino: branco, com a cor do exercício numa faixa na lateral (o resto fica limpo).
+    func cartaoTreino(cor: Color, raio: CGFloat = 16) -> some View {
+        self.background(Tema.cartao, in: RoundedRectangle(cornerRadius: raio))
+            .overlay(alignment: .leading) {
+                Capsule().fill(cor).frame(width: 5).padding(.vertical, 12).padding(.leading, 8)
+            }
+            .overlay(RoundedRectangle(cornerRadius: raio).stroke(Tema.linha, lineWidth: 1))
+    }
+
     func cartao(raio: CGFloat = 20) -> some View {
         self.background(Tema.cartao, in: RoundedRectangle(cornerRadius: raio))
             .overlay(RoundedRectangle(cornerRadius: raio).stroke(Tema.linha, lineWidth: 1))
@@ -94,7 +104,22 @@ struct Selo: View {
 struct FundoColorido: View {
     var body: some View {
         // cinza neutro e chapado (o de listas do iOS): os cartões brancos e coloridos se destacam sem competir com o fundo
-        Color(red: 0.945, green: 0.947, blue: 0.960)
+        Tema.fundo
         .ignoresSafeArea()
+    }
+}
+
+/// Ícone do exercício num quadradinho tingido com a sua cor.
+struct IconeTreino: View {
+    let simbolo: String
+    let cor: Color
+    var tamanho: CGFloat = 40
+
+    var body: some View {
+        Image(systemName: simbolo)
+            .font(.system(size: tamanho * 0.42, weight: .semibold))
+            .foregroundStyle(cor)
+            .frame(width: tamanho, height: tamanho)
+            .background(cor.opacity(0.16), in: RoundedRectangle(cornerRadius: tamanho * 0.28))
     }
 }
