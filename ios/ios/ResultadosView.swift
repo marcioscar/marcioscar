@@ -752,10 +752,11 @@ private struct BotaoReplay: View {
     let r: ResultadoCorrida
     let titulo: String
     let icone: String
+    let chaveFotos: String
     @State private var corrida: CorridaReplay?
     var body: some View {
         Button {
-            corrida = CorridaReplay(r: r, titulo: titulo, icone: icone)
+            corrida = CorridaReplay(r: r, titulo: titulo, icone: icone, chaveFotos: chaveFotos)
         } label: { Label("Reviver no mapa", systemImage: "play.fill") }
             .buttonStyle(BotaoPrincipal())
             .fullScreenCover(item: $corrida) { ReplayView($0) }
@@ -779,7 +780,7 @@ private struct ConteudoResultado: View {
         cabecalho
         if r.polyline != nil {
             MapaRota(r: r)
-            if r.distanciaM > 200, r.tempoSeg > 60 { BotaoReplay(r: r, titulo: nomeExibido ?? tituloReplay ?? r.nome, icone: icone) }
+            if r.distanciaM > 200, r.tempoSeg > 60 { BotaoReplay(r: r, titulo: nomeExibido ?? tituloReplay ?? r.nome, icone: icone, chaveFotos: chaveFotos ?? r.id) }
         }
         if let chaveFotos, Servidor.configurado { BlocoFotos(chave: chaveFotos) }
         if let c = r.comparacao, let p = r.planejado { BlocoComparacao(comparacao: c, planejado: p) }

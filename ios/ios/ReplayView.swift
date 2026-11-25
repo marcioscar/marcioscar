@@ -17,6 +17,8 @@ private struct TrilhaReplay {
     let rota: RotaColorida
     let pontosPorTrecho: Int
     let marcos: [(km: Int, ponto: CLLocationCoordinate2D)]
+    /// fotos tiradas quase no mesmo lugar dividem um pino
+    let grupos: [GrupoFotos]
     let regiao: MKCoordinateRegion
 
     let distanciaKm: Double
@@ -63,6 +65,17 @@ private struct TrilhaReplay {
         marcos = stride(from: passo, to: max(passo + 1, Int(m.distanciaKm.rounded(.up))), by: passo).compactMap { alvo in
             kms.firstIndex { $0 >= Double(alvo) }.map { (km: alvo, ponto: c[$0]) }
         }
+        var gs: [GrupoFotos] = []
+        for f in m.fotos {
+            let km = m.km(noTempo: f.seg)
+            if let u = gs.last, km - u.km < max(0.1, m.distanciaKm * 0.006) {
+                gs[gs.count - 1].fotos.append(f.foto)
+            } else {
+                gs.append(GrupoFotos(km: km, ponto: c[kms.lastIndex { $0 <= km } ?? 0], fotos: [f.foto]))
+            }
+        }
+        grupos = gs
+
         let la = c.map(\.latitude), ln = c.map(\.longitude)
         regiao = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: (la.min()! + la.max()!) / 2, longitude: (ln.min()! + ln.max()!) / 2),
@@ -86,9 +99,46 @@ private struct TrilhaReplay {
     }
 }
 
+private struct GrupoFotos: Identifiable {
+    let km: Double
+    let ponto: CLLocationCoordinate2D
+    var fotos: [FotoTreino]
+    var id: String { fotos[0].id }
+}
+
 @Observable
 @MainActor
 private final class EstadoReplay {
+    /// foto que o corredor acabou de alcançar
+    var fotoAtual: FotoTreino?
+    @ObservationIgnored var fila: [FotoTreino] = []
+    @ObservationIgnored var exibicao: Task<Void, Never>?
+
+    func mostrar(_ novas: [FotoTreino]) {
+        guard !novas.isEmpty else { return }
+        fila += novas
+        guard exibicao == nil else { return }
+        exibicao = Task {
+            while !fila.isEmpty {
+                // muitas fotos juntas passam mais depressa
+                let pausa = fila.count > 3 ? 1.4 : 2.6
+                let proxima = fila.removeFirst()
+                withAnimation(.spring(duration: 0.4)) { fotoAtual = proxima }
+                try? await Task.sleep(for: .seconds(pausa))
+                if Task.isCancelled { return }
+            }
+            withAnimation(.easeOut(duration: 0.3)) { fotoAtual = nil }
+            exibicao = nil
+        }
+    }
+
+    func limparFotos() {
+        exibicao?.cancel()
+        exibicao = nil
+        fila = []
+        withAnimation(.easeOut(duration: 0.2)) { fotoAtual = nil }
+    }
+
     var tempo = 0.0
     var tocando = false
     var seguir = false
@@ -106,6 +156,7 @@ struct ReplayView: View {
     @State private var estado = EstadoReplay()
     @State private var camera: MapCameraPosition
     @State private var satelite = false
+    @State private var fotoAberta: FotoTreino?
     @State private var trilha: TrilhaReplay
     @Environment(\.dismiss) private var dismiss
 
@@ -131,6 +182,13 @@ struct ReplayView: View {
                             .overlay(Circle().stroke(Tema.texto.opacity(0.4), lineWidth: 1))
                     }
                 }
+                ForEach(trilha.grupos) { g in
+                    Annotation("", coordinate: g.ponto, anchor: .bottom) {
+                        Button { abrir(g.fotos[0]) } label: { PinoFoto(grupo: g) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Foto no km \(Int(g.km))")
+                    }
+                }
                 if let f = trilha.coords.last {
                     Annotation("Chegada", coordinate: f) {
                         Image(systemName: "flag.checkered").font(.caption.bold()).foregroundStyle(.white)
@@ -146,10 +204,14 @@ struct ReplayView: View {
         .ignoresSafeArea()
         .overlay(alignment: .top) { barraTopo }
         .overlay(alignment: .bottom) {
-            PainelReplay(m: m, trilha: trilha, estado: estado, alternar: alternar, mover: { estado.tempo = $0; atualizarTrecho() })
+            VStack(alignment: .trailing, spacing: 8) {
+                CartaoFotoReplay(estado: estado, abrir: abrir)
+                PainelReplay(m: m, trilha: trilha, estado: estado, alternar: alternar, mover: { estado.limparFotos(); estado.tempo = $0; atualizarTrecho() })
+            }
         }
         .preferredColorScheme(.light)
-        .onDisappear { estado.tarefa?.cancel() }
+        .onDisappear { estado.tarefa?.cancel(); estado.limparFotos() }
+        .fullScreenCover(item: $fotoAberta) { FotosCheias(chave: $0.chave, inicial: $0.id) }
         .task {
             try? await Task.sleep(for: .seconds(1))
             if !Task.isCancelled, !estado.tocando, estado.tempo == 0 { alternar() }
@@ -180,6 +242,12 @@ struct ReplayView: View {
         .accessibilityLabel(rotulo)
     }
 
+    private func abrir(_ f: FotoTreino) {
+        if estado.tocando { alternar() }
+        estado.limparFotos()
+        fotoAberta = f
+    }
+
     private func acompanhar(_ duracao: Double) {
         let p = trilha.posicao(km: m.km(noTempo: estado.tempo)).ponto
         withAnimation(.linear(duration: duracao)) {
@@ -200,6 +268,7 @@ struct ReplayView: View {
             return
         }
         if estado.tempo >= m.tempoSeg { estado.tempo = 0; atualizarTrecho() }
+        if estado.tempo == 0 { estado.mostrar(m.fotos.filter { $0.seg == 0 }.map(\.foto)) }
         estado.tocando = true
         estado.tarefa = Task {
             let relogio = ContinuousClock()
@@ -211,14 +280,63 @@ struct ReplayView: View {
                 let agora = relogio.now
                 let dt = (agora - antes) / .seconds(1)
                 antes = agora
+                let de = estado.tempo
                 estado.tempo = min(m.tempoSeg, estado.tempo + dt * estado.velocidade * m.tempoSeg / m.duracaoBase)
                 atualizarTrecho()
+                estado.mostrar(m.fotos.filter { $0.seg > de && $0.seg <= estado.tempo }.map(\.foto))
                 if estado.seguir, agora - ultimaCamera > .milliseconds(900) {
                     ultimaCamera = agora
                     acompanhar(1)
                 }
             }
             estado.tocando = false
+        }
+    }
+}
+
+// MARK: - Fotos
+
+private struct PinoFoto: View {
+    let grupo: GrupoFotos
+    var body: some View {
+        VStack(spacing: -1) {
+            FotoTreinoView(foto: grupo.fotos[0])
+                .frame(width: 38, height: 38)
+                .background(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .overlay(RoundedRectangle(cornerRadius: 9).stroke(.white, lineWidth: 2.5))
+                .overlay(alignment: .topTrailing) {
+                    if grupo.fotos.count > 1 {
+                        Text("\(grupo.fotos.count)").font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+                            .frame(minWidth: 18, minHeight: 18).background(Tema.azul, in: Circle()).offset(x: 7, y: -7)
+                    }
+                }
+            Triangulo().fill(.white).frame(width: 12, height: 7)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
+    }
+}
+
+/// A foto que surge quando o corredor passa pelo lugar dela.
+private struct CartaoFotoReplay: View {
+    let estado: EstadoReplay
+    var abrir: (FotoTreino) -> Void
+
+    var body: some View {
+        if let f = estado.fotoAtual {
+            Button { abrir(f) } label: {
+                FotoTreinoView(foto: f, miniatura: false)
+                    .frame(width: 170, height: 200)
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white, lineWidth: 4))
+                    .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+            }
+            .buttonStyle(.plain)
+            .id(f.id)
+            .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
+            .padding(.trailing, 16)
+            .accessibilityLabel("Abrir foto")
         }
     }
 }

@@ -14,6 +14,10 @@ struct FotoTreino: Codable, Identifiable, Hashable {
 
     /// na ordem em que foram tiradas
     var ordem: String { tiradaEm ?? criadaEm }
+
+    var dataTirada: Date? {
+        tiradaEm.flatMap { ISO8601DateFormatter.comFracao.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
+    }
 }
 
 extension Maratona {
@@ -82,6 +86,12 @@ enum RedutorFoto {
             if let fuso = exif[kCGImagePropertyExifOffsetTimeOriginal] as? String {
                 f.dateFormat = "yyyy:MM:dd HH:mm:ssxxxxx"
                 quando = f.date(from: texto + fuso)
+            }
+            // sem o fuso na foto: o horário do GPS é sempre UTC
+            if quando == nil, let gps = props[kCGImagePropertyGPSDictionary] as? [CFString: Any],
+               let dia = gps[kCGImagePropertyGPSDateStamp] as? String, let hora = gps[kCGImagePropertyGPSTimeStamp] as? String {
+                f.dateFormat = "yyyy:MM:dd HH:mm:ssxxxxx"
+                quando = f.date(from: "\(dia) \(hora.prefix(8))+00:00")
             }
             if quando == nil {
                 f.dateFormat = "yyyy:MM:dd HH:mm:ss"
@@ -258,7 +268,7 @@ struct BlocoFotos: View {
     }
 }
 
-private struct FotosCheias: View {
+struct FotosCheias: View {
     let chave: String
     @State private var atual: String
     @State private var confirmar = false

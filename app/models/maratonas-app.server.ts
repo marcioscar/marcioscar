@@ -157,6 +157,8 @@ export async function montarMaratonasApp() {
 				numero: i + 1,
 				nome,
 				data: m.data,
+				// hora da largada (só com GPS: as lançadas à mão têm só o dia)
+				inicio: m.splits ? m.dataInicio.toISOString() : null,
 				cidade: local?.cidade ?? null,
 				pais: local?.pais ?? null,
 				codigoPais: local ? (ISO2[local.paisId] ?? null) : null,

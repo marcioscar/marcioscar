@@ -36,6 +36,8 @@ struct Maratona: Codable, Identifiable, Hashable {
     var numero: Int
     var nome: String
     var data: String
+    /// instante da largada (ISO); nil nas provas sem GPS
+    var inicio: String?
     var cidade: String?
     var pais: String?
     var codigoPais: String?

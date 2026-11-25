@@ -19,6 +19,21 @@ struct CorridaReplay: Identifiable {
     var fc: [Double] = []
     var altitude: [Double] = []
     var icone = "figure.run"
+    /// fotos da corrida, na ordem, com o instante (seg de prova) em que foram tiradas
+    var fotos: [(foto: FotoTreino, seg: Double)] = []
+
+    /// Posiciona as fotos pelo horário. Até 1 h antes fica na largada; até 2 h depois, na chegada; fora disso (ou sem horário) não entra.
+    @MainActor
+    mutating func posicionarFotos(chave: String, inicio: Date?, duracaoTotalSeg: Double) {
+        guard let inicio else { return }
+        let total = max(duracaoTotalSeg, tempoSeg)
+        fotos = FotosStore.comum.fotos(chave).compactMap { f in
+            guard let d = f.dataTirada?.timeIntervalSince(inicio), d > -3600, d < total + 7200 else { return nil }
+            // com pausas, o tempo de relógio é maior que o de corrida: reparte na proporção
+            return (f, min(tempoSeg, max(0, d * tempoSeg / total)))
+        }
+        .sorted { $0.seg < $1.seg }
+    }
 
     /// prova inteira em 60 s; corridas curtas passam mais depressa
     var duracaoBase: Double { min(60, max(20, 15 + distanciaKm * 1.5)) }
@@ -64,10 +79,12 @@ extension CorridaReplay {
         self.init(titulo: "\(m.bandeira) \(m.rotulo)", distanciaKm: Maratona.distanciaKm, tempoSeg: m.tempoSeg, paceSeg: m.paceSeg,
                   curva: curva, parciaisConfiaveis: m.temParciais, coords: c, colorida: colorida,
                   paces: paces, fc: serie(rota?.fc), altitude: serie(rota?.alt))
+        let inicio = m.inicio.flatMap { ISO8601DateFormatter.comFracao.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
+        posicionarFotos(chave: m.chaveFotos, inicio: inicio, duracaoTotalSeg: m.tempoSeg)
     }
 
     /// Corrida do dia a dia (Resultados). nil quando não há rota.
-    init?(r: ResultadoCorrida, titulo: String, icone: String) {
+    init?(r: ResultadoCorrida, titulo: String, icone: String, chaveFotos: String) {
         let c = r.coordenadas
         let distKm = r.distanciaM / 1000
         guard c.count > 10, distKm > 0.2, r.tempoSeg > 60 else { return nil }
@@ -132,5 +149,6 @@ extension CorridaReplay {
                   coords: c, colorida: RotaColorida(coordenadas: c, velocidades: r.velocidades),
                   paces: vel.map { Self.paces(daVelocidade: $0) } ?? porPonto(\.pace),
                   fc: porPonto(\.fc), altitude: porPonto(\.alt), icone: icone)
+        posicionarFotos(chave: chaveFotos, inicio: r.data, duracaoTotalSeg: r.duracaoTotalSeg)
     }
 }
