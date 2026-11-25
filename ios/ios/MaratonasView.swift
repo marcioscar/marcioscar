@@ -1022,7 +1022,12 @@ private struct ListaMaratonas: View {
 
     private func linha(_ m: Maratona, medalha: Int?) -> some View {
         HStack(spacing: 12) {
-            Text(m.bandeira).font(.system(size: 32)).frame(width: 48, height: 48).background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+            if let f = FotosStore.comum.fotos(m.chaveFotos).first {
+                FotoTreinoView(foto: f).frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(alignment: .bottomTrailing) { Text(m.bandeira).font(.system(size: 18)).offset(x: 5, y: 5) }
+            } else {
+                Text(m.bandeira).font(.system(size: 32)).frame(width: 48, height: 48).background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(m.nome).font(.subheadline.weight(.bold)).foregroundStyle(.white).lineLimit(1)
                 Text("\(m.numero)ª · \(m.dataLonga)").font(.caption).foregroundStyle(.white.opacity(0.65)).lineLimit(1).minimumScaleFactor(0.8)

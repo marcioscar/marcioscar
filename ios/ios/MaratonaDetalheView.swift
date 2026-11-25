@@ -26,6 +26,7 @@ struct MaratonaDetalheView: View {
                         .buttonStyle(BotaoPrincipal())
                 }
                 if !fotos.isEmpty { galeria }
+                BlocoFotos(chave: m.chaveFotos)
                 metricas
                 if let l = m.leitura { BlocoLeitura(l: l) }
                 if m.temParciais {

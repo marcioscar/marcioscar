@@ -251,3 +251,18 @@ model TreinoMarca {
     distanciaOficialM Float?
     updatedAt         DateTime @updatedAt
 }
+
+/// Foto que o Marcio ligou a um treino ou prova pelo app. O arquivo (protegido) fica no PocketBase, coleção fotos_treinos.
+/// `chave` = healthId do treino ou "strava-<id>" nas maratonas.
+model TreinoFoto {
+    id        String    @id @default(auto()) @map("_id") @db.ObjectId
+    chave     String
+    /// registro e nome do arquivo no PocketBase
+    pbId      String
+    arquivo   String
+    /// quando a foto foi tirada (para o replay), se o arquivo dizia
+    tiradaEm  DateTime?
+    createdAt DateTime  @default(now())
+
+    @@index([chave])
+}

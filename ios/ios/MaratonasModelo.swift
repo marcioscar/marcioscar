@@ -192,6 +192,25 @@ final class MaratonasStore {
         }
     }
 
+    /// Uma maratona dos Resultados que também está na aba Maratonas divide as mesmas fotos.
+    static func chaveFotos(de t: ResumoCorrida) async -> String {
+        guard t.ehCorrida, t.distanciaM > 40_000 else { return t.id }
+        func achar(_ d: Data?) -> Maratona? {
+            guard let d, let p = try? JSONDecoder().decode(PainelMaratonas.self, from: d) else { return nil }
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.calendar = Calendar(identifier: .gregorian)
+            f.dateFormat = "yyyy-MM-dd"
+            // a data da prova é a do local: aceita um dia de diferença de fuso
+            let dias = [-86_400.0, 0, 86_400].map { f.string(from: t.data.addingTimeInterval($0)) }
+            return p.maratonas.first { dias.contains($0.data) }
+        }
+        if let m = achar(try? Data(contentsOf: arquivo)) { return m.chaveFotos }
+        guard Servidor.configurado, let d = try? await Servidor.buscarMaratonas() else { return t.id }
+        try? d.write(to: arquivo)
+        return achar(d)?.chaveFotos ?? t.id
+    }
+
     private func aplicar(_ p: PainelMaratonas) {
         var r: [String: [CLLocationCoordinate2D]] = [:]
         var pts: [String: CLLocationCoordinate2D] = [:]

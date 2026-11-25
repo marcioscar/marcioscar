@@ -57,6 +57,7 @@ struct ContentView: View {
         .task {
             if !Servidor.configurado { mostrarAjustes = true }
             saude.sincronizarAoAbrir()
+            Task { await FotosStore.comum.carregar() }
             await store.carregar()
         }
         // ao voltar para o app, busca de novo o planejado no site (e o que já está no relógio)
@@ -64,6 +65,7 @@ struct ContentView: View {
             if nova == .active, Servidor.configurado {
                 saude.sincronizarAoAbrir()
                 Task { await store.carregar() }
+                Task { await FotosStore.comum.carregar() }
             }
         }
     }

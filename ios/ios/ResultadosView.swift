@@ -432,6 +432,7 @@ struct LinhaTreino: View {
     var tipoSessao: String?
     var marca: MarcaTreino?
     @State private var rota: [CLLocationCoordinate2D] = []
+    @State private var chaveFotos: String?
 
     private var ehProva: Bool { marca?.prova == true }
     /// prova é dourada e tem bandeira; o resto segue a cor do exercício
@@ -469,7 +470,9 @@ struct LinhaTreino: View {
                     Text(dataCurta).font(.subheadline).foregroundStyle(textoSecundario).lineLimit(1)
                 }
                 Spacer(minLength: 6)
-                if !rota.isEmpty { MiniRota(pontos: rota, cor: ehProva ? Tema.ouro : Tema.textoSuave).frame(width: 56, height: 44) }
+                if let f = FotosStore.comum.fotos(chaveFotos ?? treino.id).first {
+                    FotoTreinoView(foto: f).frame(width: 56, height: 46).clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if !rota.isEmpty { MiniRota(pontos: rota, cor: ehProva ? Tema.ouro : Tema.textoSuave).frame(width: 56, height: 44) }
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(ehProva ? Color.white.opacity(0.5) : Color.gray.opacity(0.5))
             }
             // fichas numa linha própria, com largura inteira: não quebram dentro de si
@@ -503,6 +506,7 @@ struct LinhaTreino: View {
         }
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(ehProva ? Tema.ouro.opacity(0.75) : Tema.linha, lineWidth: ehProva ? 1.5 : 1))
         .task { if treino.tipo == "corrida" || treino.tipo == "caminhada" { rota = await saude.miniatura(id: treino.id) } }
+        .task { if treino.distanciaM > 40_000 { chaveFotos = await MaratonasStore.chaveFotos(de: treino) } }
     }
 
     private func chip(_ texto: String) -> some View {
@@ -654,12 +658,14 @@ struct ResultadoCorridaView: View {
     @State private var erro: String?
     @State private var analisando = false
     @State private var avisoIA: String?
+    /// o id do treino ou, se for uma maratona que já está na aba Maratonas, a chave dela (as fotos são as mesmas)
+    @State private var chaveFotos: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let r = resultado {
-                    ConteudoResultado(r: r, nomeExibido: marca?.nome ?? (marca?.prova == true ? resumo.nome : nil), tituloReplay: resumo.nome, icone: resumo.icone ?? "figure.run", selo: marca?.prova == true ? marca?.rotulo(distanciaMedidaM: r.distanciaM) : nil, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
+                    ConteudoResultado(r: r, nomeExibido: marca?.nome ?? (marca?.prova == true ? resumo.nome : nil), tituloReplay: resumo.nome, icone: resumo.icone ?? "figure.run", selo: marca?.prova == true ? marca?.rotulo(distanciaMedidaM: r.distanciaM) : nil, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA, chaveFotos: chaveFotos)
                 } else if let erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.orange).font(.footnote)
                 } else {
@@ -686,6 +692,7 @@ struct ResultadoCorridaView: View {
         }
         .task {
             marca = marcaInicial
+            chaveFotos = await MaratonasStore.chaveFotos(de: resumo)
             await carregar()
         }
     }
@@ -766,6 +773,7 @@ private struct ConteudoResultado: View {
     var aoAnalisar: (() -> Void)?
     var analisando = false
     var avisoIA: String?
+    var chaveFotos: String? = nil
 
     var body: some View {
         cabecalho
@@ -773,6 +781,7 @@ private struct ConteudoResultado: View {
             MapaRota(r: r)
             if r.distanciaM > 200, r.tempoSeg > 60 { BotaoReplay(r: r, titulo: nomeExibido ?? tituloReplay ?? r.nome, icone: icone) }
         }
+        if let chaveFotos, Servidor.configurado { BlocoFotos(chave: chaveFotos) }
         if let c = r.comparacao, let p = r.planejado { BlocoComparacao(comparacao: c, planejado: p) }
         if r.serie.count > 10 { BlocoGraficos(serie: r.serie) }
         BlocoZonas(zonas: r.zonas)

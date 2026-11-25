@@ -21,6 +21,7 @@ export default [
   route("api/treino-semana", "routes/api.treino-semana.ts"),
   route("api/vpontos", "routes/api.vpontos.ts"),
   route("api/maratonas", "routes/api.maratonas.ts"),
+  route("api/fotos-treino", "routes/api.fotos-treino.ts"),
   route("api/treino-marca", "routes/api.treino-marca.ts"),
   route("api/corridas-relogio", "routes/api.corridas-relogio.ts"),
   route("api/musculacao-grupos", "routes/api.musculacao-grupos.ts"),
