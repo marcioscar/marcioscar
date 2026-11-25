@@ -408,33 +408,42 @@ struct LinhaTreino: View {
         return treino.nome
     }
 
+    /// "Ter, 24 nov" (curto, para não quebrar linha)
+    private var dataCurta: String {
+        let t = treino.data.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(ptBR)).replacingOccurrences(of: ".", with: "")
+        return t.prefix(1).uppercased() + t.dropFirst()
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: treino.icone ?? "figure.run")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(corIcone)
-                .frame(width: 46, height: 46)
-                .background(corIcone.opacity(0.16), in: RoundedRectangle(cornerRadius: 13))
-            VStack(alignment: .leading, spacing: 5) {
-                Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
-                Text(treino.data.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(ptBR)).capitalized)
-                    .font(.subheadline).foregroundStyle(Tema.textoSuave)
-                HStack(spacing: 6) {
-                    chip(formatarDuracao(treino.tempoSeg))
-                    if treino.temPace, let p = treino.paceSegKm { chip("\(formatarPace(p)) /km") }
-                    if let f = treino.fcMedia { chip("\(Int(f.rounded())) bpm") }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: treino.icone ?? "figure.run")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(corIcone)
+                    .frame(width: 46, height: 46)
+                    .background(corIcone.opacity(0.16), in: RoundedRectangle(cornerRadius: 13))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
+                    Text(dataCurta).font(.subheadline).foregroundStyle(Tema.textoSuave).lineLimit(1)
                 }
-                if let t = tipoSessao ?? treino.tipoSessao {
-                    Text(t).font(.caption).foregroundStyle(Tema.laranja).lineLimit(1)
-                }
+                Spacer(minLength: 6)
+                if !rota.isEmpty { MiniRota(pontos: rota).frame(width: 56, height: 44) }
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }
-            Spacer(minLength: 6)
-            if !rota.isEmpty { MiniRota(pontos: rota).frame(width: 64, height: 46) }
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            // fichas numa linha própria, com largura inteira: não quebram dentro de si
+            HStack(spacing: 6) {
+                chip(formatarDuracao(treino.tempoSeg))
+                if treino.temPace, let p = treino.paceSegKm { chip("\(formatarPace(p)) /km") }
+                if let f = treino.fcMedia { chip("\(Int(f.rounded())) bpm") }
+            }
+            .padding(.leading, 58)
+            if let t = tipoSessao ?? treino.tipoSessao {
+                Text(t).font(.caption).foregroundStyle(Tema.laranja).lineLimit(1).padding(.leading, 58)
+            }
         }
         .padding(.vertical, 14)
         .padding(.leading, 22)
-        .padding(.trailing, 16)
+        .padding(.trailing, 14)
         // cada exercício tem a sua cor: faixa na lateral, tom leve no fundo e borda da mesma cor
         .background(Tema.cartao, in: RoundedRectangle(cornerRadius: 18))
         .background(corIcone.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
@@ -450,6 +459,8 @@ struct LinhaTreino: View {
             .font(.caption.weight(.medium))
             .monospacedDigit()
             .foregroundStyle(Tema.texto)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(corIcone.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
