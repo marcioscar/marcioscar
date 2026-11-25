@@ -79,7 +79,25 @@ function percentil(valores: number[], p: number): number {
 	return o[Math.min(o.length - 1, Math.max(0, Math.round(p * (o.length - 1))))];
 }
 
-export async function montarPainelVponto(): Promise<PainelVponto> {
+export type CorridaAnalise = {
+	nome: string;
+	dataInicio: Date;
+	distanciaMetros: number;
+	tempoMovimentoSeg: number;
+	tempoTotalSeg: number | null;
+	elevacaoGanhoMetros: number;
+	frequenciaMedia: number | null;
+	frequenciaMaxima: number | null;
+	splits: unknown;
+};
+
+export type CorridasCarregadas = {
+	corridas: CorridaAnalise[];
+	config: Awaited<ReturnType<typeof obterVpontoConfigurado>>;
+};
+
+/** Corridas dos últimos 12 meses (Strava + relógio) para as estimativas e a evolução. */
+export async function carregarCorridas(): Promise<CorridasCarregadas> {
 	const agora = Date.now();
 	const desde365 = new Date(agora - 365 * DIA);
 	const [doStrava, doRelogio, config] = await Promise.all([
@@ -102,7 +120,7 @@ export async function montarPainelVponto(): Promise<PainelVponto> {
 		obterVpontoConfigurado(),
 	]);
 	// de 23/11 em diante a fonte é o relógio; o Strava só entra se o relógio não tiver a mesma corrida
-	const corridas = [
+	const corridas: CorridaAnalise[] = [
 		...semDuplicadasDoStrava(doStrava, doRelogio),
 		...doRelogio.map((r) => ({
 			nome: r.nome,
@@ -116,6 +134,12 @@ export async function montarPainelVponto(): Promise<PainelVponto> {
 			splits: r.splits as unknown,
 		})),
 	].sort((a, b) => a.dataInicio.getTime() - b.dataInicio.getTime());
+	return { corridas, config };
+}
+
+export async function montarPainelVponto(carregadas?: CorridasCarregadas): Promise<PainelVponto> {
+	const agora = Date.now();
+	const { corridas, config } = carregadas ?? (await carregarCorridas());
 	const atual = vpontoEmUso();
 
 	// FC máxima de referência: percentil 95 dos picos por corrida (um pico isolado de sensor não conta)

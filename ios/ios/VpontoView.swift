@@ -75,6 +75,44 @@ struct PainelVpontoApp: Codable {
     var porFc: [EstimativaFc]
     var medianaFc: Double?
     var historico: [Registro]
+    var evolucao: Evolucao
+}
+
+/// Evolução do atleta (volume por zona, eficiência aeróbia, VPONTO mensal e critérios).
+struct Evolucao: Codable {
+    struct Semana: Codable, Identifiable {
+        var inicio: String
+        var km: Double
+        var facilKm: Double
+        var maratonaKm: Double
+        var limiarKm: Double
+        var intervaladoKm: Double
+        var repeticaoKm: Double
+        var longaoKm: Double
+        var corridas: Int
+        var emAndamento: Bool
+        var id: String { inicio }
+    }
+    struct PontoMensal: Codable, Identifiable {
+        var mes: String
+        var valor: Double
+        var n: Int
+        var id: String { mes }
+    }
+    struct Criterio: Codable, Identifiable {
+        var id: String
+        var titulo: String
+        var valor: String
+        var referencia: String
+        var status: String
+        var detalhe: String
+    }
+    var semanas: [Semana]
+    var eficiencia: [PontoMensal]
+    var faixaFc: [Double]
+    var vpontoMensal: [PontoMensal]
+    var criteriosDaniels: [Criterio]
+    var indicadoresCanova: [Criterio]
 }
 
 private let formatadorData: DateFormatter = {
@@ -153,6 +191,7 @@ struct VpontoView: View {
                     GraficoZonas(p: p)
                     BlocoRitmosChave(p: p)
                     GraficoEvolucao(p: p)
+                    BlocoEvolucaoAtleta(e: p.evolucao, vpontoEmUso: p.vponto)
                     BlocoPrevisoes(p: p)
                     BlocoEvidencias(p: p)
                     BlocoComoFunciona(p: p)
@@ -357,7 +396,7 @@ private struct GraficoEvolucao: View {
     var body: some View {
         let lo = (todos.min() ?? 38).rounded(.down) - 1
         let hi = (todos.max() ?? 46).rounded(.up) + 1
-        Secao(titulo: "Evolução") {
+        Secao(titulo: "VPONTO nas provas") {
             Group {
                 if let s = provaSel {
                     HStack(spacing: 10) {
@@ -407,6 +446,278 @@ private struct GraficoEvolucao: View {
                 }
             }
             .frame(height: 200)
+        }
+    }
+}
+
+// MARK: - Evolução do atleta
+
+private enum VisaoEvolucao: String, CaseIterable, Identifiable {
+    case volume = "Volume"
+    case intensidade = "Intensidade"
+    case eficiencia = "Eficiência"
+    case vponto = "VPONTO"
+    var id: String { rawValue }
+}
+
+private let gruposZona = ["Fácil", "Maratona", "Limiar", "Intervalado", "Repetição"]
+
+private struct LinhaGrupo: Identifiable {
+    let semana: Date
+    let grupo: String
+    let km: Double
+    var id: String { "\(semana.timeIntervalSince1970)-\(grupo)" }
+}
+
+private func dataDoMes(_ mes: String) -> Date {
+    formatadorData.date(from: mes + "-15") ?? Date()
+}
+
+private struct BlocoEvolucaoAtleta: View {
+    let e: Evolucao
+    let vpontoEmUso: Double
+    @State private var visao: VisaoEvolucao = .volume
+    @State private var semanaSel: Date?
+
+    private var coresGrupo: [Color] { [Zona.z2.cor, Zona.z3.cor, Zona.z4.cor, Zona.z5.cor, Zona.z6.cor] }
+
+    private func linhas(_ semanas: [Evolucao.Semana]) -> [LinhaGrupo] {
+        semanas.flatMap { s -> [LinhaGrupo] in
+            let d = data(s.inicio)
+            return [
+                LinhaGrupo(semana: d, grupo: "Fácil", km: s.facilKm),
+                LinhaGrupo(semana: d, grupo: "Maratona", km: s.maratonaKm),
+                LinhaGrupo(semana: d, grupo: "Limiar", km: s.limiarKm),
+                LinhaGrupo(semana: d, grupo: "Intervalado", km: s.intervaladoKm),
+                LinhaGrupo(semana: d, grupo: "Repetição", km: s.repeticaoKm),
+            ]
+        }
+    }
+
+    private var semanaSelecionada: Evolucao.Semana? {
+        guard let d = semanaSel else { return nil }
+        return e.semanas.min { abs(data($0.inicio).timeIntervalSince(d)) < abs(data($1.inicio).timeIntervalSince(d)) }
+    }
+
+    private func eixoSemanas() -> some AxisContent {
+        AxisMarks(values: .stride(by: .month)) { v in
+            AxisGridLine()
+            AxisValueLabel { if let d = v.as(Date.self) { Text(d.formatted(.dateTime.month(.abbreviated).locale(Locale(identifier: "pt_BR")))).font(.caption2) } }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Secao(titulo: "Evolução do atleta") {
+                Picker("Visão", selection: $visao) {
+                    ForEach(VisaoEvolucao.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+
+                switch visao {
+                case .volume: volume
+                case .intensidade: intensidade
+                case .eficiencia: eficiencia
+                case .vponto: vpontoMensal
+                }
+            }
+
+            Criterios(
+                titulo: "Critérios de Daniels",
+                subtitulo: "Últimas 4 semanas completas, só treino (provas ficam de fora). Limites da Tabela 2.1 do livro.",
+                itens: e.criteriosDaniels
+            )
+            Criterios(
+                titulo: "Indicadores no estilo Canova",
+                subtitulo: "Canova não publica limites numéricos como Daniels: estes indicadores seguem os princípios dele (volume por ciclos, trabalho específico, longão).",
+                itens: e.indicadoresCanova
+            )
+        }
+    }
+
+    // MARK: volume por zona
+
+    private var volume: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Group {
+                if let s = semanaSelecionada {
+                    HStack(spacing: 10) {
+                        Text("Sem. \(curta(s.inicio))").font(.subheadline.weight(.bold)).foregroundStyle(Tema.texto)
+                        Text("\(numero(s.km)) km").foregroundStyle(Tema.azul)
+                        Text("longão \(numero(s.longaoKm)) km").foregroundStyle(Tema.textoSuave)
+                        Text("\(s.corridas) corr.").foregroundStyle(Tema.textoSuave)
+                    }
+                    .font(.subheadline.weight(.semibold)).monospacedDigit()
+                } else {
+                    Text("Quilômetros por semana, divididos pelas zonas de ritmo. Toque numa semana.")
+                        .font(.caption).foregroundStyle(Tema.textoSuave)
+                }
+            }
+            .frame(minHeight: 22, alignment: .leading)
+
+            Chart {
+                ForEach(linhas(e.semanas)) { l in
+                    BarMark(x: .value("semana", l.semana, unit: .weekOfYear), y: .value("km", l.km))
+                        .foregroundStyle(by: .value("zona", l.grupo))
+                        .opacity(semanaSel == nil || semanaSelecionada.map({ data($0.inicio) == l.semana }) == true ? 1 : 0.4)
+                }
+            }
+            .chartForegroundStyleScale(domain: gruposZona, range: coresGrupo)
+            .chartXSelection(value: $semanaSel)
+            .chartXAxis { eixoSemanas() }
+            .chartLegend(position: .bottom, spacing: 8)
+            .frame(height: 220)
+            Text("A última barra é a semana em andamento, ainda incompleta.")
+                .font(.caption2).foregroundStyle(Tema.textoSuave)
+        }
+    }
+
+    // MARK: distribuição de intensidade
+
+    private var intensidade: some View {
+        let ultimas = Array(e.semanas.suffix(12))
+        let total = ultimas.reduce(0) { $0 + $1.km }
+        let facil = ultimas.reduce(0) { $0 + $1.facilKm }
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Como o volume se divide entre as zonas, semana a semana (últimas 12). \(Int((total > 0 ? facil / total * 100 : 0).rounded()))% foi corrida fácil (Z1–Z2).")
+                .font(.caption).foregroundStyle(Tema.textoSuave)
+            Chart {
+                ForEach(linhas(ultimas)) { l in
+                    BarMark(x: .value("semana", l.semana, unit: .weekOfYear), y: .value("km", l.km), stacking: .normalized)
+                        .foregroundStyle(by: .value("zona", l.grupo))
+                }
+            }
+            .chartForegroundStyleScale(domain: gruposZona, range: coresGrupo)
+            .chartYAxis {
+                AxisMarks(values: [0, 0.25, 0.5, 0.75, 1]) { v in
+                    AxisGridLine()
+                    AxisValueLabel { if let d = v.as(Double.self) { Text("\(Int(d * 100))%").font(.caption2) } }
+                }
+            }
+            .chartXAxis { eixoSemanas() }
+            .chartLegend(position: .bottom, spacing: 8)
+            .frame(height: 220)
+        }
+    }
+
+    // MARK: eficiência aeróbia
+
+    private var eficiencia: some View {
+        let faixa = e.faixaFc.count == 2 ? "\(Int(e.faixaFc[0]))–\(Int(e.faixaFc[1]))" : "145–155"
+        let valores = e.eficiencia.map(\.valor)
+        let lo = ((valores.min() ?? 300) / 10).rounded(.down) * 10 - 10
+        let hi = ((valores.max() ?? 380) / 10).rounded(.up) * 10 + 10
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Pace médio nos km corridos com a FC entre \(faixa) bpm. Se o ponto sobe, você corre mais rápido com o mesmo esforço cardíaco: é a melhor medida de evolução aeróbia.")
+                .font(.caption).foregroundStyle(Tema.textoSuave)
+            if e.eficiencia.count >= 2 {
+                Chart {
+                    ForEach(e.eficiencia) { m in
+                        LineMark(x: .value("mês", dataDoMes(m.mes)), y: .value("pace", -m.valor))
+                            .foregroundStyle(Tema.aqua)
+                            .interpolationMethod(.monotone)
+                        PointMark(x: .value("mês", dataDoMes(m.mes)), y: .value("pace", -m.valor))
+                            .foregroundStyle(Tema.aqua)
+                            .symbolSize(60)
+                            .annotation(position: .top, spacing: 3) {
+                                Text(formatarPace(m.valor)).font(.caption2.weight(.semibold)).foregroundStyle(Tema.texto)
+                            }
+                    }
+                }
+                .chartYScale(domain: -hi ... -lo)
+                .chartYAxis {
+                    AxisMarks { v in
+                        AxisGridLine()
+                        AxisValueLabel { if let d = v.as(Double.self) { Text(formatarPace(-d)).font(.caption2) } }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { v in
+                        AxisValueLabel { if let d = v.as(Date.self) { Text(d.formatted(.dateTime.month(.narrow).locale(Locale(identifier: "pt_BR")))).font(.caption2) } }
+                    }
+                }
+                .frame(height: 210)
+            } else {
+                Text("Ainda não há corridas suficientes nessa faixa de FC.").font(.footnote).foregroundStyle(Tema.textoSuave)
+            }
+        }
+    }
+
+    // MARK: VPONTO mês a mês
+
+    private var vpontoMensal: some View {
+        let valores = e.vpontoMensal.map(\.valor) + [vpontoEmUso]
+        let lo = (valores.min() ?? 38).rounded(.down) - 1
+        let hi = (valores.max() ?? 46).rounded(.up) + 1
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("O melhor esforço de 8 km seguidos em treino em cada mês, convertido em VPONTO. É um piso: treino quase nunca é esforço máximo, então só confirma que o valor em uso não está inflado.")
+                .font(.caption).foregroundStyle(Tema.textoSuave)
+            if e.vpontoMensal.count >= 2 {
+                Chart {
+                    RuleMark(y: .value("em uso", vpontoEmUso))
+                        .foregroundStyle(Tema.laranja.opacity(0.8))
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .annotation(position: .top, alignment: .trailing, spacing: 2) {
+                            Text("em uso \(Int(vpontoEmUso))").font(.caption2.weight(.bold)).foregroundStyle(Tema.laranja)
+                        }
+                    ForEach(e.vpontoMensal) { m in
+                        LineMark(x: .value("mês", dataDoMes(m.mes)), y: .value("VPONTO", m.valor))
+                            .foregroundStyle(Tema.azul)
+                            .interpolationMethod(.monotone)
+                        PointMark(x: .value("mês", dataDoMes(m.mes)), y: .value("VPONTO", m.valor))
+                            .foregroundStyle(Tema.azul)
+                            .symbolSize(60)
+                            .annotation(position: .bottom, spacing: 3) {
+                                Text(numero(m.valor)).font(.caption2.weight(.semibold)).foregroundStyle(Tema.texto)
+                            }
+                    }
+                }
+                .chartYScale(domain: lo ... hi)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { v in
+                        AxisValueLabel { if let d = v.as(Date.self) { Text(d.formatted(.dateTime.month(.narrow).locale(Locale(identifier: "pt_BR")))).font(.caption2) } }
+                    }
+                }
+                .frame(height: 210)
+            } else {
+                Text("Ainda não há dados suficientes.").font(.footnote).foregroundStyle(Tema.textoSuave)
+            }
+        }
+    }
+}
+
+private struct Criterios: View {
+    let titulo: String
+    let subtitulo: String
+    let itens: [Evolucao.Criterio]
+
+    private func icone(_ status: String) -> (String, Color) {
+        switch status {
+        case "ok": ("checkmark.circle.fill", Tema.aqua)
+        case "atencao": ("exclamationmark.triangle.fill", Tema.laranja)
+        default: ("info.circle.fill", Tema.cinzaPausa)
+        }
+    }
+
+    var body: some View {
+        Secao(titulo: titulo) {
+            Text(subtitulo).font(.footnote).foregroundStyle(Tema.textoSuave)
+            ForEach(itens) { c in
+                let (nome, cor) = icone(c.status)
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: nome).foregroundStyle(cor).font(.title3).frame(width: 26)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(c.titulo).font(.subheadline.weight(.semibold)).foregroundStyle(Tema.texto)
+                            Spacer(minLength: 8)
+                            Text(c.valor).font(.headline).monospacedDigit().foregroundStyle(Tema.texto)
+                        }
+                        Text(c.referencia).font(.caption.weight(.medium)).foregroundStyle(Tema.textoSuave)
+                        Text(c.detalhe).font(.caption).foregroundStyle(Tema.textoSuave)
+                    }
+                }
+                if c.id != itens.last?.id { Divider() }
+            }
         }
     }
 }

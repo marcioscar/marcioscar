@@ -75,6 +75,11 @@ function paceStr(seg: number): string {
 	return `${String(Math.floor(seg / 60)).padStart(2, "0")}:${String(seg % 60).padStart(2, "0")}`;
 }
 
+/** Mesma coisa que `zonaDoPace`, com o nome que deixa claro que usa o VPONTO em uso. */
+export function zonaDoPaceEmUso(paceSegPorKm: number): ZonaRitmo {
+	return zonaDoPace(paceSegPorKm);
+}
+
 /** Zona de um pace (seg/km). Mais lento que Z1 → Z1; mais rápido que Z6 → Z6. */
 export function zonaDoPace(paceSegPorKm: number): ZonaRitmo {
 	for (const z of ZONAS_RITMO) {

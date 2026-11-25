@@ -2,7 +2,8 @@ import { exigirTokenTreino } from '~/lib/token-treino.server'
 import type { Route } from './+types/api.vpontos'
 import { ZONAS_RITMO, vpontoEmUso } from '~/lib/zonas-pace'
 import { ritmosChave, tempoPrevisto } from '~/lib/vdot'
-import { montarPainelVponto } from '~/models/vdot.server'
+import { carregarCorridas, montarPainelVponto } from '~/models/vdot.server'
+import { montarEvolucaoAtleta } from '~/models/evolucao-atleta.server'
 import { garantirVponto, historicoVponto } from '~/models/vdot-config.server'
 
 // GET /api/vpontos — VPONTO em uso, zonas, ritmos-chave, previsões e estimativas para a aba do app do iPhone (ios/).
@@ -21,7 +22,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (negado) return negado
 	await garantirVponto()
 
-	const [painel, historico] = await Promise.all([montarPainelVponto(), historicoVponto()])
+	const [carregadas, historico] = await Promise.all([carregarCorridas(), historicoVponto()])
+	const painel = await montarPainelVponto(carregadas)
+	const evolucao = montarEvolucaoAtleta(carregadas)
 	const atual = vpontoEmUso()
 	const k = ritmosChave(atual)
 
@@ -50,6 +53,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			porFc: painel.porFc.map(e => ({ data: e.data, km: e.km, paceSeg: e.paceSeg, vponto: e.vponto })),
 			medianaFc: painel.medianaFc,
 			historico,
+			evolucao,
 		},
 		{ headers: { 'Cache-Control': 'no-store' } },
 	)
