@@ -74,7 +74,8 @@ final class TreinosStore {
 
     /// Assinatura do conteúdo enviado por sessão: se o plano muda no site, a assinatura muda e o treino é reenviado.
     private func assinatura(_ s: Sessao) -> String {
-        let dados = (try? JSONEncoder().encode(s)) ?? Data()
+        var dados = (try? JSONEncoder().encode(s)) ?? Data()
+        if ConstrutorWorkout.marcador(para: s) != nil { dados.append(Data("marcador".utf8)) }
         return Insecure.MD5.hash(data: dados).map { String(format: "%02x", $0) }.joined()
     }
 

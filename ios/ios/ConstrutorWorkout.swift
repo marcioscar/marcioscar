@@ -36,7 +36,35 @@ enum ConstrutorWorkout {
         return WorkoutStep(goal: meta(e), alert: alerta(e))
     }
 
+    /// "Marcador de ritmo" do relógio (ligado por padrão; dá para desligar em Ajustes).
+    static var marcadorDeRitmoLigado: Bool {
+        UserDefaults.standard.object(forKey: "marcadorDeRitmo") as? Bool ?? true
+    }
+
+    /// Corrida contínua (uma etapa só, com distância e pace, sem aquecimento nem desaquecimento) vira marcador de ritmo:
+    /// distância e tempo alvo, e o relógio mostra a barra de quanto você está adiantado ou atrasado.
+    static func marcador(para sessao: Sessao) -> (distanciaM: Double, tempoSeg: Double)? {
+        guard marcadorDeRitmoLigado, !sessao.ehMusculacao,
+              sessao.aquecimento == nil, sessao.desaquecimento == nil,
+              sessao.blocos.count == 1, let bloco = sessao.blocos.first, bloco.repeticoes == 1, bloco.etapas.count == 1,
+              let e = bloco.etapas.first, e.papel == .trabalho,
+              let d = e.distanciaM, d >= 1000,
+              let faixa = e.faixaKmh else { return nil }
+        let kmhMedio = (faixa.lowerBound + faixa.upperBound) / 2
+        guard kmhMedio > 3 else { return nil }
+        return (d, d / (kmhMedio / 3.6))
+    }
+
     static func plano(para sessao: Sessao) -> WorkoutPlan {
+        if let m = marcador(para: sessao) {
+            let pacer = PacerWorkout(
+                activity: .running,
+                location: .outdoor,
+                distance: Measurement(value: m.distanciaM, unit: UnitLength.meters),
+                time: Measurement(value: m.tempoSeg, unit: UnitDuration.seconds)
+            )
+            return WorkoutPlan(.pacer(pacer), id: uuid(para: sessao))
+        }
         let blocos = sessao.blocos.map { bloco in
             IntervalBlock(
                 steps: bloco.etapas.map { e in
