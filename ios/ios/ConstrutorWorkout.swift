@@ -50,9 +50,10 @@ enum ConstrutorWorkout {
               let e = bloco.etapas.first, e.papel == .trabalho,
               let d = e.distanciaM, d >= 1000,
               let faixa = e.faixaKmh else { return nil }
-        let kmhMedio = (faixa.lowerBound + faixa.upperBound) / 2
-        guard kmhMedio > 3 else { return nil }
-        return (d, d / (kmhMedio / 3.6))
+        // o alvo é sempre a ponta mais rápida da faixa: a barra mostra "adiantado" se você passar dela
+        let kmhAlvo = faixa.upperBound
+        guard kmhAlvo > 3 else { return nil }
+        return (d, d / (kmhAlvo / 3.6))
     }
 
     static func plano(para sessao: Sessao) -> WorkoutPlan {

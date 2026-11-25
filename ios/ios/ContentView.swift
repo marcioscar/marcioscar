@@ -614,7 +614,7 @@ struct AjustesView: View {
                     Toggle("Enviar corridas ao relógio sozinho", isOn: $envioAutomatico)
                     Toggle("Marcador de ritmo em corridas contínuas", isOn: $marcadorDeRitmo)
                 } footer: {
-                    Text("Ao abrir o app, as corridas planejadas de hoje em diante que ainda não estão no relógio (ou que mudaram no site) são enviadas. Musculação não entra: você escolhe na hora.\n\nMarcador de ritmo: corridas de uma etapa só (distância e pace, sem aquecimento nem desaquecimento) vão como o marcador de ritmo do Apple Watch, com a barra de adiantado ou atrasado. Treinos com etapas seguem como treino personalizado.")
+                    Text("Ao abrir o app, as corridas planejadas de hoje em diante que ainda não estão no relógio (ou que mudaram no site) são enviadas. Musculação não entra: você escolhe na hora.\n\nMarcador de ritmo: corridas de uma etapa só (distância e pace, sem aquecimento nem desaquecimento) vão como o marcador de ritmo do Apple Watch (alvo = ponta mais rápida da faixa), com a barra de adiantado ou atrasado. Treinos com etapas seguem como treino personalizado.")
                 }
                 Section {
                     Toggle("Atualizar o site sozinho", isOn: $sincAutomatica)
