@@ -227,3 +227,51 @@ func formatarDuracaoLonga(_ seg: Double) -> String {
     let h = t / 3600, m = (t % 3600) / 60
     return h > 0 ? "\(h) h \(String(format: "%02d", m)) min" : "\(m) min"
 }
+
+/// Nome e "foi prova" escolhidos pelo Marcio (o relógio não sabe se foi prova). `chave` = id do treino no Saúde.
+struct MarcaTreino: Codable, Hashable {
+    var chave: String
+    var nome: String?
+    var prova: Bool
+    /// distância oficial em metros (21097,5 para a meia...); vazio = a medida pelo relógio
+    var distanciaOficialM: Double?
+
+    /// "21K", "42K", "10K"... a partir da distância oficial ou, sem ela, da medida pelo relógio
+    func rotulo(distanciaMedidaM: Double) -> String {
+        let km = (distanciaOficialM ?? distanciaMedidaM) / 1000
+        return "\(Int(km.rounded()))K"
+    }
+}
+
+private struct RespostaMarcas: Codable { var marcas: [MarcaTreino] }
+private struct RespostaMarca: Codable { var marca: MarcaTreino? }
+
+extension Servidor {
+    static func listarMarcas() async throws -> [MarcaTreino] {
+        guard let token, !token.isEmpty else { throw Erro.semToken }
+        guard let url = URL(string: endereco)?.appendingPathComponent("api/treino-marca"), url.scheme?.hasPrefix("http") == true else { throw Erro.urlInvalida }
+        var req = URLRequest(url: url, timeoutInterval: 20)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (dados, resp) = try await URLSession.shared.data(for: req)
+        let codigo = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if codigo == 401 { throw Erro.token }
+        guard codigo == 200 else { throw Erro.servidor(codigo) }
+        return try JSONDecoder().decode(RespostaMarcas.self, from: dados).marcas
+    }
+
+    /// Grava a marca de um treino. Devolve a marca salva (nil se foi apagada: sem nome e sem prova).
+    static func salvarMarca(_ marca: MarcaTreino) async throws -> MarcaTreino? {
+        guard let token, !token.isEmpty else { throw Erro.semToken }
+        guard let url = URL(string: endereco)?.appendingPathComponent("api/treino-marca"), url.scheme?.hasPrefix("http") == true else { throw Erro.urlInvalida }
+        var req = URLRequest(url: url, timeoutInterval: 20)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(marca)
+        let (dados, resp) = try await URLSession.shared.data(for: req)
+        let codigo = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if codigo == 401 { throw Erro.token }
+        guard codigo == 200 else { throw Erro.servidor(codigo) }
+        return try JSONDecoder().decode(RespostaMarca.self, from: dados).marca
+    }
+}

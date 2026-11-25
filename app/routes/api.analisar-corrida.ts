@@ -3,6 +3,7 @@ import { db } from '../../db.server'
 import { buscarAtividadeDetalhada } from '~/services/strava/client.server'
 import { tabelaZonasParaPrompt } from '~/lib/zonas-pace'
 import { garantirVponto } from '~/models/vdot-config.server'
+import { obterMarca } from '~/models/treino-marca.server'
 import { obterProvaAtiva } from '~/models/provas.server'
 import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from '~/models/treino-saude.server'
 import { textoPrescrito } from '~/lib/treino-manual'
@@ -338,7 +339,7 @@ async function analisarCorridaDoRelogio(healthId: string, treinusPlano: string |
 		if (!t) return Response.json({ error: 'Corrida do relógio não encontrada.' }, { status: 404 })
 
 		const planejado = await planejadoDoDia(t.inicio, t.tipo)
-		const c = paraCorridaRelogio(t, planejado)
+		const c = paraCorridaRelogio(t, planejado, await obterMarca(t.healthId))
 		// treino planejado no site vira o "planejado" da análise, salvo se você colou outro texto
 		const planoTexto = treinusPlano ?? (planejado ? `${planejado.titulo}\n${textoPrescrito(planejado)}` : null)
 		const splits = c.splits as SplitMetric[]

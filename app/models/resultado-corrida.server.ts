@@ -1,5 +1,6 @@
 import { montarDadosGrafico } from '~/lib/dados-grafico-rota'
 import { garantirVponto } from '~/models/vdot-config.server'
+import { obterMarca } from '~/models/treino-marca.server'
 import {
 	compararKmComPlano,
 	compararPlanoExecutado,
@@ -97,7 +98,7 @@ export async function montarResultadoParaApp(healthId: string): Promise<Resultad
 	if (!t) return null
 
 	const plano = await planejadoDoDia(t.inicio, t.tipo)
-	const corrida = paraCorridaRelogio(t, plano)
+	const corrida = paraCorridaRelogio(t, plano, await obterMarca(t.healthId))
 	const fcMax = Math.max(await obterFcMaximaReferencia(), t.fcMaxima ?? 0)
 	const detalhe: RotaDetalhada | null = t.polyline
 		? ({ polyline: t.polyline, ...((t.rota as Record<string, number[]> | null) ?? {}) } as RotaDetalhada)

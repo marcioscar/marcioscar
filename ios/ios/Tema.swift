@@ -15,6 +15,8 @@ enum Tema {
     static let azul = Color(red: 0.30, green: 0.50, blue: 0.95)
     static let roxo = Color(red: 0.62, green: 0.40, blue: 0.88)
     static let vermelho = Color(red: 0.88, green: 0.28, blue: 0.30)
+    /// prova: dourado, para se destacar dos treinos
+    static let ouro = Color(red: 0.92, green: 0.66, blue: 0.10)
 }
 
 extension TipoSessao {

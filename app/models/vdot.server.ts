@@ -74,6 +74,17 @@ function distanciaDaProva(medidaM: number): number {
 // corrida sem nome próprio (Strava dá "Corrida matinal", "Corrida da tarde"...) não é prova
 const NOME_DE_TREINO = /^(corrida|run)\s+(matinal|da tarde|da noite|noturna|de manhã|morning|afternoon|evening|night)/i;
 
+/** Prova: marcada pelo Marcio no app ou, sem marca, corrida com nome próprio (Strava) de 5 km ou mais. */
+export function ehProvaDaCorrida(c: Pick<CorridaAnalise, "distanciaMetros" | "nome" | "provaMarcada">): boolean {
+	if (c.provaMarcada) return true;
+	return c.distanciaMetros >= 5000 && !NOME_DE_TREINO.test(c.nome ?? "");
+}
+
+/** Distância usada no VPONTO: a oficial escolhida, ou a do relógio ajustada à distância padrão mais próxima. */
+export function distanciaDaProvaCorrida(c: Pick<CorridaAnalise, "distanciaMetros" | "distanciaOficialM">): number {
+	return c.distanciaOficialM ?? distanciaDaProva(c.distanciaMetros);
+}
+
 function percentil(valores: number[], p: number): number {
 	const o = [...valores].sort((a, b) => a - b);
 	return o[Math.min(o.length - 1, Math.max(0, Math.round(p * (o.length - 1))))];
@@ -89,6 +100,9 @@ export type CorridaAnalise = {
 	frequenciaMedia: number | null;
 	frequenciaMaxima: number | null;
 	splits: unknown;
+	/** marcado como prova (ou não) pelo Marcio; vazio = decide pelo nome */
+	provaMarcada?: boolean | null;
+	distanciaOficialM?: number | null;
 };
 
 export type CorridasCarregadas = {
@@ -132,6 +146,9 @@ export async function carregarCorridas(): Promise<CorridasCarregadas> {
 			frequenciaMedia: r.fcMedia,
 			frequenciaMaxima: null as number | null,
 			splits: r.splits as unknown,
+			// o relógio não sabe se foi prova: vale a marca que o Marcio colocou no app
+			provaMarcada: r.prova ? true : null,
+			distanciaOficialM: r.distanciaOficialM ?? null,
 		})),
 	].sort((a, b) => a.dataInicio.getTime() - b.dataInicio.getTime());
 	return { corridas, config };
@@ -146,7 +163,7 @@ export async function montarPainelVponto(carregadas?: CorridasCarregadas): Promi
 	const picos = corridas.map((c) => c.frequenciaMaxima).filter((v): v is number => !!v && v > 120);
 	const fcMaxima = picos.length ? Math.round(percentil(picos, 0.95)) : 190;
 
-	const ehProva = (c: (typeof corridas)[number]) => c.distanciaMetros >= 5000 && !NOME_DE_TREINO.test(c.nome ?? "");
+	const ehProva = ehProvaDaCorrida;
 
 	// provas: distância oficial (ou a do relógio) e tempo total
 	const evolucao: EstimativaProva[] = corridas
@@ -154,10 +171,10 @@ export async function montarPainelVponto(carregadas?: CorridasCarregadas): Promi
 		.map((c) => ({
 			data: c.dataInicio.toISOString().slice(0, 10),
 			nome: c.nome,
-			distanciaKm: distanciaDaProva(c.distanciaMetros) / 1000,
+			distanciaKm: distanciaDaProvaCorrida(c) / 1000,
 			tempoSeg: c.tempoTotalSeg ?? c.tempoMovimentoSeg,
 			fcMedia: c.frequenciaMedia,
-			vponto: vpontoDaProva(distanciaDaProva(c.distanciaMetros), c.tempoTotalSeg ?? c.tempoMovimentoSeg),
+			vponto: vpontoDaProva(distanciaDaProvaCorrida(c), c.tempoTotalSeg ?? c.tempoMovimentoSeg),
 			idadeDias: Math.round((agora - c.dataInicio.getTime()) / DIA),
 		}));
 	const provas = evolucao.filter((p) => p.idadeDias <= 180).reverse();

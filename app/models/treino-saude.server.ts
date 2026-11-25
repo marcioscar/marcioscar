@@ -1,3 +1,4 @@
+import { mapaDeMarcas } from '~/models/treino-marca.server'
 import { db } from '../../db.server'
 import { chaveDia } from '~/lib/carga-treino'
 import { aplicarPlanoNasVoltas, type DadosEstrutura } from '~/lib/treino-manual'
@@ -283,6 +284,9 @@ export async function buscarTreinoSaudeParaCorrida(inicio: Date) {
 export type CorridaRelogio = {
 	healthId: string
 	nome: string
+	/** marcado como prova pelo Marcio (o relógio não sabe) e a distância oficial escolhida */
+	prova?: boolean
+	distanciaOficialM?: number | null
 	dataInicio: string
 	distanciaMetros: number
 	tempoMovimentoSeg: number
@@ -333,7 +337,11 @@ function ganhoDaEtapa(v: VoltaSaude): number | null {
 	return Number.isFinite(n) ? (m[2].toLowerCase() === 'cm' ? n / 100 : n) : null
 }
 
-export function paraCorridaRelogio(t: LinhaSaude, plano: DadosEstrutura | null = null): CorridaRelogio {
+export function paraCorridaRelogio(
+	t: LinhaSaude,
+	plano: DadosEstrutura | null = null,
+	marca: { nome: string | null; prova: boolean; distanciaOficialM: number | null } | null = null,
+): CorridaRelogio {
 	const splits = ((t.splits as SplitSaude[] | null) ?? []).map(s => ({
 		split: s.km,
 		distance: s.distanciaM,
@@ -360,7 +368,9 @@ export function paraCorridaRelogio(t: LinhaSaude, plano: DadosEstrutura | null =
 	}))
 	return {
 		healthId: t.healthId,
-		nome: nomeDaCorrida(t.inicio),
+		nome: marca?.nome || nomeDaCorrida(t.inicio),
+		prova: marca?.prova ?? false,
+		distanciaOficialM: marca?.distanciaOficialM ?? null,
 		dataInicio: t.inicio.toISOString(),
 		distanciaMetros: t.distanciaM ?? 0,
 		tempoMovimentoSeg: Math.round(t.duracaoSeg),
@@ -379,6 +389,7 @@ export async function listarCorridasRelogio(de: Date, inicio?: Date, fim?: Date)
 	const piso = inicio && inicio > de ? inicio : de
 	const teto = fim ?? new Date('2100-01-01')
 	const linhas = await listarTreinosSaude(piso, teto)
+	const marcas = await mapaDeMarcas()
 	// treinos planejados no site, por dia: nomeiam as etapas gravadas pelo relógio
 	const planos = new Map<string, DadosEstrutura>()
 	if (linhas.length > 0) {
@@ -388,7 +399,7 @@ export async function listarCorridasRelogio(de: Date, inicio?: Date, fim?: Date)
 	return linhas
 		.filter(t => t.tipo === 'corrida')
 		.filter(t => (t.distanciaM ?? 0) / 1000 === 0 || t.duracaoSeg / ((t.distanciaM ?? 0) / 1000) <= 570)
-		.map(t => paraCorridaRelogio(t, planos.get(chaveDia(t.inicio)) ?? null))
+		.map(t => paraCorridaRelogio(t, planos.get(chaveDia(t.inicio)) ?? null, marcas.get(t.healthId) ?? null))
 }
 
 /**

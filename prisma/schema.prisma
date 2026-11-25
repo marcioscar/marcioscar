@@ -239,3 +239,15 @@ model ConfigVponto {
 
     @@index([createdAt])
 }
+
+/// Nome e "foi prova" escolhidos pelo Marcio para um treino (o relógio não sabe se foi prova).
+/// `chave` = healthId do treino do Apple Saúde.
+model TreinoMarca {
+    id                String   @id @default(auto()) @map("_id") @db.ObjectId
+    chave             String   @unique
+    nome              String?
+    prova             Boolean  @default(false)
+    /// distância oficial da prova em metros (5000, 10000, 21097.5, 42195...); vazio = a medida pelo relógio
+    distanciaOficialM Float?
+    updatedAt         DateTime @updatedAt
+}

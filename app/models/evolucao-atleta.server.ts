@@ -1,7 +1,7 @@
 import { chaveDia } from "~/lib/carga-treino";
 import { vpontoDaProva } from "~/lib/vdot";
 import { zonaDoPaceEmUso } from "~/lib/zonas-pace";
-import type { CorridasCarregadas } from "~/models/vdot.server";
+import { ehProvaDaCorrida, type CorridasCarregadas } from "~/models/vdot.server";
 
 export type SemanaEvolucao = {
 	/** segunda-feira (yyyy-MM-dd) */
@@ -43,7 +43,6 @@ export type EvolucaoAtleta = {
 type Split = { distance: number; moving_time: number; average_heartrate?: number };
 
 const DIA = 24 * 3600 * 1000;
-const NOME_DE_TREINO = /^(corrida|run)\s+(matinal|da tarde|da noite|noturna|de manhã|morning|afternoon|evening|night)/i;
 const FAIXA_FC: [number, number] = [145, 155];
 const SEMANAS = 26;
 // mais lento que isto é caminhada, não corrida
@@ -102,7 +101,7 @@ export function montarEvolucaoAtleta({ corridas, config }: CorridasCarregadas): 
 			: [{ distance: c.distanciaMetros, moving_time: c.tempoMovimentoSeg, average_heartrate: c.frequenciaMedia ?? undefined }];
 		const mes = chaveDia(c.dataInicio).slice(0, 7);
 
-		const ehProvaCorrida = c.distanciaMetros >= 5000 && !NOME_DE_TREINO.test(c.nome ?? "");
+		const ehProvaCorrida = ehProvaDaCorrida(c);
 		const chaveSemana = inicioDaSemana(c.dataInicio);
 		const treino = treinoPorSemana.get(chaveSemana) ?? { km: 0, limiar: 0, intervalado: 0, repeticao: 0, longaoMin: 0, longaoKm: 0 };
 		treinoPorSemana.set(chaveSemana, treino);
@@ -144,7 +143,7 @@ export function montarEvolucaoAtleta({ corridas, config }: CorridasCarregadas): 
 		}
 
 		// melhor esforço de 8 km seguidos em treino (provas ficam de fora)
-		const ehProva = c.distanciaMetros >= 5000 && !NOME_DE_TREINO.test(c.nome ?? "");
+		const ehProva = ehProvaCorrida;
 		if (!ehProva && splitsBrutos.length >= 8) {
 			const inteiros = splitsBrutos.filter((x) => x.distance > 900);
 			for (let i = 0; i + 8 <= inteiros.length; i++) {

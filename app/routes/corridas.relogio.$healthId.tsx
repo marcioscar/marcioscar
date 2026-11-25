@@ -3,6 +3,7 @@ import * as React from "react";
 import { Link } from "react-router";
 import { getMapboxToken } from "~/lib/mapbox.server";
 import { garantirVponto } from "~/models/vdot-config.server";
+import { obterMarca } from "~/models/treino-marca.server";
 import { buscarTreinoSaudePorId, paraCorridaRelogio, planejadoDoDia } from "~/models/treino-saude.server";
 import { compararKmComPlano, compararPlanoExecutado, resumirComparacao, textoPrescrito } from "~/lib/treino-manual";
 import { ComparacaoPace } from "~/components/corridas/comparacao-pace";
@@ -35,7 +36,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 
 	const fcMaximaReferencia = Math.max(await obterFcMaximaReferencia(), t.fcMaxima ?? 0);
 	const plano = await planejadoDoDia(t.inicio, t.tipo);
-	const corrida = paraCorridaRelogio(t, plano);
+	const corrida = paraCorridaRelogio(t, plano, await obterMarca(t.healthId));
 	// comparação planejado × executado: por etapa (treino estruturado) ou por km (corrida contínua)
 	const voltasDoRelogio = corrida.laps.map((l) => ({ distanciaM: l.distance, tempoSeg: l.moving_time }));
 	const splitsDoRelogio = corrida.splits.map((s) => ({ km: s.split, distanciaM: s.distance, tempoSeg: s.moving_time }));

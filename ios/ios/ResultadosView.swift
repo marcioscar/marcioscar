@@ -8,6 +8,7 @@ private let ptBR = Locale(identifier: "pt_BR")
 
 enum FiltroTreino: String, CaseIterable, Identifiable {
     case todos = "Todos"
+    case provas = "Provas"
     case corrida = "Corrida"
     case caminhada = "Caminhada"
     case forca = "Força"
@@ -17,6 +18,7 @@ enum FiltroTreino: String, CaseIterable, Identifiable {
     var cor: Color {
         switch self {
         case .todos: Tema.texto
+        case .provas: Tema.ouro
         case .corrida: corDoTreino(tipo: "corrida", icone: nil)
         case .caminhada: corDoTreino(tipo: "caminhada", icone: nil)
         case .forca: corDoTreino(tipo: "forca", icone: nil)
@@ -25,7 +27,7 @@ enum FiltroTreino: String, CaseIterable, Identifiable {
     }
     var chave: String? {
         switch self {
-        case .todos: nil
+        case .todos, .provas: nil
         case .corrida: "corrida"
         case .caminhada: "caminhada"
         case .forca: "forca"
@@ -123,8 +125,12 @@ final class ResultadosStore {
     /// só avança até o período atual
     var podeAvancar: Bool { intervalo.ate <= Date() }
 
+    /// nome e "foi prova" escolhidos no app (chave = id do treino)
+    var marcas: [String: MarcaTreino] = [:]
+
     var visiveis: [ResumoCorrida] {
         treinos.filter { t in
+            if filtro == .provas { return marcas[t.id]?.prova == true }
             if let chave = filtro.chave, (t.tipo ?? "corrida") != chave { return false }
             if filtro == .corrida, categoria != .todas, t.categoria != categoria { return false }
             return true
@@ -175,6 +181,9 @@ final class ResultadosStore {
             erro = nil
         } catch {
             erro = error.localizedDescription
+        }
+        if let lista = try? await Servidor.listarMarcas() {
+            marcas = Dictionary(lista.map { ($0.chave, $0) }, uniquingKeysWith: { a, _ in a })
         }
         // opcional: marca as que a IA já analisou (ignora falha de rede)
         if tiposDoSite.isEmpty, let doSite = try? await Servidor.listarCorridas(limite: 60) {
@@ -229,7 +238,7 @@ struct ResultadosView: View {
                     if store.periodo == .ano { Text(grupo.titulo).font(.title3.bold()).foregroundStyle(Tema.texto).padding(.top, 8) }
                     ForEach(grupo.itens) { t in
                         NavigationLink(value: t) {
-                            LinhaTreino(treino: t, saude: saude, tipoSessao: store.tiposDoSite[t.id.uppercased()])
+                            LinhaTreino(treino: t, saude: saude, tipoSessao: store.tiposDoSite[t.id.uppercased()], marca: store.marcas[t.id])
                         }
                         .buttonStyle(.plain)
                     }
@@ -246,7 +255,11 @@ struct ResultadosView: View {
         .background(FundoColorido())
         .refreshable { await store.carregar(saude: saude) }
         .toolbar(.hidden, for: .navigationBar)
-        .navigationDestination(for: ResumoCorrida.self) { ResultadoCorridaView(resumo: $0, saude: saude) }
+        .navigationDestination(for: ResumoCorrida.self) { t in
+            ResultadoCorridaView(resumo: t, saude: saude, marcaInicial: store.marcas[t.id]) { nova in
+                store.marcas[t.id] = nova
+            }
+        }
         .task(id: store.chave) { await store.carregar(saude: saude) }
         // ao voltar para o app (ex.: depois de um treino), lê o Saúde de novo
         .onChange(of: fase) { _, nova in
@@ -399,11 +412,16 @@ struct LinhaTreino: View {
     let treino: ResumoCorrida
     var saude: SaudeSync
     var tipoSessao: String?
+    var marca: MarcaTreino?
     @State private var rota: [CLLocationCoordinate2D] = []
 
-    private var corIcone: Color { corDoTreino(tipo: treino.tipo, icone: treino.icone) }
+    private var ehProva: Bool { marca?.prova == true }
+    /// prova é dourada e tem bandeira; o resto segue a cor do exercício
+    private var corIcone: Color { ehProva ? Tema.ouro : corDoTreino(tipo: treino.tipo, icone: treino.icone) }
+    private var simbolo: String { ehProva ? "flag.checkered" : (treino.icone ?? "figure.run") }
 
     private var titulo: String {
+        if let nome = marca?.nome, !nome.isEmpty { return nome }
         if treino.distanciaM >= 50 { return String(format: "%.2f km ", treino.distanciaM / 1000).replacingOccurrences(of: ".", with: ",") + treino.nome }
         return treino.nome
     }
@@ -417,13 +435,16 @@ struct LinhaTreino: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Image(systemName: treino.icone ?? "figure.run")
+                Image(systemName: simbolo)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(corIcone)
                     .frame(width: 46, height: 46)
                     .background(corIcone.opacity(0.16), in: RoundedRectangle(cornerRadius: 13))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
+                    HStack(spacing: 6) {
+                        Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
+                        if let marca, marca.prova { SeloProva(texto: marca.rotulo(distanciaMedidaM: treino.distanciaM)) }
+                    }
                     Text(dataCurta).font(.subheadline).foregroundStyle(Tema.textoSuave).lineLimit(1)
                 }
                 Spacer(minLength: 6)
@@ -450,7 +471,7 @@ struct LinhaTreino: View {
         .overlay(alignment: .leading) {
             Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8)
         }
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(corIcone.opacity(0.22), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(corIcone.opacity(ehProva ? 0.75 : 0.22), lineWidth: ehProva ? 1.5 : 1))
         .task { if treino.tipo == "corrida" || treino.tipo == "caminhada" { rota = await saude.miniatura(id: treino.id) } }
     }
 
@@ -467,11 +488,114 @@ struct LinhaTreino: View {
     }
 }
 
+/// Selo dourado das provas: "21K", "42K"...
+struct SeloProva: View {
+    let texto: String
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "flag.checkered").font(.system(size: 9, weight: .bold))
+            Text(texto).font(.caption.weight(.heavy))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Tema.ouro, in: Capsule())
+        .fixedSize()
+    }
+}
+
+// MARK: - Editar nome e prova
+
+struct EditarTreinoView: View {
+    let resumo: ResumoCorrida
+    let marcaAtual: MarcaTreino?
+    var aoSalvar: (MarcaTreino?) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var nome: String
+    @State private var prova: Bool
+    @State private var oficial: Double
+    @State private var salvando = false
+    @State private var erro: String?
+
+    private static let distancias: [(rotulo: String, metros: Double)] = [
+        ("Medida pelo relógio", 0), ("5 km", 5000), ("10 km", 10000), ("15 km", 15000),
+        ("Meia maratona (21,0975 km)", 21097.5), ("30 km", 30000), ("Maratona (42,195 km)", 42195),
+    ]
+
+    init(resumo: ResumoCorrida, marcaAtual: MarcaTreino?, aoSalvar: @escaping (MarcaTreino?) -> Void) {
+        self.resumo = resumo
+        self.marcaAtual = marcaAtual
+        self.aoSalvar = aoSalvar
+        _nome = State(initialValue: marcaAtual?.nome ?? "")
+        _prova = State(initialValue: marcaAtual?.prova ?? false)
+        // sem distância escolhida, sugere a distância padrão mais próxima da medida (até 3%)
+        let sugerida = Self.distancias.dropFirst().first { abs(resumo.distanciaM - $0.metros) / $0.metros <= 0.03 }?.metros ?? 0
+        _oficial = State(initialValue: marcaAtual?.distanciaOficialM ?? sugerida)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField(resumo.nome, text: $nome)
+                } header: {
+                    Text("Nome")
+                } footer: {
+                    Text("Vazio = nome padrão do treino.")
+                }
+                Section {
+                    Toggle("Foi prova", isOn: $prova)
+                    if prova {
+                        Picker("Distância oficial", selection: $oficial) {
+                            ForEach(Self.distancias, id: \.metros) { Text($0.rotulo).tag($0.metros) }
+                        }
+                    }
+                } footer: {
+                    Text(prova
+                         ? "Provas ganham o selo dourado na lista e entram no cálculo do VPONTO (pelo tempo e pela distância oficial)."
+                         : "O relógio não sabe se foi prova: marque aqui.")
+                }
+                if let erro {
+                    Section { Label(erro, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.footnote) }
+                }
+            }
+            .navigationTitle("Editar treino")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(salvando ? "Salvando…" : "Salvar") { Task { await salvar() } }.disabled(salvando)
+                }
+            }
+        }
+        .preferredColorScheme(.light)
+    }
+
+    private func salvar() async {
+        salvando = true
+        erro = nil
+        defer { salvando = false }
+        let nomeLimpo = nome.trimmingCharacters(in: .whitespacesAndNewlines)
+        let marca = MarcaTreino(chave: resumo.id, nome: nomeLimpo.isEmpty ? nil : nomeLimpo, prova: prova, distanciaOficialM: prova && oficial > 0 ? oficial : nil)
+        do {
+            let salva = try await Servidor.salvarMarca(marca)
+            aoSalvar(salva)
+            dismiss()
+        } catch {
+            erro = error.localizedDescription
+        }
+    }
+}
+
 // MARK: - Detalhe
 
 struct ResultadoCorridaView: View {
     let resumo: ResumoCorrida
     var saude: SaudeSync
+    var marcaInicial: MarcaTreino? = nil
+    var aoMudarMarca: (MarcaTreino?) -> Void = { _ in }
+    @State private var marca: MarcaTreino?
+    @State private var editando = false
     @State private var resultado: ResultadoCorrida?
     @State private var payload: TreinoSaudePayload?
     @State private var erro: String?
@@ -482,7 +606,7 @@ struct ResultadoCorridaView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let r = resultado {
-                    ConteudoResultado(r: r, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
+                    ConteudoResultado(r: r, nomeExibido: marca?.nome ?? (marca?.prova == true ? resumo.nome : nil), selo: marca?.prova == true ? marca?.rotulo(distanciaMedidaM: r.distanciaM) : nil, aoAnalisar: r.analise == nil && Servidor.configurado && resumo.ehCorrida ? { Task { await analisar() } } : nil, analisando: analisando, avisoIA: avisoIA)
                 } else if let erro {
                     Label(erro, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.orange).font(.footnote)
                 } else {
@@ -495,7 +619,22 @@ struct ResultadoCorridaView: View {
         .background(Tema.fundo)
         .navigationTitle(resumo.data.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(ptBR)).capitalized)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await carregar() }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { editando = true } label: { Image(systemName: "pencil.circle") }
+                    .accessibilityLabel("Editar nome e prova")
+            }
+        }
+        .sheet(isPresented: $editando) {
+            EditarTreinoView(resumo: resumo, marcaAtual: marca) { nova in
+                marca = nova
+                aoMudarMarca(nova)
+            }
+        }
+        .task {
+            marca = marcaInicial
+            await carregar()
+        }
     }
 
     private func carregar() async {
@@ -550,6 +689,9 @@ struct ResultadoCorridaView: View {
 
 private struct ConteudoResultado: View {
     let r: ResultadoCorrida
+    /// nome e selo escolhidos pelo Marcio (nil = padrão)
+    var nomeExibido: String? = nil
+    var selo: String? = nil
     var aoAnalisar: (() -> Void)?
     var analisando = false
     var avisoIA: String?
@@ -582,6 +724,12 @@ private struct ConteudoResultado: View {
 
     private var cabecalho: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if nomeExibido != nil || selo != nil {
+                HStack(spacing: 8) {
+                    Text(nomeExibido ?? r.nome).font(.title3.bold()).foregroundStyle(Tema.texto).lineLimit(2)
+                    if let selo { SeloProva(texto: selo) }
+                }
+            }
             // treinos sem distância (força, pilates...) destacam o tempo
             Text(r.distanciaM >= 50
                  ? String(format: "%.2f", r.distanciaM / 1000).replacingOccurrences(of: ".", with: ",") + " km"
