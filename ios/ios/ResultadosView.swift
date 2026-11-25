@@ -203,7 +203,6 @@ struct ResultadosView: View {
             LazyVStack(alignment: .leading, spacing: 10, pinnedViews: []) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Direto do app Saúde").font(.subheadline).foregroundStyle(Tema.textoSuave)
                         Text("Resultados").font(.system(size: 40, weight: .heavy)).foregroundStyle(Tema.texto)
                     }
                     Spacer()
@@ -485,7 +484,7 @@ struct LinhaTreino: View {
             }
         }
         .padding(.vertical, 14)
-        .padding(.leading, 22)
+        .padding(.leading, ehProva ? 22 : 14)
         .padding(.trailing, 14)
         // cada exercício tem a sua cor: faixa na lateral, tom leve no fundo e borda da mesma cor
         .background {
@@ -495,16 +494,14 @@ struct LinhaTreino: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
             } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18).fill(Tema.cartao)
-                    RoundedRectangle(cornerRadius: 18).fill(corIcone.opacity(0.07))
-                }
+                // lista limpa: cartão branco, só o ícone leva a cor do exercício
+                RoundedRectangle(cornerRadius: 18).fill(Tema.cartao)
             }
         }
         .overlay(alignment: .leading) {
-            Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8)
+            if ehProva { Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8) }
         }
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(corIcone.opacity(ehProva ? 0.75 : 0.22), lineWidth: ehProva ? 1.5 : 1))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(ehProva ? Tema.ouro.opacity(0.75) : Tema.linha, lineWidth: ehProva ? 1.5 : 1))
         .task { if treino.tipo == "corrida" || treino.tipo == "caminhada" { rota = await saude.miniatura(id: treino.id) } }
     }
 
@@ -517,7 +514,7 @@ struct LinhaTreino: View {
             .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(ehProva ? Color.white.opacity(0.14) : corIcone.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
+            .background(ehProva ? Color.white.opacity(0.14) : Color(red: 0.945, green: 0.947, blue: 0.960), in: RoundedRectangle(cornerRadius: 7))
     }
 }
 
