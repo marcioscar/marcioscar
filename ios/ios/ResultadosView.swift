@@ -372,6 +372,7 @@ struct ResultadosView: View {
 /// Miniatura do traçado, desenhada em linha fina (como no histórico do Fitness).
 private struct MiniRota: View {
     let pontos: [CLLocationCoordinate2D]
+    var cor: Color = Tema.textoSuave
 
     var body: some View {
         GeometryReader { g in
@@ -390,7 +391,7 @@ private struct MiniRota: View {
                     if i == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
                 }
             }
-            .stroke(Tema.textoSuave, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+            .stroke(cor, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
         }
     }
 }
@@ -424,6 +425,9 @@ struct LinhaTreino: View {
     /// prova é dourada e tem bandeira; o resto segue a cor do exercício
     private var corIcone: Color { ehProva ? Tema.ouro : corDoTreino(tipo: treino.tipo, icone: treino.icone) }
     private var simbolo: String { ehProva ? "flag.checkered" : (treino.icone ?? "figure.run") }
+    /// prova: card escuro com detalhes dourados; os outros treinos seguem claros
+    private var textoPrincipal: Color { ehProva ? .white : Tema.texto }
+    private var textoSecundario: Color { ehProva ? Color.white.opacity(0.72) : Tema.textoSuave }
 
     private var titulo: String {
         if let nome = marca?.nome, !nome.isEmpty { return nome }
@@ -444,17 +448,17 @@ struct LinhaTreino: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(corIcone)
                     .frame(width: 46, height: 46)
-                    .background(corIcone.opacity(0.16), in: RoundedRectangle(cornerRadius: 13))
+                    .background(corIcone.opacity(ehProva ? 0.22 : 0.16), in: RoundedRectangle(cornerRadius: 13))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(titulo).font(.headline).foregroundStyle(Tema.texto).lineLimit(2).multilineTextAlignment(.leading)
+                        Text(titulo).font(.headline).foregroundStyle(textoPrincipal).lineLimit(2).multilineTextAlignment(.leading)
                         if let marca, marca.prova { SeloProva(texto: marca.rotulo(distanciaMedidaM: treino.distanciaM)) }
                     }
-                    Text(dataCurta).font(.subheadline).foregroundStyle(Tema.textoSuave).lineLimit(1)
+                    Text(dataCurta).font(.subheadline).foregroundStyle(textoSecundario).lineLimit(1)
                 }
                 Spacer(minLength: 6)
-                if !rota.isEmpty { MiniRota(pontos: rota).frame(width: 56, height: 44) }
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                if !rota.isEmpty { MiniRota(pontos: rota, cor: ehProva ? Tema.ouro : Tema.textoSuave).frame(width: 56, height: 44) }
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(ehProva ? Color.white.opacity(0.5) : Color.gray.opacity(0.5))
             }
             // fichas numa linha própria, com largura inteira: não quebram dentro de si
             HStack(spacing: 6) {
@@ -471,8 +475,19 @@ struct LinhaTreino: View {
         .padding(.leading, 22)
         .padding(.trailing, 14)
         // cada exercício tem a sua cor: faixa na lateral, tom leve no fundo e borda da mesma cor
-        .background(Tema.cartao, in: RoundedRectangle(cornerRadius: 18))
-        .background(corIcone.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            if ehProva {
+                RoundedRectangle(cornerRadius: 18).fill(
+                    LinearGradient(colors: [Color(red: 0.10, green: 0.11, blue: 0.15), Color(red: 0.20, green: 0.16, blue: 0.08)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18).fill(Tema.cartao)
+                    RoundedRectangle(cornerRadius: 18).fill(corIcone.opacity(0.07))
+                }
+            }
+        }
         .overlay(alignment: .leading) {
             Capsule().fill(corIcone).frame(width: 5).padding(.vertical, 12).padding(.leading, 8)
         }
@@ -484,12 +499,12 @@ struct LinhaTreino: View {
         Text(texto)
             .font(.caption.weight(.medium))
             .monospacedDigit()
-            .foregroundStyle(Tema.texto)
+            .foregroundStyle(textoPrincipal)
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(corIcone.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
+            .background(ehProva ? Color.white.opacity(0.14) : corIcone.opacity(0.13), in: RoundedRectangle(cornerRadius: 7))
     }
 }
 
