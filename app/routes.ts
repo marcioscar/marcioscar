@@ -27,6 +27,7 @@ export default [
   route("api/corridas-relogio", "routes/api.corridas-relogio.ts"),
   route("api/musculacao-grupos", "routes/api.musculacao-grupos.ts"),
   route("api/saude-treinos", "routes/api.saude-treinos.ts"),
+  route("api/ler-rotulo", "routes/api.ler-rotulo.ts"),
   route("robots.txt", "routes/robots.ts"),
   route("sitemap.xml", "routes/sitemap.ts"),
 ] satisfies RouteConfig;
