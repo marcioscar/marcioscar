@@ -716,7 +716,14 @@ struct ResultadoCorridaView: View {
 
     /// Se a corrida já está no site, traz de lá a análise por IA, o treino planejado e a comparação.
     private func mesclarComSite() async {
-        guard Servidor.configurado, let local = resultado, let remoto = try? await Servidor.buscarResultado(id: resumo.id) else { return }
+        guard Servidor.configurado, let local = resultado else { return }
+        var remoto = try? await Servidor.buscarResultado(id: resumo.id)
+        // a corrida ainda não chegou ao site (o envio automático roda no máximo a cada 10 min): manda agora,
+        // para vir a comparação com o planejado e os nomes certos das etapas
+        if remoto == nil, let p = payload, (try? await Servidor.enviarTreinosSaude([p])) != nil {
+            remoto = try? await Servidor.buscarResultado(id: resumo.id)
+        }
+        guard let remoto else { return }
         var r = local
         r.analise = remoto.analise
         r.analisadaEm = remoto.analisadaEm
