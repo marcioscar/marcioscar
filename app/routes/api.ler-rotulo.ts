@@ -202,23 +202,27 @@ export async function action({ request }: Route.ActionArgs) {
 			// a busca pausou o turno: devolve o que já veio e pede para continuar
 			messages.push({ role: 'assistant', content: resposta.content })
 		}
-		if (!resposta) return erro('Resposta inesperada da IA.', 502)
+		if (!resposta) return erro('Resposta inesperada da IA.', 503)
 
 		if (resposta.stop_reason === 'refusal') return erro('A IA não conseguiu ler essa foto.', 422)
-		if (resposta.stop_reason === 'max_tokens') return erro('Resposta incompleta da IA, tente de novo.', 502)
+		if (resposta.stop_reason === 'max_tokens') return erro('Resposta incompleta da IA, tente de novo.', 503)
 		if (resposta.stop_reason === 'pause_turn') return erro('A pesquisa demorou demais, tente de novo.', 504)
 
 		// com saída estruturada, o JSON é o último bloco de texto (depois das buscas)
 		const textos = resposta.content.filter(b => b.type === 'text')
 		const ultimo = textos[textos.length - 1]
-		if (!ultimo || ultimo.type !== 'text') return erro('Resposta inesperada da IA.', 502)
+		if (!ultimo || ultimo.type !== 'text') return erro('Resposta inesperada da IA.', 503)
 		const rotulo = JSON.parse(ultimo.text) as RotuloLido
 		return Response.json(rotulo, { headers: SEM_CACHE })
 	} catch (e) {
 		if (e instanceof Anthropic.RateLimitError) return erro('Muitos pedidos seguidos; tente em instantes.', 429)
 		if (e instanceof Anthropic.APIError) {
 			console.error('[ler-rotulo] erro da API Anthropic', e.status, e.message)
-			return erro('Falha ao falar com a IA.', 502)
+			if (/credit balance/i.test(e.message)) {
+				return erro('Acabaram os créditos da API da Anthropic. Compre créditos em platform.claude.com (Billing).', 402)
+			}
+			// 503 e não 502: o Easypanel troca respostas 502 pela página de erro dele e o app perde a mensagem
+			return erro('Falha ao falar com a IA.', 503)
 		}
 		console.error('[ler-rotulo]', e)
 		return erro('Erro ao ler o rótulo.', 500)
