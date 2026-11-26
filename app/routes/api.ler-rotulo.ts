@@ -2,11 +2,12 @@ import Anthropic from '@anthropic-ai/sdk'
 import { exigirTokenTreino } from '~/lib/token-treino.server'
 import type { Route } from './+types/api.ler-rotulo'
 
-// POST /api/ler-rotulo — lê a foto do rótulo de um vinho, pesquisa o vinho na web e devolve a ficha
-// completa para o app WinRun (win&run/ios).
+// POST /api/ler-rotulo — lê a foto do rótulo de um vinho, pesquisa o vinho na web (ficha, preços e críticas)
+// e devolve tudo para o app WinRun (win&run/ios).
 // Autenticação: header `Authorization: Bearer <TREINO_API_TOKEN>`.
-// Corpo: { "imagem": "<JPEG em base64>", "mediaType"?: "image/jpeg" | "image/png" | "image/webp", "pesquisar"?: boolean }
-// `pesquisar: false` só lê o rótulo (mais rápido, sem web).
+// Corpo, com foto:  { "imagem": "<JPEG em base64>", "mediaType"?: "image/jpeg" | "image/png" | "image/webp", "pesquisar"?: boolean }
+//   `pesquisar: false` só lê o rótulo (mais rápido, sem web).
+// Corpo, sem foto:  { "vinho": { "nome": "...", "produtor"?: "...", "safra"?: 2015 } } — pesquisa um vinho já cadastrado.
 
 const client = new Anthropic()
 
@@ -34,6 +35,9 @@ export type RotuloLido = {
 	potencialGuarda: string
 	pontuacoes: string
 	sobre: string
+	precoMedioBRL: number | null
+	precoResumo: string
+	avaliacoes: { critico: string; nota: string; comentario: string }[]
 	fontes: string[]
 }
 
@@ -45,7 +49,7 @@ const SCHEMA = {
 	required: [
 		'ehVinho', 'nome', 'produtor', 'safra', 'tipo', 'uva', 'pais', 'regiao', 'classificacao', 'teorAlcoolico',
 		'amadurecimento', 'notasDegustacao', 'harmonizacao', 'temperaturaServico', 'potencialGuarda', 'pontuacoes',
-		'sobre', 'fontes',
+		'sobre', 'precoMedioBRL', 'precoResumo', 'avaliacoes', 'fontes',
 	],
 	properties: {
 		ehVinho: { type: 'boolean', description: 'true se a foto mostra o rótulo ou a garrafa de um vinho' },
@@ -65,7 +69,26 @@ const SCHEMA = {
 		potencialGuarda: texto('até quando beber (ex.: "beber até 2035")'),
 		pontuacoes: texto('notas de críticos, se houver (ex.: "93 pts Wine Enthusiast; 92 pts James Suckling")'),
 		sobre: texto('2 a 4 frases sobre o produtor e este vinho: história, estilo, o que o torna especial'),
-		fontes: { type: 'array', items: { type: 'string' }, description: 'URLs das páginas usadas na pesquisa (no máximo 4)' },
+		precoMedioBRL: {
+			anyOf: [{ type: 'number' }, { type: 'null' }],
+			description: 'preço médio de UMA garrafa (750 ml) em lojas brasileiras, em reais; null se não achou loja no Brasil',
+		},
+		precoResumo: texto('faixa de preço com as lojas (ex.: "R$ 289–349 na Wine e na Grand Cru; cerca de €30 na Espanha")'),
+		avaliacoes: {
+			type: 'array',
+			description: 'notas de críticos e publicações; prefira a safra exata',
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['critico', 'nota', 'comentario'],
+				properties: {
+					critico: texto('crítico ou publicação (ex.: "Wine Enthusiast", "James Suckling", "Vivino (média dos usuários)")'),
+					nota: texto('ex.: "93 pts", "4,1/5"'),
+					comentario: texto('trecho curto da avaliação traduzido para o português; vazio se não houver'),
+				},
+			},
+		},
+		fontes: { type: 'array', items: { type: 'string' }, description: 'URLs das páginas usadas na pesquisa (no máximo 6)' },
 	},
 }
 
@@ -73,18 +96,54 @@ const PROMPT_LEITURA = `Leia o rótulo de vinho desta foto e preencha a ficha.
 
 - Use o que está escrito no rótulo. Quando um campo não aparece, complete só com o que é claramente conhecido sobre esse vinho; se não tiver certeza, deixe vazio — campo vazio é melhor que palpite errado.
 - Escreva tudo em português do Brasil.
+- Preço e avaliações ficam vazios neste modo (precoMedioBRL null, avaliacoes []).
 - Se a foto não for de um vinho, marque ehVinho como false e deixe os outros campos vazios (tipo "tinto", safra null, fontes []).`
 
-const PROMPT_PESQUISA = `Leia o rótulo de vinho desta foto e depois pesquise esse vinho na web para montar uma ficha completa.
+const COMO_PESQUISAR = `Como fazer:
+1. Pesquise o vinho (nome + produtor + safra) para a ficha: prefira o site do produtor, fichas técnicas e importadoras. Se a safra exata não tiver informação, use a do vinho em geral e não invente números da safra.
+2. Preço no Brasil: faça pelo menos duas buscas em português, como um brasileiro faria — "<nome> <produtor> preço" e "<nome> 750ml comprar Brasil" — e use as lojas brasileiras que aparecerem (Wine, Evino, Grand Cru, Mistral, Divvino, Amazon.com.br, empórios e importadoras…). Lojas brasileiras quase nunca dizem a safra: aceite o preço do rótulo atual à venda e diga isso no resumo. Cuidado para não misturar com outro vinho da mesma vinícola (ex.: "D.V. Catena" não é "Catena Malbec"). Calcule precoMedioBRL com os preços de garrafa 750 ml encontrados (ignore kits, caixas, magnum e preços de clube). Em precoResumo, dê a faixa com as lojas (ex.: "R$ 150–250: Amazon R$ 150, Família Scopel R$ 209, Boccati R$ 220"); se não achar nada no Brasil, dê o preço lá fora (euro ou dólar) e deixe precoMedioBRL null.
+3. Avaliações: procure notas de críticos para a safra (Wine Enthusiast, James Suckling, Decanter, Robert Parker / Wine Advocate, Wine Spectator, Tim Atkin, Guía Peñín, Descorchados, Jancis Robinson) e a média do Vivino. Só inclua notas que você viu na pesquisa; diga a safra no comentário se for de outra safra. Em "pontuacoes", faça o resumo de uma linha.
+4. Campo sem informação confiável fica vazio — vazio é melhor que palpite errado.
+5. Escreva tudo em português do Brasil, de forma curta e útil para quem vai abrir ou comprar a garrafa.
+6. Em "fontes", coloque as URLs que você realmente usou.`
 
-Como fazer:
-1. Identifique no rótulo o nome, o produtor e a safra. O produtor às vezes aparece pequeno ou só no contrarrótulo — a pesquisa resolve isso.
-2. Pesquise o vinho (nome + produtor + safra). Prefira o site do produtor, fichas técnicas, importadoras e críticos (Wine Enthusiast, James Suckling, Decanter, Robert Parker, Vivino). Se a safra exata não tiver informação, use a do vinho em geral e não invente números da safra.
-3. Preencha todos os campos que encontrar. Campo sem informação confiável fica vazio — vazio é melhor que palpite errado. Pontuações só se você viu na pesquisa.
-4. Escreva tudo em português do Brasil, de forma curta e útil para quem vai abrir a garrafa.
-5. Em "fontes", coloque as URLs que você realmente usou.
+const PROMPT_PESQUISA = `Leia o rótulo de vinho desta foto e depois pesquise esse vinho na web para montar uma ficha completa, com preços e avaliações de especialistas.
 
-Se a foto não for de um vinho, não pesquise: marque ehVinho como false e deixe os outros campos vazios (tipo "tinto", safra null, fontes []).`
+Primeiro identifique no rótulo o nome, o produtor e a safra. O produtor às vezes aparece pequeno ou só no contrarrótulo — a pesquisa resolve isso.
+
+${COMO_PESQUISAR}
+
+Se a foto não for de um vinho, não pesquise: marque ehVinho como false e deixe os outros campos vazios (tipo "tinto", safra null, avaliacoes [], fontes []).`
+
+function promptPorNome(v: { nome: string; produtor: string; safra: number | null }) {
+	return `Pesquise na web este vinho e monte a ficha completa, com preços e avaliações de especialistas.
+
+Vinho: ${v.nome}
+Produtor: ${v.produtor || '(não informado — descubra na pesquisa)'}
+Safra: ${v.safra ?? '(não informada)'}
+
+${COMO_PESQUISAR}
+
+Marque ehVinho como true. Se não encontrar esse vinho, devolva só o que foi informado acima e deixe o resto vazio.`
+}
+
+// busca "a partir do Brasil": sem isso os resultados vêm dos EUA e quase nunca aparecem lojas brasileiras
+const BUSCA_WEB: Anthropic.Beta.BetaWebSearchTool20260209 = {
+	type: 'web_search_20260209',
+	name: 'web_search',
+	max_uses: 8,
+	user_location: { type: 'approximate', country: 'BR', region: 'São Paulo', city: 'São Paulo', timezone: 'America/Sao_Paulo' },
+}
+
+function lerVinho(v: unknown): { nome: string; produtor: string; safra: number | null } | null {
+	if (!v || typeof v !== 'object') return null
+	const o = v as Record<string, unknown>
+	const nome = typeof o.nome === 'string' ? o.nome.trim().slice(0, 200) : ''
+	if (!nome) return null
+	const produtor = typeof o.produtor === 'string' ? o.produtor.trim().slice(0, 200) : ''
+	const safra = typeof o.safra === 'number' && Number.isInteger(o.safra) && o.safra > 1800 && o.safra < 2200 ? o.safra : null
+	return { nome, produtor, safra }
+}
 
 function erro(mensagem: string, status: number) {
 	return Response.json({ error: mensagem }, { status, headers: SEM_CACHE })
@@ -95,27 +154,30 @@ export async function action({ request }: Route.ActionArgs) {
 	if (negado) return negado
 	if (request.method !== 'POST') return erro('Método não permitido.', 405)
 
-	let corpo: { imagem?: unknown; mediaType?: unknown; pesquisar?: unknown }
+	let corpo: { imagem?: unknown; mediaType?: unknown; pesquisar?: unknown; vinho?: unknown }
 	try {
 		corpo = await request.json()
 	} catch {
 		return erro('JSON inválido.', 400)
 	}
 	const imagem = typeof corpo?.imagem === 'string' ? corpo.imagem.replace(/^data:[^,]+,/, '').replace(/\s/g, '') : ''
-	if (!imagem) return erro('Envie a foto em "imagem" (base64).', 400)
+	const vinho = lerVinho(corpo?.vinho)
+	if (!imagem && !vinho) return erro('Envie a foto em "imagem" (base64) ou o vinho em "vinho".', 400)
 	if (imagem.length > LIMITE_BASE64) return erro('Foto grande demais.', 413)
 	const mediaType: TipoImagem = TIPOS_IMAGEM.includes(corpo.mediaType as TipoImagem)
 		? (corpo.mediaType as TipoImagem)
 		: 'image/jpeg'
-	const pesquisar = corpo.pesquisar !== false
+	const pesquisar = !imagem || corpo.pesquisar !== false
 
 	const messages: Anthropic.Beta.BetaMessageParam[] = [
 		{
 			role: 'user',
-			content: [
-				{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imagem } },
-				{ type: 'text', text: pesquisar ? PROMPT_PESQUISA : PROMPT_LEITURA },
-			],
+			content: imagem
+				? [
+						{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imagem } },
+						{ type: 'text', text: pesquisar ? PROMPT_PESQUISA : PROMPT_LEITURA },
+					]
+				: [{ type: 'text', text: promptPorNome(vinho!) }],
 		},
 	]
 
@@ -133,7 +195,7 @@ export async function action({ request }: Route.ActionArgs) {
 					effort: pesquisar ? 'medium' : 'low',
 					format: { type: 'json_schema', schema: SCHEMA },
 				},
-				...(pesquisar ? { tools: [{ type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 5 }] } : {}),
+				...(pesquisar ? { tools: [BUSCA_WEB] } : {}),
 				messages,
 			})
 			if (resposta.stop_reason !== 'pause_turn') break
