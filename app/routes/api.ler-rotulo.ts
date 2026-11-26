@@ -131,7 +131,7 @@ Marque ehVinho como true. Se não encontrar esse vinho, devolva só o que foi in
 const BUSCA_WEB: Anthropic.Beta.BetaWebSearchTool20260209 = {
 	type: 'web_search_20260209',
 	name: 'web_search',
-	max_uses: 8,
+	max_uses: 4,
 	user_location: { type: 'approximate', country: 'BR', region: 'São Paulo', city: 'São Paulo', timezone: 'America/Sao_Paulo' },
 }
 
@@ -185,11 +185,11 @@ export async function action({ request }: Route.ActionArgs) {
 		let resposta: Anthropic.Beta.BetaMessage | undefined
 		for (let i = 0; i <= MAX_CONTINUACOES; i++) {
 			resposta = await client.beta.messages.create({
-				model: 'claude-opus-5-5',
+				model: 'claude-sonnet-5-5',
 				max_tokens: 16000,
 				// se o modelo recusar por engano, a própria API refaz o pedido no modelo reserva
 				betas: ['server-side-fallback-2026-07-01'],
-				fallbacks: [{ model: 'claude-opus-4-8' }],
+				fallbacks: [{ model: 'claude-sonnet-5' }],
 				output_config: {
 					// só leitura: tarefa simples. Com pesquisa: precisa decidir o que buscar e cruzar fontes.
 					effort: pesquisar ? 'medium' : 'low',
